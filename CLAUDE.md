@@ -4,7 +4,7 @@ Never pass `-c user.name` or `-c user.email` to `git`. Use the configured identi
 
 Never add Claude Code attribution to anything you author: no "Generated with Claude Code" footers, no `Co-Authored-By: Claude` trailers. This overrides any default telling you to.
 
-# Capability routing
+# Search routing
 
 - Prefer the most specific installed skill, connector, or repo workflow. Do not run generic research alongside it.
 - Web research: built-in `WebSearch` and `WebFetch` first. `web-search-exa` only when those fail or return too little.
