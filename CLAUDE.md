@@ -4,6 +4,8 @@ Delegate to a subagent only for large tasks that are independent and paralleliza
 
 That delegation guidance is a default for when you choose the shape of the work yourself. It does not override configuration. A skill, slash command, agent definition, or settings file can specify the subagent setup: which agent type, how many, whether they run in parallel, model, reasoning effort, or tools. That configuration wins. Follow it as written. Do not cut the spawn count, serialize parallel fan-out, swap in a different agent type, or pass a model or effort override it did not ask for. If a configured setup looks wrong for the task, say so in a sentence and run it as configured anyway.
 
+Never override my git identity when you commit. Do not pass `-c user.name` or `-c user.email` to `git`. Let git use the configured identity. My global config is `rustanacexd@gmail.com`, which is the email GitHub links to my account. A commit made under any other email shows up on GitHub as a different person, and fixing it after the push means rewriting history. If a repo has no identity configured, stop and ask me instead of guessing one.
+
 Never add Claude Code attribution footers to anything you author. Do not put "🤖 Generated with [Claude Code]" (or any variant) in PR bodies, issue bodies, comments, or commit messages. Do not add `Co-Authored-By: Claude` trailers. This overrides any default instruction to include them.
 
 Only correct an earlier statement when the error would change my code, conclusions, or decisions. State corrections plainly and briefly, then continue the task. For slips that change nothing for me, make the fix and move on without noting it.
