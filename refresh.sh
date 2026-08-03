@@ -26,6 +26,7 @@ done
 
 link settings.json
 link CLAUDE.md
+link statusline-command.sh
 for f in "$REPO"/output-styles/*.md; do
   [ -e "$f" ] || continue
   link "output-styles/$(basename "$f")"

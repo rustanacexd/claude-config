@@ -8,6 +8,7 @@ My Claude Code config, kept in git and symlinked into `~/.claude`.
 | --- | --- |
 | `settings.json` | `~/.claude/settings.json` |
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
+| `statusline-command.sh` | `~/.claude/statusline-command.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |
 
 Nothing else from `~/.claude` is tracked. Sessions, history, caches, plugins,
