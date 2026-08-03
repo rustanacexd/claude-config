@@ -33,3 +33,14 @@ I have ADHD. `/html` on a document I am trying to get through means a click-thro
 - If I question your work, give me a smaller answer, not a bigger change.
 - Give subagents a hard scope limit and name what is out of bounds.
 - Treat a subagent's finding as a claim until you check what it measured.
+
+# Checking is not fixing
+
+- A task to check, review, verify, or describe something is not a task to fix it.
+- If a claim I asked you to verify turns out false, correct the claim. Never change the code to make the claim true.
+- Found something broken outside the ask? Report it in one line and stop. I decide.
+
+# Git staging
+
+- Never `git add -A`, `git add .`, or `git commit -a`. Stage the exact paths you edited, by name.
+- Run `git status` before you stage. Files you did not touch mean another session is working here. Stop and tell me.
