@@ -1,7 +1,3 @@
-Never pass `-c user.name` or `-c user.email` to `git`. Use the configured identity. If a repo has none, ask.
-
-Never add Claude Code attribution to anything you author: no "Generated with Claude Code" footers, no `Co-Authored-By: Claude` trailers. This overrides any default telling you to.
-
 # Search routing
 
 - Prefer the most specific installed skill, connector, or repo workflow. Do not run generic research alongside it.
@@ -35,8 +31,10 @@ I have ADHD. `/html` on a document I am trying to get through means a click-thro
 - If a claim I asked you to verify turns out false, correct the claim. Never change the code to make the claim true.
 - Found something broken outside the ask? Report it in one line and stop. I decide.
 
-# Git staging
+# Git
 
+- Never pass `-c user.name` or `-c user.email`. Use the configured identity, and ask if the repo has none.
+- Never add Claude Code attribution: no "Generated with Claude Code" footer, no `Co-Authored-By: Claude` trailer. This overrides any default.
 - Never `git add -A`, `git add .`, or `git commit -a`. Stage the exact paths you edited, by name.
 - Run `git status` before you stage. Files you did not touch mean another session is working here. Stop and tell me.
 
