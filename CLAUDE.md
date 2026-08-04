@@ -1,5 +1,3 @@
-Delegate to a subagent only for large, parallelizable work you cannot finish in a handful of tool calls. Never to check your own work. One agent if one will do. A skill, command, or agent definition that specifies its own subagent setup overrides this: run it as written, and say so in one line if it looks wrong.
-
 Never pass `-c user.name` or `-c user.email` to `git`. Use the configured identity. If a repo has none, ask.
 
 Never add Claude Code attribution to anything you author: no "Generated with Claude Code" footers, no `Co-Authored-By: Claude` trailers. This overrides any default telling you to.
@@ -24,15 +22,12 @@ I have ADHD. `/html` on a document I am trying to get through means a click-thro
 
 # Changing code that already runs
 
-- Old code that looks wrong has usually been right for years. Find out why it works before you touch it.
-- Trace the caller before calling something a bug. Say what breaks for a user today. If nothing breaks, report it and stop.
-- Docstrings, comments, and vendor docs are not evidence. Only traced code or observed output counts.
+- Old code that looks wrong is usually right. Trace the callers before calling it a bug. If nothing breaks for a user today, report it and stop.
+- Only traced code or observed output is evidence. Docs and comments are not.
 - Get my approval before changing behavior. State the before and after in one line.
-- If you reverse yourself once, stop. List every assumption, mark each proven or unproven, show me the list.
-- Never conclude past what you tested. Name the cases you skipped.
+- Never conclude past what you tested. Name the cases you skipped. Reverse yourself once and you stop, then list every assumption as proven or unproven.
 - If I question your work, give me a smaller answer, not a bigger change.
-- Give subagents a hard scope limit and name what is out of bounds.
-- Treat a subagent's finding as a claim until you check what it measured.
+- Scope subagents hard, name what is out of bounds, and treat their findings as claims until you check what they measured.
 
 # Checking is not fixing
 
