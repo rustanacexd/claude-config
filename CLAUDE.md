@@ -44,3 +44,13 @@ I have ADHD. `/html` on a document I am trying to get through means a click-thro
 
 - Never `git add -A`, `git add .`, or `git commit -a`. Stage the exact paths you edited, by name.
 - Run `git status` before you stage. Files you did not touch mean another session is working here. Stop and tell me.
+
+# Pull requests
+
+- Say what the PR solves and how it solves it. High level only, no code or file lists.
+- Under 30 lines.
+
+# Commits
+
+- Subject: imperative, under 60 characters.
+- Body only when the reason is not obvious. Three lines max, and say why, not what.
