@@ -14,24 +14,13 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "opus[1m]",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "claude-api": "off",
     "dataviz": "off"
   },
-  "hooks": {
-    "SubagentStart": [
-      {
-        "matcher": "tldraw-offline",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh '/Users/rustancorpuz/skills/tldraw-offline/inject-server-context.sh' SubagentStart"
-          }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "enableArtifact": false,
   "statusLine": {
     "type": "command",
@@ -86,7 +75,7 @@
       "autoUpdate": true
     }
   },
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
