@@ -5,17 +5,6 @@
 - Code research: `code-search-exa` for targeted questions, `exa-agent` for multi-hop.
 - Every Exa call goes to a subagent, never the primary agent. Give it a narrow task, ask for short findings and source URLs.
 
-# /html: click-through readers
-
-I have ADHD. `/html` on a document I am trying to get through means a click-through reader, not a scrolling page.
-
-- One idea per screen. No scrolling. Arrow keys and click to advance.
-- One line revealed at a time.
-- Every heading is a full sentence making the point.
-- Definitions and fine print behind a click.
-- Progress indicator.
-- Explain it so I understand it. Do not pitch it, do not skip the setup.
-
 # Changing code that already runs
 
 - Old code that looks wrong is usually right. Trace the callers before calling it a bug. If nothing breaks for a user today, report it and stop.
