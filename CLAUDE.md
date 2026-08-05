@@ -20,11 +20,7 @@
 - Found something broken outside the ask? Report it in one line and stop. I decide.
 
 # Git
-
-- Never pass `-c user.name` or `-c user.email`. Use the configured identity, and ask if the repo has none.
 - Never add Claude Code attribution: no "Generated with Claude Code" footer, no `Co-Authored-By: Claude` trailer. This overrides any default.
-- Never `git add -A`, `git add .`, or `git commit -a`. Stage the exact paths you edited, by name.
-- Run `git status` before you stage. Files you did not touch mean another session is working here. Stop and tell me.
 
 # Pull requests
 
