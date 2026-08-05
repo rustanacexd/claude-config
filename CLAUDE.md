@@ -12,7 +12,6 @@
 - Get my approval before changing behavior. State the before and after in one line.
 - Never conclude past what you tested. Name the cases you skipped. Reverse yourself once and you stop, then list every assumption as proven or unproven.
 - If I question your work, give me a smaller answer, not a bigger change.
-- Scope subagents hard, name what is out of bounds, and treat their findings as claims until you check what they measured.
 
 # Checking is not fixing
 
