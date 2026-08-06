@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5"
   },
   "permissions": {
     "allow": [
@@ -20,7 +20,6 @@
     "claude-api": "off",
     "dataviz": "off"
   },
-  "hooks": {},
   "enableArtifact": false,
   "statusLine": {
     "type": "command",
@@ -28,29 +27,23 @@
   },
   "enabledPlugins": {
     "codex@openai-codex": true,
-    "worktrunk@worktrunk": true,
+    "frontend-design@claude-plugins-official": true,
     "mattpocock-skills@mattpocock": true,
     "plannotator@plannotator": true,
-    "ponytail@ponytail": true,
-    "frontend-design@claude-plugins-official": true
+    "worktrunk@worktrunk": true
   },
   "extraKnownMarketplaces": {
-    "openai-codex": {
-      "source": {
-        "source": "github",
-        "repo": "openai/codex-plugin-cc"
-      }
-    },
-    "worktrunk": {
-      "source": {
-        "source": "github",
-        "repo": "max-sixty/worktrunk"
-      }
-    },
     "mattpocock": {
       "source": {
         "source": "github",
         "repo": "mattpocock/skills"
+      },
+      "autoUpdate": true
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
       },
       "autoUpdate": true
     },
@@ -65,6 +58,13 @@
       "source": {
         "source": "github",
         "repo": "DietrichGebert/ponytail"
+      },
+      "autoUpdate": true
+    },
+    "worktrunk": {
+      "source": {
+        "source": "github",
+        "repo": "max-sixty/worktrunk"
       },
       "autoUpdate": true
     }
