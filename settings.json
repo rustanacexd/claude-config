@@ -14,7 +14,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "claude-api": "off",
@@ -26,7 +26,6 @@
     "command": "bash /Users/rustancorpuz/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "codex@openai-codex": true,
     "frontend-design@claude-plugins-official": true,
     "mattpocock-skills@mattpocock": true,
     "plannotator@plannotator": true,
@@ -69,7 +68,7 @@
       "autoUpdate": true
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
