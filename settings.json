@@ -15,6 +15,7 @@
     "defaultMode": "auto"
   },
   "model": "opus[1m]",
+  "outputStyle": "Attention-kind",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "claude-api": "off",
