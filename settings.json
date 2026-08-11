@@ -3,7 +3,6 @@
   "env": {
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5"
   },
   "permissions": {
     "allow": [
@@ -15,7 +14,6 @@
     "defaultMode": "auto"
   },
   "model": "opus[1m]",
-  "outputStyle": "Attention-kind",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "claude-api": "off",
@@ -30,7 +28,8 @@
     "frontend-design@claude-plugins-official": true,
     "mattpocock-skills@mattpocock": true,
     "plannotator@plannotator": true,
-    "worktrunk@worktrunk": true
+    "worktrunk@worktrunk": true,
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "mattpocock": {
@@ -69,6 +68,7 @@
       "autoUpdate": true
     }
   },
+  "outputStyle": "Attention-kind",
   "effortLevel": "medium",
   "tui": "fullscreen",
   "voice": {
