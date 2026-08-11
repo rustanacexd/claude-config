@@ -1,8 +1,17 @@
 # Search routing
-- Prefer the most specific installed skill, connector, or repo workflow. Do not run generic research alongside it.
-- Web research: built-in `WebSearch` and `WebFetch` first. `web-search-exa` only when those fail or return too little.
-- Code research: `code-search-exa` for targeted questions, `exa-agent` for multi-hop.
-- Every Exa call goes to a subagent, never the primary agent. Give it a narrow task, ask for short findings and source URLs.
+
+Answer from the repo, conversation, or installed skills first; search only when local sources cannot settle it. Prefer the most specific installed skill, connector, or repo workflow — never run generic research alongside it.
+
+1. Classify the question.
+   - Programming (docs, APIs, SDK examples, config, debugging) → `code-search-exa` skill.
+   - Everything else → built-in `WebSearch`/`WebFetch` first; use `web-search-exa` when they fail or return too little.
+2. Pick depth.
+   - Quick lookup (1-2 queries): run inline.
+   - Multi-query research or page-heavy fetching: subagent — narrow task, return short findings and source URLs.
+   - Still unsettled after 2-3 searches, or genuinely multi-hop with cross-referenced sources → `mcp__exa__agent_run` in a subagent. Runs are long: keep the run ID and resume with `runId` instead of starting over.
+3. Stop when results corroborate an answer or clearly show the information is unavailable. Cite URLs. Do not escalate depth for anything a lookup already answered.
+
+Exa MCP tools enabled: `web_search_exa` (search), `web_search_advanced_exa` (search with domain/date filters and summaries), `web_fetch_exa` (page → markdown), `agent_run` (multi-step research agent).
 
 # Git
 - Never add Claude Code attribution: no "Generated with Claude Code" footer, no `Co-Authored-By: Claude` trailer. This overrides any default.
