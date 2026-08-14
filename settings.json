@@ -13,36 +13,29 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
-    "claude-api": "off",
     "dataviz": "off"
   },
   "enableArtifact": false,
   "statusLine": {
     "type": "command",
-    "command": "bash /Users/rustancorpuz/.claude/statusline-command.sh"
+    "command": "bash /Users/rustancorpuz/.claude/statusline.sh"
   },
   "enabledPlugins": {
+    "plannotator@plannotator": true,
     "frontend-design@claude-plugins-official": false,
     "mattpocock-skills@mattpocock": true,
-    "plannotator@plannotator": true,
     "worktrunk@worktrunk": true,
-    "codex@openai-codex": false
+    "ponytail@ponytail": true,
+    "slack@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "mattpocock": {
       "source": {
         "source": "github",
         "repo": "mattpocock/skills"
-      },
-      "autoUpdate": true
-    },
-    "openai-codex": {
-      "source": {
-        "source": "github",
-        "repo": "openai/codex-plugin-cc"
       },
       "autoUpdate": true
     },
@@ -57,8 +50,7 @@
       "source": {
         "source": "github",
         "repo": "DietrichGebert/ponytail"
-      },
-      "autoUpdate": true
+      }
     },
     "worktrunk": {
       "source": {
@@ -70,6 +62,7 @@
   },
   "outputStyle": "Attention-kind",
   "effortLevel": "medium",
+  "advisorModel": "fable",
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
@@ -81,6 +74,5 @@
   "editorMode": "normal",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true,
-  "advisorModel": "fable"
+  "skipAutoPermissionPrompt": true
 }
