@@ -1,6 +1,7 @@
 ---
 name: explain-diff-html
-description: Use when the user asks for a rich explanation of a code change, diff, branch, commit, or PR. Produces a self-contained interactive HTML page.
+description: Rich interactive HTML explanation of a code change, with background, intuition, walkthrough, and quiz.
+disable-model-invocation: true
 ---
 
 # Explain Diff
