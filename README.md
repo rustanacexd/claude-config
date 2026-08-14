@@ -10,9 +10,10 @@ My Claude Code config, kept in git and symlinked into `~/.claude`.
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
 | `statusline-command.sh` | `~/.claude/statusline-command.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |
+| `skills/*/` | `~/.claude/skills/` |
 
 Nothing else from `~/.claude` is tracked. Sessions, history, caches, plugins,
-and skills stay local.
+and skills not in this repo stay local.
 
 ## Set up a new machine
 

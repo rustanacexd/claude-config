@@ -3,7 +3,7 @@
 set -e
 REPO=$(cd "$(dirname "$0")" && pwd)
 DEST=~/.claude
-mkdir -p "$DEST/output-styles"
+mkdir -p "$DEST/output-styles" "$DEST/skills"
 
 link() { # $1 = path relative to repo root
   src="$REPO/$1"
@@ -22,6 +22,13 @@ link() { # $1 = path relative to repo root
 for f in "$DEST"/output-styles/*.md; do
   [ -e "$f" ] || continue
   link "output-styles/$(basename "$f")"
+done
+
+# Skill folders: repo side only. Never sweep ~/.claude/skills for adoption --
+# it holds plugin symlinks and local-only skills that must stay out of the repo.
+for d in "$REPO"/skills/*/; do
+  [ -d "$d" ] || continue
+  link "skills/$(basename "$d")"
 done
 
 link settings.json
