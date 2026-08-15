@@ -108,7 +108,7 @@ if [[ -n "$used_tokens" ]]; then
       printf "%s%s", out, s;
     }'
   }
-  ctx_str="ctx $(humanize "$used_tokens")"
+  ctx_str="$(humanize "$used_tokens")"
   if [[ -n "$ctx_size" && "$ctx_size" -gt 0 ]]; then
     ctx_str="${ctx_str}/$(humanize "$ctx_size")"
   fi
