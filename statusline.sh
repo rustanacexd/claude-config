@@ -62,8 +62,12 @@ if [[ -n "$git_branch" ]]; then
   parts+=("$(printf '\033[33m%s\033[0m' "$branch_str")")
 fi
 
-# Model
-parts+=("$(printf '\033[35m%s\033[0m' "$model")")
+# Model, with reasoning effort beside it
+model_str=$(printf '\033[35m%s\033[0m' "$model")
+if [[ -n "$effort" ]]; then
+  model_str="$model_str $(printf '\033[36m%s\033[0m' "$effort")"
+fi
+parts+=("$model_str")
 
 # Context usage in tokens (color-coded: green < 50%, yellow < 80%, red >= 80%)
 if [[ -n "$used_tokens" ]]; then
@@ -99,11 +103,6 @@ if [[ -n "$used_tokens" ]]; then
     ctx_str="${ctx_str}/$(humanize "$ctx_size")"
   fi
   parts+=("$(printf "${ctx_color}%s\033[0m" "$ctx_str")")
-fi
-
-# Reasoning effort
-if [[ -n "$effort" ]]; then
-  parts+=("$(printf '\033[36meffort:%s\033[0m' "$effort")")
 fi
 
 # PR number as a clickable OSC 8 hyperlink
