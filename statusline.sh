@@ -125,7 +125,7 @@ fi
 
 # Session name
 if [[ -n "$session_name" ]]; then
-  printf -v _p '\033[36m[%s]\033[0m' "$session_name"
+  printf -v _p '\033[90m[%s]\033[0m' "$session_name"
   parts+=("$_p")
 fi
 
