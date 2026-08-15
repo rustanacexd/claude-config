@@ -1,15 +1,39 @@
 #!/usr/bin/env bash
 # Claude Code status line — mirrors Starship prompt structure from ~/.config/starship.toml
 # Reads JSON from stdin and outputs a formatted status line.
+#
+# Renders on every turn, so it avoids forking: one jq for all fields, `printf -v`
+# instead of $(printf ...), and no subprocess that isn't earning its keep.
 
-input=$(cat)
+IFS= read -rd '' input
 
-cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "."')
-model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+# One jq, one field per line. Every field MUST use `// ""` and not `// empty`:
+# empty emits no line at all, which silently shifts every later read up by one.
+{
+  IFS= read -r cwd
+  IFS= read -r model
+  IFS= read -r used_pct
+  IFS= read -r ctx_size
+  IFS= read -r used_tokens
+  IFS= read -r vim_mode
+  IFS= read -r session_name
+  IFS= read -r effort
+  IFS= read -r pr_number
+  IFS= read -r pr_url
+} <<<"$(jq -r '
+  (.workspace.current_dir // .cwd // "."),
+  (.model.display_name // "Claude"),
+  (.context_window.used_percentage // ""),
+  (.context_window.context_window_size // ""),
+  (.context_window.total_input_tokens // ""),
+  (.vim.mode // ""),
+  (.session_name // ""),
+  (.effort.level // ""),
+  (.pr.number // ""),
+  (.pr.url // "")
+' <<<"$input")"
+
 model=${model%% (*}   # drop the context-size note: "Opus 5 (1M context)" -> "Opus 5"
-used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
-used_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
 
 # Auto-compact fires at this window, so it is the real ceiling, not the model's
 # full context. Only ever shrinks: the env var cannot raise the model's limit.
@@ -18,44 +42,42 @@ if [[ -n "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" && -n "$ctx_size" \
   ctx_size=$CLAUDE_CODE_AUTO_COMPACT_WINDOW
   used_pct=   # was a percentage of the full window; recompute below
 fi
-vim_mode=$(echo "$input" | jq -r '.vim.mode // empty')
-session_name=$(echo "$input" | jq -r '.session_name // empty')
-effort=$(echo "$input" | jq -r '.effort.level // empty')
-pr_number=$(echo "$input" | jq -r '.pr.number // empty')
-pr_url=$(echo "$input" | jq -r '.pr.url // empty')
 
-# --- Directory: shorten home to ~, truncate to last 3 components (starship truncation_length=3) ---
-short_cwd="${cwd/#$HOME/\~}"
-# Split on / and keep last 3 parts
+# --- Directory: shorten home to ~, keep last 3 components (starship truncation_length=3) ---
+_tilde='~'   # via a variable: bash 3.2 leaves the backslash in a literal \~
+short_cwd="${cwd/#$HOME/$_tilde}"
 IFS='/' read -ra _parts <<< "$short_cwd"
-if (( ${#_parts[@]} > 3 )); then
-  short_cwd=".../${_parts[-3]}/${_parts[-2]}/${_parts[-1]}"
+_n=${#_parts[@]}
+# Positive indices only: negative subscripts need bash 4.3 and macOS ships 3.2.
+if (( _n > 3 )); then
+  short_cwd=".../${_parts[_n-3]}/${_parts[_n-2]}/${_parts[_n-1]}"
 fi
 
-# --- Git info (skip optional lock so it never blocks) ---
-git_branch=""
-if git -C "$cwd" rev-parse --is-inside-work-tree --no-optional-locks >/dev/null 2>&1; then
-  git_branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
-    || git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
-fi
+# --- Git branch (skip optional lock so it never blocks) ---
+# No is-inside-work-tree gate: outside a repo both commands fail and this stays empty.
+git_branch=$(git --no-optional-locks -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
+  || git --no-optional-locks -C "$cwd" rev-parse --short HEAD 2>/dev/null)
 
 # --- Assemble parts ---
 parts=()
 
 # Directory
-parts+=("$(printf '\033[34m%s\033[0m' "$short_cwd")")
+printf -v _p '\033[34m%s\033[0m' "$short_cwd"
+parts+=("$_p")
 
 # Git branch
 if [[ -n "$git_branch" ]]; then
-  parts+=("$(printf '\033[33m%s\033[0m' "$git_branch")")
+  printf -v _p '\033[33m%s\033[0m' "$git_branch"
+  parts+=("$_p")
 fi
 
 # Model, with reasoning effort beside it
-model_str=$(printf '\033[35m%s\033[0m' "$model")
+printf -v _p '\033[35m%s\033[0m' "$model"
 if [[ -n "$effort" ]]; then
-  model_str="$model_str $(printf '\033[36m%s\033[0m' "$effort")"
+  printf -v _e '\033[36m%s\033[0m' "$effort"
+  _p="$_p $_e"
 fi
-parts+=("$model_str")
+parts+=("$_p")
 
 # Context usage in tokens (color-coded: green < 50%, yellow < 80%, red >= 80%)
 if [[ -n "$used_tokens" ]]; then
@@ -90,23 +112,28 @@ if [[ -n "$used_tokens" ]]; then
   if [[ -n "$ctx_size" && "$ctx_size" -gt 0 ]]; then
     ctx_str="${ctx_str}/$(humanize "$ctx_size")"
   fi
-  parts+=("$(printf "${ctx_color}%s\033[0m" "$ctx_str")")
+  printf -v _p "${ctx_color}%s\033[0m" "$ctx_str"
+  parts+=("$_p")
 fi
 
 # PR number as a clickable OSC 8 hyperlink
 if [[ -n "$pr_number" && -n "$pr_url" ]]; then
-  pr_link=$(printf '\033]8;;%s\033\\PR #%s\033]8;;\033\\' "$pr_url" "$pr_number")
-  parts+=("$(printf '\033[96m%s\033[0m' "$pr_link")")
+  printf -v _link '\033]8;;%s\033\\PR #%s\033]8;;\033\\' "$pr_url" "$pr_number"
+  printf -v _p '\033[96m%s\033[0m' "$_link"
+  parts+=("$_p")
 fi
 
 # Session name
 if [[ -n "$session_name" ]]; then
-  parts+=("$(printf '\033[36m[%s]\033[0m' "$session_name")")
+  printf -v _p '\033[36m[%s]\033[0m' "$session_name"
+  parts+=("$_p")
 fi
 
 # Vim mode
 if [[ -n "$vim_mode" ]]; then
-  parts+=("$(printf '\033[32m[%s]\033[0m' "$vim_mode")")
+  printf -v _p '\033[32m[%s]\033[0m' "$vim_mode"
+  parts+=("$_p")
 fi
 
-printf '%s' "$(IFS=' | '; echo "${parts[*]}")"
+IFS=' '
+printf '%s' "${parts[*]}"
