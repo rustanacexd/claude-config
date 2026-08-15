@@ -33,10 +33,20 @@ done
 
 link settings.json
 link CLAUDE.md
-link statusline-command.sh
+link statusline.sh
 for f in "$REPO"/output-styles/*.md; do
   [ -e "$f" ] || continue
   link "output-styles/$(basename "$f")"
+done
+
+# Drop links into this repo whose target is gone. Scoped to $REPO targets so
+# plugin symlinks and local-only skills in ~/.claude are never touched.
+for l in "$DEST"/* "$DEST"/output-styles/* "$DEST"/skills/*; do
+  if [ -L "$l" ] && [ ! -e "$l" ]; then
+    case "$(readlink "$l")" in
+      "$REPO"/*) rm "$l"; echo "pruned  ${l#$DEST/}" ;;
+    esac
+  fi
 done
 
 git -C "$REPO" status --short

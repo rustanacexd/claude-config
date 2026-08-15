@@ -8,7 +8,7 @@ My Claude Code config, kept in git and symlinked into `~/.claude`.
 | --- | --- |
 | `settings.json` | `~/.claude/settings.json` |
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| `statusline-command.sh` | `~/.claude/statusline-command.sh` |
+| `statusline.sh` | `~/.claude/statusline.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |
 | `skills/*/` | `~/.claude/skills/` |
 
@@ -38,7 +38,5 @@ Run it as often as you want. It skips links that are already correct.
 
 ## Limits
 
-- The script does not delete. If you remove a file from the repo, delete the
-  old symlink in `~/.claude` yourself.
-- `settings.json` has two absolute paths under `/Users/rustancorpuz/`: the
-  status line command and a subagent hook. Edit them if your username differs.
+The script deletes only broken symlinks that point back into this repo. Real
+files, plugin symlinks, and local-only skills in `~/.claude` are left alone.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code status line \u2014 mirrors Starship prompt structure from ~/.config/starship.toml
+# Claude Code status line — mirrors Starship prompt structure from ~/.config/starship.toml
 # Reads JSON from stdin and outputs a formatted status line.
 
 input=$(cat)
@@ -12,6 +12,8 @@ used_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty
 vim_mode=$(echo "$input" | jq -r '.vim.mode // empty')
 session_name=$(echo "$input" | jq -r '.session_name // empty')
 effort=$(echo "$input" | jq -r '.effort.level // empty')
+pr_number=$(echo "$input" | jq -r '.pr.number // empty')
+pr_url=$(echo "$input" | jq -r '.pr.url // empty')
 
 # --- Directory: shorten home to ~, truncate to last 3 components (starship truncation_length=3) ---
 short_cwd="${cwd/#$HOME/\~}"
@@ -94,6 +96,12 @@ fi
 # Reasoning effort
 if [[ -n "$effort" ]]; then
   parts+=("$(printf '\033[36meffort:%s\033[0m' "$effort")")
+fi
+
+# PR number as a clickable OSC 8 hyperlink
+if [[ -n "$pr_number" && -n "$pr_url" ]]; then
+  pr_link=$(printf '\033]8;;%s\033\\PR #%s\033]8;;\033\\' "$pr_url" "$pr_number")
+  parts+=("$(printf '\033[96m%s\033[0m' "$pr_link")")
 fi
 
 # Session name

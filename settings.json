@@ -21,7 +21,7 @@
   "enableArtifact": false,
   "statusLine": {
     "type": "command",
-    "command": "bash /Users/rustancorpuz/.claude/statusline.sh"
+    "command": "bash ~/.claude/statusline.sh"
   },
   "enabledPlugins": {
     "plannotator@plannotator": true,
