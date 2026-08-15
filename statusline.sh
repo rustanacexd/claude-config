@@ -34,20 +34,9 @@ fi
 
 # --- Git info (skip optional lock so it never blocks) ---
 git_branch=""
-git_status_str=""
 if git -C "$cwd" rev-parse --is-inside-work-tree --no-optional-locks >/dev/null 2>&1; then
   git_branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null \
     || git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
-
-  # Compute status markers matching starship.toml [git_status] symbols
-  _ahead=$(git -C "$cwd" rev-list --no-optional-locks --count @{u}..HEAD 2>/dev/null || echo 0)
-  _behind=$(git -C "$cwd" rev-list --no-optional-locks --count HEAD..@{u} 2>/dev/null || echo 0)
-  _gs=""
-  if git -C "$cwd" diff --no-optional-locks --quiet --cached 2>/dev/null; then :; else _gs="${_gs}+"; fi
-  if git -C "$cwd" diff --no-optional-locks --quiet 2>/dev/null; then :; else _gs="${_gs}!"; fi
-  if [[ -n $(git -C "$cwd" ls-files --others --exclude-standard 2>/dev/null) ]]; then _gs="${_gs}?"; fi
-  if (( _ahead > 0 && _behind > 0 )); then _gs="${_gs}<>"; elif (( _ahead > 0 )); then _gs="${_gs}>"; elif (( _behind > 0 )); then _gs="${_gs}<"; fi
-  [[ -n "$_gs" ]] && git_status_str="[$_gs]"
 fi
 
 # --- Assemble parts ---
@@ -56,11 +45,9 @@ parts=()
 # Directory
 parts+=("$(printf '\033[34m%s\033[0m' "$short_cwd")")
 
-# Git branch + status (starship $git_branch + $git_status)
+# Git branch
 if [[ -n "$git_branch" ]]; then
-  branch_str="git ${git_branch}"
-  [[ -n "$git_status_str" ]] && branch_str="${branch_str} ${git_status_str}"
-  parts+=("$(printf '\033[33m%s\033[0m' "$branch_str")")
+  parts+=("$(printf '\033[33m%s\033[0m' "$git_branch")")
 fi
 
 # Model, with reasoning effort beside it
