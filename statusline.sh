@@ -16,7 +16,6 @@ IFS= read -rd '' input
   IFS= read -r ctx_size
   IFS= read -r used_tokens
   IFS= read -r vim_mode
-  IFS= read -r session_name
   IFS= read -r effort
   IFS= read -r pr_number
   IFS= read -r pr_url
@@ -26,8 +25,7 @@ IFS= read -rd '' input
   (.context_window.used_percentage // ""),
   (.context_window.context_window_size // ""),
   (.context_window.total_input_tokens // ""),
-  (.vim.mode // ""),
-  (.session_name // ""),
+  (.vim.mode // "" | ascii_downcase),
   (.effort.level // ""),
   (.pr.number // ""),
   (.pr.url // "")
@@ -123,15 +121,9 @@ if [[ -n "$pr_number" && -n "$pr_url" ]]; then
   parts+=("$_p")
 fi
 
-# Session name
-if [[ -n "$session_name" ]]; then
-  printf -v _p '\033[90m[%s]\033[0m' "$session_name"
-  parts+=("$_p")
-fi
-
 # Vim mode
 if [[ -n "$vim_mode" ]]; then
-  printf -v _p '\033[32m[%s]\033[0m' "$vim_mode"
+  printf -v _p '\033[38;5;208m[%s]\033[0m' "$vim_mode"
   parts+=("$_p")
 fi
 
