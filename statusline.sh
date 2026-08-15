@@ -6,6 +6,7 @@ input=$(cat)
 
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "."')
 model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+model=${model%% (*}   # drop the context-size note: "Opus 5 (1M context)" -> "Opus 5"
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
 used_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
