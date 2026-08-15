@@ -9,6 +9,14 @@ model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
 used_tokens=$(echo "$input" | jq -r '.context_window.total_input_tokens // empty')
+
+# Auto-compact fires at this window, so it is the real ceiling, not the model's
+# full context. Only ever shrinks: the env var cannot raise the model's limit.
+if [[ -n "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" && -n "$ctx_size" \
+      && "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" -lt "$ctx_size" ]]; then
+  ctx_size=$CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  used_pct=   # was a percentage of the full window; recompute below
+fi
 vim_mode=$(echo "$input" | jq -r '.vim.mode // empty')
 session_name=$(echo "$input" | jq -r '.session_name // empty')
 effort=$(echo "$input" | jq -r '.effort.level // empty')
