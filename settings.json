@@ -71,7 +71,10 @@
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "editorMode": "normal",
+  "editorMode": "vim",
+  "vimInsertModeRemaps": {
+    "jj": "<Esc>"
+  },
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true
