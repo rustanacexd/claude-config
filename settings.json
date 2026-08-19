@@ -2,6 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "300000",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-opus-5",
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
   },
   "permissions": {
@@ -16,7 +17,14 @@
   "model": "opus[1m]",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
-    "dataviz": "off"
+    "dataviz": "off",
+    "ponytail-debt": "off",
+    "ponytail-gain": "off",
+    "ponytail-help": "off",
+    "slack-api": "off",
+    "block-kit": "off",
+    "slack-cli": "off",
+    "create-slack-app": "off"
   },
   "enableArtifact": false,
   "statusLine": {
@@ -24,25 +32,18 @@
     "command": "bash ~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "plannotator@plannotator": true,
     "frontend-design@claude-plugins-official": false,
     "mattpocock-skills@mattpocock": true,
     "worktrunk@worktrunk": true,
     "ponytail@ponytail": true,
-    "slack@claude-plugins-official": true
+    "slack@claude-plugins-official": false,
+    "plannotator-effective-html@effective-html": true
   },
   "extraKnownMarketplaces": {
     "mattpocock": {
       "source": {
         "source": "github",
         "repo": "mattpocock/skills"
-      },
-      "autoUpdate": true
-    },
-    "plannotator": {
-      "source": {
-        "source": "github",
-        "repo": "backnotprop/plannotator"
       },
       "autoUpdate": true
     },
@@ -58,6 +59,12 @@
         "repo": "max-sixty/worktrunk"
       },
       "autoUpdate": true
+    },
+    "effective-html": {
+      "source": {
+        "source": "github",
+        "repo": "plannotator/effective-html"
+      }
     }
   },
   "outputStyle": "Attention-kind",
@@ -71,11 +78,39 @@
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "editorMode": "vim",
+  "editorMode": "normal",
   "vimInsertModeRemaps": {
     "jj": "<Esc>"
   },
+  "preferredNotifChannel": "ghostty",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: Google Cloud (gcloud/bq usage seen in this session)",
+      "**Repository visibility**: assume private unless the remote host and repo name indicate otherwise, or a visibility check in the transcript shows public \u2014 not queryable here (no git remote configured in this repo)",
+      "**Internal sharing / snippet hosting**: None configured \u2014 treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: not queryable here (no git remote configured in this repo)",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Source control**: The trusted repo and its remote(s) only (no additional orgs configured) \u2014 no remote is configured for this repo",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited \u2014 e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured \u2014 fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development",
+      "**Trusted repo**: The git repository the agent started in (/Users/rustancorpuz) \u2014 no remote is configured; there is nothing tracked in it currently (0 tracked files)",
+      "**Org-specific CLIs**: None configured (gcloud, bq, and other CLIs seen in usage are generic vendor tools, not org-specific)"
+    ]
+  }
 }
