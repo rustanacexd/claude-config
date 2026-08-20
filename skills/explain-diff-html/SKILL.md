@@ -41,6 +41,7 @@ Organize the explanation into four core sections:
 ## Formatting & Design Requirements
 
 - **Self-contained**: A single standalone HTML file with inline `<style>` and `<script>`. No mandatory external CDNs or network assets so it opens cleanly offline and in sandboxed viewers.
+- **Dark mode only**: Always render dark. Set `color-scheme: dark` and drive every colour from CSS custom properties on `:root` (background, panel, text, muted text, rules, accent, good/warn/bad and their soft fills, code background). No light theme, no toggle, no `prefers-color-scheme` branch. Hardcoded light values like `#fff` backgrounds are the usual bug: the only place a literal white belongs is text sitting on a saturated fill.
 - **Responsive Layout**: Clean typography, readable max-width container, table of contents with anchor links, responsive on mobile and desktop.
 - **Diagrams**: Build every diagram, sequence flow, and figure with styled HTML/CSS (flexbox, grid, boxes, arrows, badges). Pick a consistent visual language.
   - UI mockups: simplified HTML representations of user-facing UI changes.
