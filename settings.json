@@ -31,7 +31,9 @@
     "worktrunk@worktrunk": true,
     "ponytail@ponytail": true,
     "slack@claude-plugins-official": false,
-    "plannotator-effective-html@effective-html": false
+    "plannotator-effective-html@effective-html": true,
+    "eli5@claude-community": true,
+    "plannotator@plannotator": true
   },
   "extraKnownMarketplaces": {
     "mattpocock": {
@@ -60,10 +62,27 @@
         "repo": "plannotator/effective-html"
       },
       "autoUpdate": true
+    },
+    "claude-community": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-community"
+      }
+    },
+    "plannotator": {
+      "source": {
+        "source": "github",
+        "repo": "backnotprop/plannotator"
+      }
     }
   },
   "outputStyle": "Concise",
-  "effortLevel": "medium",
+  "effortLevel": "high",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    }
+  },
   "advisorModel": "fable",
   "tui": "fullscreen",
   "voice": {
