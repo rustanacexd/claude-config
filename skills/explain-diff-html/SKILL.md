@@ -14,6 +14,12 @@ Determine the code change to explain:
 1. **Explicit target**: If the user specifies a commit, branch, PR (e.g. via `gh pr diff`), or file range (e.g. `main...HEAD`, `HEAD~1`), inspect that diff.
 2. **Implicit target**: If not specified, inspect uncommitted/staged working changes (`git diff HEAD`, `git status`). If the working tree is clean, inspect the latest commit (`git show HEAD`) or compare against the base branch (`git diff main...HEAD` or `git diff master...HEAD`).
 3. **Context exploration**: Explore surrounding files and codebase architecture broadly to understand what existed prior to the change.
+4. **Verify before asserting**: Any claim about runtime behaviour — what gets
+   logged, what is sent to an external service, which config value is live in
+   which environment, what a setting defaults to — must be grepped and cited to
+   a `file:line` before it goes in the document. Do not infer it from the diff
+   or from how the library usually behaves. If you cannot confirm it, either
+   leave it out or state the uncertainty in the text.
 
 ## Document Structure
 
@@ -23,6 +29,13 @@ Organize the explanation into four core sections:
    - Explain the existing architecture and system context relevant to this change.
    - Include a **Deep Background** section for beginners or newcomers to this codebase/domain (wrap in a `<details>` collapsible tag or clearly mark as skippable for readers already familiar).
    - Follow with the **Narrow Background** directly explaining the status quo and friction before the change.
+   - Close with a **Severity** subsection answering, in plain terms: what
+     actually broke in production, what bounded the damage (cache TTL, feature
+     flag, low traffic, an environment where the code path is disabled), and
+     why nobody noticed until now. Cite the config or code that bounds it. If
+     nothing user-visible broke, say so directly — a hygiene or security fix
+     with no behavioural symptom is a legitimate outcome, and dressing it up as
+     an outage misleads the reader.
 
 2. **Intuition**:
    - Explain the core mental model and intuition behind the change — the essence, not low-level line-by-line details.
@@ -49,7 +62,11 @@ Organize the explanation into four core sections:
   - Callout boxes: styled cards for important concepts, warnings, and edge cases.
 - **Code Blocks**: Use `<pre><code>` tags. Every code container **must** include `white-space: pre-wrap` (or `white-space: pre`) and `overflow-x: auto` in CSS so newlines and indentation are preserved.
 - **Interactive Quiz Implementation**: Include inline JavaScript to handle option selection, reveal answer status (green/red highlights), show explanations, and track progress/score.
-- **Writing Style**: Write with the clarity, depth, and flow of Martin Kleppmann — engaging, pedagogical, and clear.
+- **Writing Style**: Plain, precise, pedagogical. State the mechanism, not a
+  metaphor for the mechanism. If a sentence sounds clever, check that it also
+  states a fact; if it does not, cut it. Prefer "the cache key contained the
+  user's auth token" over "the key was answering the wrong question." Name
+  uncertainty explicitly instead of smoothing it into confident prose.
 
 ## Output File & Handoff
 
