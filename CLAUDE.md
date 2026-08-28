@@ -15,8 +15,7 @@ Answer from the repo, conversation, or installed skills first; search only when 
 - Never add Claude Code attribution: no "Generated with Claude Code" footer, no `Co-Authored-By: Claude` trailer. This overrides any default.
 
 # Pull requests
-- Say what the PR solves and how it solves it. High level only, no code or file lists.
-- Under 30 lines.
+- Prefer several narrow PRs to one large one.
 
 # Commits
 - Subject: imperative, under 60 characters.
