@@ -25,7 +25,4 @@ Answer from the repo, conversation, or installed skills first; search only when 
 - Label inference and assumption rather than blending them into verified fact.
 - When the evidence does not establish a clear winner, say so rather than manufacturing a confident ranking from weak or anecdotal evidence.
 
-# Explanations
-- Always supplement conceptual, algorithmic, data flow, and code logic explanations with clear ASCII diagrams and visuals.
-- HTML visual explainers: always dark mode by default.
-- Desktop only; skip mobile/responsive viewport handling unless asked.
+@~/.claude/pstack-models.md
