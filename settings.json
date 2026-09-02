@@ -16,13 +16,7 @@
     "slack-cli": "off",
     "create-slack-app": "off",
     "gh": "off",
-    "gh-stack": "off",
-    "mattpocock-skills:implement": "off",
-    "mattpocock-skills:tdd": "off",
-    "mattpocock-skills:code-review": "off",
-    "mattpocock-skills:diagnosing-bugs": "off",
-    "mattpocock-skills:resolving-merge-conflicts": "off",
-    "mattpocock-skills:prototype": "off"
+    "gh-stack": "off"
   },
   "enableArtifact": false,
   "statusLine": {
