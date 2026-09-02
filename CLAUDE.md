@@ -14,9 +14,6 @@ Answer from the repo, conversation, or installed skills first; search only when 
 # Git
 - Never add Claude Code attribution: no "Generated with Claude Code" footer, no `Co-Authored-By: Claude` trailer. This overrides any default.
 
-# Pull requests
-- Prefer several narrow PRs to one large one.
-
 # Commits
 - Subject: imperative, under 60 characters.
 - Body only when the reason is not obvious. Three lines max, and say why, not what.

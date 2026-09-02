@@ -85,9 +85,10 @@
   "effortLevel": "high",
   "modelSettings": {
     "claude-opus-5": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     }
   },
+  "advisorModel": "fable",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
@@ -130,6 +131,5 @@
       "**Trusted repo**: The git repository the agent started in (/Users/rustancorpuz) — no remote is configured; there is nothing tracked in it currently (0 tracked files)",
       "**Org-specific CLIs**: None configured (gcloud, bq, and other CLIs seen in usage are generic vendor tools, not org-specific)"
     ]
-  },
-  "advisorModel": "fable"
+  }
 }
