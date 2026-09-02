@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "350000",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
   },
   "permissions": {
@@ -34,8 +34,6 @@
     "mattpocock-skills@mattpocock": true,
     "worktrunk@worktrunk": true,
     "slack@claude-plugins-official": false,
-    "plannotator-effective-html@effective-html": false,
-    "eli5@claude-community": false,
     "plannotator@plannotator": true,
     "pstack@pstack-claude": true
   },
@@ -53,19 +51,6 @@
         "repo": "max-sixty/worktrunk"
       },
       "autoUpdate": true
-    },
-    "effective-html": {
-      "source": {
-        "source": "github",
-        "repo": "plannotator/effective-html"
-      },
-      "autoUpdate": true
-    },
-    "claude-community": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-community"
-      }
     },
     "plannotator": {
       "source": {
