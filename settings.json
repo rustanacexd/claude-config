@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "300000",
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
   },
   "permissions": {
@@ -11,6 +11,8 @@
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "dataviz": "off",
+    "simplify": "off",
+    "code-review": "off",
     "slack-api": "off",
     "block-kit": "off",
     "slack-cli": "off",
@@ -25,20 +27,12 @@
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": false,
-    "mattpocock-skills@mattpocock": true,
     "worktrunk@worktrunk": true,
     "slack@claude-plugins-official": false,
     "plannotator@plannotator": true,
     "pstack@pstack-claude": true
   },
   "extraKnownMarketplaces": {
-    "mattpocock": {
-      "source": {
-        "source": "github",
-        "repo": "mattpocock/skills"
-      },
-      "autoUpdate": true
-    },
     "worktrunk": {
       "source": {
         "source": "github",
@@ -57,17 +51,20 @@
       "source": {
         "source": "github",
         "repo": "michael-denyer/pstack-claude"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "outputStyle": "Concise",
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "modelSettings": {
     "claude-opus-5": {
       "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "medium"
     }
   },
-  "advisorModel": "fable",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
