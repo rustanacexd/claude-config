@@ -8,13 +8,13 @@ feature, refactoring: opus
 bug-fix: fable
 perf-issue: fable
 hillclimb: fable
-judgment and prose: opus
+judgment and prose: fable
 strongest judgment: fable
 how explorer: opus
-how explainer: opus
+how explainer: fable
 how critics: opus, fable, sonnet
 why investigators: opus
-why synthesizer: opus
+why synthesizer: fable
 reflect tooling: opus
 reflect judgment, divergent, synthesizer: opus
 arena runners: opus, fable, sonnet
