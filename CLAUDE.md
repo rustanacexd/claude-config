@@ -11,7 +11,4 @@ Answer from the repo, conversation, or installed skills first; search only when 
    - `mcp__exa__agent_run` in a subagent: still unsettled after 2-3 searches, or genuinely multi-hop across cross-referenced sources. Runs are long, so keep the run ID and resume with `runId`.
 3. Stop when results corroborate an answer or clearly show the information is unavailable. Cite URLs.
 
-# Git
-- Never add Claude Code attribution: no "Generated with Claude Code" footer
-
 @~/.claude/pstack-models.md

@@ -7,7 +7,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "dataviz": "off",
@@ -30,7 +30,7 @@
     "worktrunk@worktrunk": true,
     "slack@claude-plugins-official": false,
     "plannotator@plannotator": true,
-    "pstack@pstack-claude": true
+    "pstack@open-pstack": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {
@@ -47,12 +47,11 @@
       },
       "autoUpdate": true
     },
-    "pstack-claude": {
+    "open-pstack": {
       "source": {
         "source": "github",
-        "repo": "michael-denyer/pstack-claude"
-      },
-      "autoUpdate": true
+        "repo": "ericlitman/open-pstack"
+      }
     }
   },
   "outputStyle": "Concise",

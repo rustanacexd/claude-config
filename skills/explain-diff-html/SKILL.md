@@ -1,6 +1,6 @@
 ---
 name: explain-diff-html
-description: Interactive HTML explainer for a code change: background, intuition, execution trace, walkthrough, quiz.
+description: "Interactive HTML explainer for a code change: background, intuition, execution trace, walkthrough, quiz."
 disable-model-invocation: true
 ---
 
