@@ -31,6 +31,10 @@ own rules.
 sections reference it in a clause. Before saving, reread for any mechanism
 explained more than once and cut the duplicates.
 
+For a stacked or multi-PR target, add one table after the trace listing
+each link, what it owns, its migration if any, and how it was verified.
+That table replaces per-PR verification prose in the walkthrough.
+
 ## Document structure
 
 Four sections, in this order:
@@ -47,12 +51,25 @@ Four sections, in this order:
      nobody noticed until now. Cite the config or code that bounds it. If
      nothing user-visible broke, say so directly — a hygiene or security fix
      with no behavioural symptom is a legitimate outcome.
+     Every incident claim carries its provenance in the sentence: "verified"
+     with a Sentry issue, ticket, or log citation, or "reported by <PR body /
+     ticket>, not verified". When an error-tracking or issue-tracker
+     connector is available, query it for the error text before writing the
+     section, and say what the query returned even when it returned nothing;
+     an empty result with a reason ("the error is raised client-side") is
+     more useful than silence.
 
 2. **Intuition**:
    - Explain the core mental model behind the change — the essence, not line-by-line detail.
    - Use concrete examples with toy data and before/after comparisons.
    - Add a figure where it shows structure prose can't (a before/after flow,
      a fan-out); otherwise a sentence carries it.
+   - If the diff adds or changes a lifecycle (three or more states, or a
+     status enum with guarded transitions), draw it: states as boxes, every
+     transition labelled `event [guard] / action`, and each transition tagged
+     with the PR or commit that owns it. An unlabelled row of boxes is not a
+     lifecycle figure. Include return edges and any transition the diff
+     leaves broken, marked as such.
 
 3. **Code Walkthrough**:
    - Open with a **"Where the change sits"** execution-trace figure placing
@@ -63,9 +80,12 @@ Four sections, in this order:
        trace's call edges too.
      - The trace doubles as a clickable index of the walkthrough: each changed
        frame's name is an anchor (`<a href="#...">`) to the walkthrough
-       subsection explaining it, so subsection headings carry `id`s. Every
-       changed frame must resolve to a subsection, and anchors must resolve
-       (no dead `#` links) before saving. Non-runtime subsections (constants,
+       subsection explaining it, so subsection headings carry `id`s. Give
+       the trace figure an `id` and put a small link back to it on every
+       subsection heading the trace points at, so a reader who followed one
+       anchor down can return without scrolling. Every changed frame must
+       resolve to a subsection, and all anchors in both directions must
+       resolve (no dead `#` links) before saving. Non-runtime subsections (constants,
        tests, migrations) need no frame; a runtime-behaviour subsection no
        frame reaches signals the trace is missing a path.
      - Scope: the frames from the entry point to the deepest changed frame,
