@@ -1,24 +1,20 @@
 # pstack model configuration
 
-Per-role model overrides for pstack skills. Each pstack SKILL.md names its defaults in a Models section; the values here override those defaults. Delete a line to fall back to the skill default. A value of `inherit-parent` or `auto` runs that role on the parent session's model (the `Agent` call omits `model`); an alias entry in a panel list still counts toward that panel's fan-out.
+Provider-qualified per-role choices. Read the installed pstack provider-dispatch reference before dispatching a configured role. Every documented role remains present. `inherit-parent` and `auto` use the parent model natively and still count as one panel lane. Grok is intentionally excluded (no subscription).
 
-The `Agent` tool in this environment accepts only the family aliases `opus`, `sonnet`, `haiku`, `fable`. Versioned slugs such as `claude-opus-5` fail validation, so every value below is an alias. Aliases resolve to each family's current default (Opus 5, Sonnet 5, Haiku 4.5, Fable 5.1); pinning an older point release is not possible here.
-
-feature, refactoring: opus
-bug-fix: fable
-perf-issue: fable
-hillclimb: fable
-judgment and prose: fable
-strongest judgment: fable
-how explorer: opus
-how explainer: fable
-how critics: opus, fable, sonnet
-why investigators: opus
-why synthesizer: fable
-reflect tooling: opus
-reflect judgment, divergent, synthesizer: opus
-arena runners: opus, fable, sonnet
-arena cross-judge pool: opus, fable, sonnet
-swarm workers: opus
-architect runners: opus, fable, sonnet
-interrogate reviewers: opus, fable, sonnet
+feature, refactoring: claude:opus@medium
+bug-fix: claude:fable@medium
+perf-issue: claude:fable@medium
+hillclimb: claude:fable@medium
+judgment and prose: claude:fable@medium
+hardest tasks: claude:fable@medium
+how explorer: claude:opus@medium
+how explainer: claude:fable@medium
+how critics: claude:fable@medium, codex:gpt-6-astra@medium, claude:opus@high
+why investigators, synthesizer: inherit-parent
+reflect tooling, judgment, divergent, synthesizer: inherit-parent
+arena runners: claude:fable@medium, codex:gpt-6-astra@medium, claude:opus@high
+arena cross-judge pool: codex:gpt-6-astra@medium, claude:fable@medium, claude:opus@high
+swarm workers: claude:opus@medium
+architect runners: claude:fable@medium, codex:gpt-6-astra@medium, claude:opus@high
+interrogate reviewers: claude:fable@medium, codex:gpt-6-astra@medium, claude:opus@high
