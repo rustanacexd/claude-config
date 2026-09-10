@@ -23,9 +23,9 @@ Generate a self-contained, interactive HTML document that explains a code change
 ## Proportionality
 
 The diff sets the budget. Every section below is a ceiling, not a quota; a
-small diff (one behavioral change, under ~100 changed lines) earns a document
-that reads in about five minutes. Per-section sizing lives in each section's
-own rules.
+diff that makes one behavioral change earns a short document, and a section
+with nothing to add for this diff is dropped rather than filled. Per-section
+sizing lives in each section's own rules.
 
 **State each fact once**, in the section where it does the most work; later
 sections reference it in a clause. Before saving, reread for any mechanism
@@ -112,24 +112,37 @@ Four sections, in this order:
 
 4. **Quiz**:
    - Interactive multiple-choice questions of medium difficulty, testing
-     conceptual and technical understanding of the change: three for a small
-     diff, up to five for a large one. Each question must test a distinct
-     concept — if two questions would share an explanation, cut one.
+     conceptual and technical understanding of the change. Each question must
+     test a distinct concept — if two questions would share an explanation,
+     cut one; a small diff usually yields only a few.
    - Instant feedback: on clicking an option, show correct/incorrect with a
-     short explanatory note (2-3 sentences; point back to the section that
-     covers it rather than restating it).
+     short explanatory note that points back to the section covering it
+     rather than restating it.
 
 ## Formatting and design
 
-- **Self-contained**: A single standalone HTML file with inline `<style>` and `<script>`; inline every asset so it opens offline and in sandboxed viewers.
-- **Dark mode only**: Set `color-scheme: dark` and drive every colour from CSS custom properties on `:root` (background, panel, text, muted text, rules, accent, good/warn/bad and their soft fills, code background). No light theme, no toggle, no `prefers-color-scheme` branch. Hardcoded light values like `#fff` backgrounds are the usual bug: the only place a literal white belongs is text sitting on a saturated fill.
+- **Self-contained**: A single standalone HTML file with inline `<style>` and `<script>`; inline every asset so it opens offline and in sandboxed viewers. Assume scripts may be stripped: the Claude desktop app's file panel and the Browser pane render local files as static snapshots without JavaScript, and a `file://` open in some viewers does the same. Every interaction the reader needs (quiz answers, `<details>` toggles) must work with JavaScript disabled; JavaScript may only add extras on top.
+- **Dark mode only**: Set `color-scheme: dark` and drive every colour from CSS custom properties on `:root` (background, panel, text, muted text, rules, accent, good/warn/bad and their soft fills, code background). No light theme, no toggle, no `prefers-color-scheme` branch. A literal white belongs only on text sitting over a saturated fill; every background colour comes from a custom property.
 - **Responsive layout**: Readable max-width container, table of contents with anchor links.
 - **Diagrams**: Build every diagram and figure with styled HTML/CSS (flexbox, grid, boxes, arrows, badges). Pick a consistent visual language.
   - UI mockups: simplified HTML representations of user-facing UI changes.
   - System diagrams: box-and-arrow data flow with concrete example data.
   - Callout boxes: styled cards for important concepts, warnings, and edge cases.
 - **Code blocks**: Use `<pre><code>` tags. Every code container **must** include `white-space: pre-wrap` (or `white-space: pre`) and `overflow-x: auto` in CSS so newlines and indentation are preserved.
-- **Quiz implementation**: Inline JavaScript for option selection, answer reveal (green/red highlights), explanations, and score tracking.
+- **Quiz implementation**: CSS-only, no JavaScript on the answer path. Each
+  question is a block with one `<input type="radio">` per option placed
+  *before* the option `<label>`s and the explanation `<div>`, so
+  `input:checked ~` sibling selectors can do the work without `:has()`:
+  `input:checked ~ .exp` reveals the explanation, `input:checked ~ .opt.is-answer`
+  turns the correct label green, one `#qN-i:checked ~ label[for="qN-i"]` rule
+  per wrong option turns the chosen wrong label red, and
+  `input:checked ~ .opt { pointer-events: none }` locks the question. Hide the
+  radios visually (`opacity: 0; position: absolute`), never `display: none`,
+  or keyboard focus breaks. Do not use `<button>` plus click handlers for
+  options; that is the pattern that fails in script-stripped viewers.
+  A running score is the only thing JavaScript may add: keep the score
+  element hidden by default and have the script reveal it, so a viewer
+  without scripts shows no dead "Score" line.
 - **Writing style**: Plain, precise, pedagogical. State the mechanism, not a
   metaphor for the mechanism. If a sentence sounds clever, check that it also
   states a fact; if it does not, cut it. Prefer "the cache key contained the
@@ -138,7 +151,7 @@ Four sections, in this order:
 
 ## Output file and handoff
 
-1. Before saving, run the `unslop` skill over the document's prose (background,
+1. Before saving, run the `pstack:unslop` skill over the document's prose (background,
    intuition, walkthrough, quiz explanations) and apply its edits.
    Leave code snippets untouched.
 2. Save the file outside any code repository:
@@ -146,4 +159,13 @@ Four sections, in this order:
    /tmp/YYYY-MM-DD-explanation-<slug>.html
    ```
    (Use today's date and a descriptive slug based on the change).
-3. Report the absolute path to the generated HTML file and how to open it (e.g. `open /tmp/...` on macOS).
+3. Prove the quiz works with scripts stripped before reporting: write a copy
+   with every `<script>` block removed, serve `/tmp` over `python3 -m
+   http.server` (the Browser pane cannot script `file://` tabs), click a
+   wrong option in a fresh tab, and read computed styles to confirm the
+   wrong label is red, the correct label is green, the explanation is
+   visible, and other questions are untouched. Bust the cache with a query
+   string when reloading an edited file; `http.server` and the tab both
+   cache. Then repeat once on the real file to confirm the score line
+   appears and updates. Delete the copy and stop the server afterwards.
+4. Report the absolute path to the generated HTML file and how to open it (e.g. `open /tmp/...` on macOS).
