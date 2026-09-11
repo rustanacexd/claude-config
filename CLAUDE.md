@@ -1,3 +1,13 @@
+# Unslop
+
+Run `pstack:unslop` on anything a human will read, before delivering it. Every
+final response in the conversation, every HTML artifact, every document, commit
+message, pull request description, and code comment. Short replies are included.
+
+This applies no matter which skill is driving the work, including when that
+skill's own delivery checklist does not mention it. Loading another skill does
+not replace this rule.
+
 # Search routing
 
 Answer from the repo, conversation, or installed skills first; search only when local sources cannot settle it. Prefer the most specific installed skill, connector, or repo workflow.
@@ -32,5 +42,8 @@ panel.
 Desktop only. When generating an HTML artifact, verify it at desktop width and
 do not test, fix, or report on narrow-viewport or mobile rendering. Existing
 responsive CSS can stay; it just is not something to check or spend a turn on.
+
+The Unslop rule at the top of this file covers every word in the artifact a
+reader sees.
 
 @~/.claude/pstack-models.md
