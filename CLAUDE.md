@@ -12,7 +12,17 @@ Answer from the repo, conversation, or installed skills first; search only when 
 
 # Stacked PRs
 
-Build and land PR stacks with the `gh stack` extension (the `gh-stack` skill), never by hand.
+Build and land PR stacks with the `gh stack` extension, never by hand. Read the
+`gh-stack` skill when you need its guidance.
+
+You drive this end to end. Create the branches, create the PRs, set the bases,
+push. Never stop at a finished branch and ask me to run `/gh-stack` or any other
+command to publish it. A skill marked for my invocation only governs the Skill
+tool, not the CLI behind it, and not your responsibility for the task. Use
+`gh stack` and `gh` directly and finish the job.
+
+Hand something back only when it genuinely needs my credentials, my approval for
+an irreversible action, or a decision no command can settle.
 
 # Never work on main
 
