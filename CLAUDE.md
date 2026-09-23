@@ -19,13 +19,6 @@ Never write on the default branch. Before the first write, run `wt switch --crea
 open the pull request from that branch. If the default branch has uncommitted changes you
 did not make, leave them alone and report them in your first sentence.
 
-# Codex lanes
-
-`codex-cli` is installed and working, so every `codex:*` pstack lane runs as configured.
-A Claude lane is not a substitute. If a Codex lane drops out, stop the panel and report in
-your first sentence: role, receipt status and error, receipt path. A sandbox denial is an
-environment fault. Ask before continuing on Claude lanes only.
-
 # Delegated worktrees
 
 A delegated worktree is the subagent's until you prove it idle. A task-notification is not
@@ -38,8 +31,5 @@ write in its worktree.
 
 HTML artifacts are desktop only: verify at desktop width, do not test or fix mobile
 rendering, keep existing responsive CSS.
-
-Run `pstack:unslop` on written artifacts, commit messages, and pull request descriptions
-before delivering them.
 
 @~/.claude/pstack-models.md
