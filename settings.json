@@ -8,6 +8,11 @@
     "defaultMode": "bypassPermissions"
   },
   "disableClaudeAiConnectors": true,
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "skillOverrides": {
     "dataviz": "off",
     "simplify": "off",
@@ -34,22 +39,15 @@
     "frontend-design@claude-plugins-official": false,
     "worktrunk@worktrunk": true,
     "slack@claude-plugins-official": false,
-    "pstack@open-pstack": true,
     "plannotator@plannotator": true,
-    "slack-by-salesforce@inline": false
+    "slack-by-salesforce@inline": false,
+    "pstack@pstack-claude": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {
       "source": {
         "source": "github",
         "repo": "max-sixty/worktrunk"
-      },
-      "autoUpdate": true
-    },
-    "open-pstack": {
-      "source": {
-        "source": "github",
-        "repo": "ericlitman/open-pstack"
       },
       "autoUpdate": true
     },
@@ -105,5 +103,6 @@
       "**Trusted repo**: The git repository the agent started in (/Users/rustancorpuz) — no remote is configured; there is nothing tracked in it currently (0 tracked files)",
       "**Org-specific CLIs**: None configured (gcloud, bq, and other CLIs seen in usage are generic vendor tools, not org-specific)"
     ]
-  }
+  },
+  "advisorModel": "fable"
 }
