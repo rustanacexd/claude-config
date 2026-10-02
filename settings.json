@@ -2,17 +2,18 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "FORCE_AUTOUPDATE_PLUGINS": "true"
   },
-  "permissions": {
-    "defaultMode": "bypassPermissions"
-  },
-  "disableClaudeAiConnectors": true,
   "attribution": {
     "commit": "",
     "pr": "",
     "sessionUrl": false
   },
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "disableClaudeAiConnectors": true,
   "skillOverrides": {
     "dataviz": "off",
     "simplify": "off",
@@ -28,9 +29,10 @@
     "xlsx": "off",
     "pdf": "off",
     "learn": "off",
-    "morning": "off"
+    "morning": "off",
+    "docs": "off"
   },
-  "enableArtifact": false,
+  "enableArtifact": true,
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
@@ -41,9 +43,20 @@
     "slack@claude-plugins-official": false,
     "plannotator@plannotator": true,
     "slack-by-salesforce@inline": false,
-    "pstack@pstack-claude": true
+    "pstack@pstack-claude": true,
+    "plannotator-effective-html@effective-html": true,
+    "cc-plugin-you-should-know@builtin": true,
+    "cowork-plugin-management@synced": false,
+    "eli5@claude-community": true
   },
   "extraKnownMarketplaces": {
+    "effective-html": {
+      "source": {
+        "source": "github",
+        "repo": "plannotator/effective-html"
+      },
+      "autoUpdate": true
+    },
     "worktrunk": {
       "source": {
         "source": "github",
@@ -57,10 +70,18 @@
         "repo": "backnotprop/plannotator"
       },
       "autoUpdate": true
+    },
+    "pstack-claude": {
+      "source": {
+        "source": "github",
+        "repo": "michael-denyer/pstack-claude"
+      },
+      "autoUpdate": true
     }
   },
   "outputStyle": "Concise",
   "effortLevel": "medium",
+  "advisorModel": "fable",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
@@ -103,6 +124,5 @@
       "**Trusted repo**: The git repository the agent started in (/Users/rustancorpuz) — no remote is configured; there is nothing tracked in it currently (0 tracked files)",
       "**Org-specific CLIs**: None configured (gcloud, bq, and other CLIs seen in usage are generic vendor tools, not org-specific)"
     ]
-  },
-  "advisorModel": "fable"
+  }
 }
