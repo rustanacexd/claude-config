@@ -27,9 +27,4 @@ search itself answers. To work while a delegate holds a worktree, use a second o
 reset another agent's database, rebase, `git checkout --`, or commit work you did not
 write in its worktree.
 
-# Artifacts
-
-HTML artifacts are desktop only: verify at desktop width, do not test or fix mobile
-rendering, keep existing responsive CSS.
-
 @~/.claude/pstack-models.md
