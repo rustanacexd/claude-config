@@ -107,6 +107,16 @@ class Records(unittest.TestCase):
         (read,) = ledger(t).of(Read)
         self.assertTrue(read.complete)
 
+    def test_a_read_through_a_variable_assigned_on_the_same_line_counts_and_one_from_an_earlier_call_does_not(self):
+        same = Transcript()
+        same.bash("P=/skills/playbooks; cat $P/opening-a-pr.md $P/shipping.md", at(1), "# Opening a PR\n# Shipping")
+        self.assertEqual([(r.path, r.complete) for r in ledger(same).of(Read)],
+                         [("/skills/playbooks/opening-a-pr.md", True), ("/skills/playbooks/shipping.md", True)])
+        earlier = Transcript()
+        earlier.bash("P=/skills/playbooks", at(1))
+        earlier.bash("cat $P/shipping.md", at(2), "# Shipping")
+        self.assertEqual([r.path for r in ledger(earlier).of(Read)], ["$P/shipping.md"])
+
     def test_sidechain_records_are_not_the_main_thread(self):
         t = Transcript()
         t.advisor(at(1))

@@ -57,18 +57,23 @@ class Invocation:
 
 
 class _W:
-    __slots__ = ("text", "dynamic", "subs", "heredoc")
+    __slots__ = ("text", "dynamic", "subs", "heredoc", "refs")
 
     def __init__(self) -> None:
         self.text = ""
         self.dynamic = False
         self.subs: List[list] = []
         self.heredoc: Optional[str] = None
+        self.refs: List[str] = []
+
+    def word(self) -> "Word":
+        return Word(self.text, self.dynamic or bool(self.refs))
 
 
 _OPS = ("&&", "||", ";;", "|&", "<<<", "<<-", "<<", "&>>", "&>", ">>", ">&", "<&", ">|", "<>", ";", "&", "|", "(", ")", "<", ">")
 _REDIRS = frozenset({"<<<", "<<-", "<<", "&>>", "&>", ">>", ">&", "<&", ">|", "<>", "<", ">"})
 _OUTPUT_REDIRS = frozenset({">", ">>", ">|", "&>", "&>>"})
+_VAR = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-]")
 
 
@@ -213,6 +218,11 @@ class _Lexer:
         elif nxt == "{":
             j = s.find("}", self.i)
             self.i = len(s) if j < 0 else j + 1
+            name = s[start + 2 : j]
+            if _VAR.fullmatch(name):
+                w.refs.append(name)
+                w.text += s[start : self.i]
+                return
         else:
             m = _NAME.match(s, self.i + 1)
             if not m:
@@ -220,6 +230,10 @@ class _Lexer:
                 self.i += 1
                 return
             self.i = m.end()
+            if _VAR.fullmatch(m.group()):
+                w.refs.append(m.group())
+                w.text += s[start : self.i]
+                return
         w.dynamic = True
         w.text += s[start : self.i]
 
@@ -301,7 +315,14 @@ def _split_sub(tool: str, words: List[Word], workdir: Optional[Path]) -> Tuple[T
     return (), tuple(words), workdir, ()
 
 
-def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Optional[Path]:
+def _resolve(w: _W, env: Dict[str, str]) -> None:
+    for name in set(w.refs) & env.keys():
+        w.text = re.sub(r"\$\{" + name + r"\}|\$" + name + r"(?![A-Za-z0-9_])", lambda _: env[name], w.text)
+    w.refs = [n for n in w.refs if n not in env]
+
+
+def _build(toks: list, workdir: Optional[Path], out: List[Invocation], env: Optional[Dict[str, str]] = None) -> Optional[Path]:
+    env = {} if env is None else env
     pipelines: List[List[List]] = [[[]]]
     for t in toks:
         if t in ("|", "|&"):
@@ -322,23 +343,30 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
                 if isinstance(t, str):
                     redirect = t
                     continue
+                _resolve(t, env)
                 for sub in t.subs:
-                    _build(sub, workdir, out)
+                    _build(sub, workdir, out, env)
                 if redirect is None:
                     argv.append(t)
                 elif t.heredoc is not None:
                     heredocs.append(t.heredoc)
                 elif redirect in _OUTPUT_REDIRS:
-                    outputs.append(Word(t.text, t.dynamic))
+                    outputs.append(t.word())
                 redirect = None
+            assigned = [w for w in argv if _ASSIGNMENT.match(w.text)]
             argv = _strip(argv)
+            if assigned and not argv:
+                for w in assigned:
+                    if not w.word().dynamic:
+                        name, value = w.text.split("=", 1)
+                        env[name] = os.path.expanduser(value)
             segments.append((argv, heredocs, os.path.basename(argv[0].text) if argv else "", tuple(outputs)))
 
         for k, (argv, heredocs, tool, targets) in enumerate(segments):
             if not argv:
                 continue
             if tool == "cd":
-                workdir = _cd(workdir, argv[1:])
+                workdir = _cd(workdir, [w.word() for w in argv[1:]])
                 continue
             if tool in _SHELLS:
                 texts = [w.text for w in argv[1:]]
@@ -348,7 +376,7 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
                     _build(_Lexer(script).lex(), workdir, out)
             if tool == "eval":
                 _build(_Lexer(" ".join(w.text for w in argv[1:])).lex(), workdir, out)
-            words = [Word(w.text, w.dynamic) for w in argv[1:]]
+            words = [w.word() for w in argv[1:]]
             sub, rest, wd, global_opts = _split_sub(tool, words, workdir)
             out.append(Invocation(tool, sub, rest, wd, tuple(t for _, _, t, _ in segments[k + 1 :] if t), global_opts, targets))
     return workdir

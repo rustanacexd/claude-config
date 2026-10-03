@@ -240,6 +240,10 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   script piped into a shell (`echo 'gh pr merge 1' | bash`), process
   substitution (`bash <(...)`), a `function f { ...; }` body, and a command
   held in a variable (`c='gh pr merge 1'; $c`).
+- A word that references a variable is a shell expression, unless the same
+  command line assigned that variable earlier with a literal value, as in
+  `P=~/x; cat $P/f`. Then the word carries the value. A variable assigned in
+  an earlier Bash call, or from a command substitution, is not substituted.
 - `gate.sh` starts Python for a Bash command only when the command contains
   `gh pr merge`, `gh stack merge`, `gh pr create`, `gh stack submit`,
   `git commit`, `git push` or `--no-verify`, or contains `git -` followed
