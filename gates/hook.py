@@ -13,8 +13,9 @@ def gates():
     # Imported here so that an import or syntax error on an older Python reaches main's handler.
     from g1_merge import GATE as G1
     from g2_pr import GATE as G2
+    from g6_mandate import GATE as G6
 
-    return (G1, G2)
+    return (G1, G2, G6)
 
 
 def applies(gate, hook) -> bool:

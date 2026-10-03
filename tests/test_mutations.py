@@ -5,7 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from support import (
-    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, WORKTREE, Case, PrCase, at, comment, flagged_ids, gh_at,
+    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, WORKTREE, Case, FakeGit, PrCase, at, comment, flagged_ids, gh_at,
     merge_command, plus, review, run_case, run_pr_case, failed_ids, without,
 )
 
@@ -105,6 +105,8 @@ PR_MUTATIONS = (
     ("git commit --no-verify", ids("G2.R4"), replace(PR_GREEN, command="git commit --no-verify -m 'fix: a thing'")),
     ("git commit -an", ids("G2.R4"), replace(PR_GREEN, command="git commit -an -m 'fix: a thing'")),
     ("git -C dir push --no-verify", ids("G2.R4"), replace(PR_GREEN, command="git -C /work push --no-verify origin fix")),
+    ("multi-file PR without poteto-mode", ids("G6.R1"), without(PR_GREEN, "poteto")),
+    ("git cannot report the diff", ids("G6.R1"), replace(without(PR_GREEN, "poteto"), git=FakeGit(down="not a git repository"))),
 )
 
 

@@ -8,6 +8,7 @@ from support import (
 )
 import evidence
 import hook
+from core import Mode
 
 GREEN = PrCase()
 
@@ -58,6 +59,59 @@ class PrGate(unittest.TestCase):
         outcome = run(case)
         self.assertEqual(outcome.exit_code, 0, outcome.stderr)
         self.assertIn("G2.R4 skipped: the hook needs a network the sandbox lacks", said(outcome))
+
+
+class MandateGate(unittest.TestCase):
+    def test_a_one_file_diff_needs_no_mandate(self):
+        outcome = run(replace(without(GREEN, "poteto"), git=FakeGit(files=("README.md",))))
+        self.assertEqual((outcome.exit_code, outcome.stdout), (0, ""))
+
+    def test_the_base_flag_and_head_flag_pick_the_diff(self):
+        git = FakeGit()
+        run(replace(without(GREEN, "poteto"), git=git, command="gh pr create -B release -H me:topic --title t --body b"))
+        self.assertEqual(git.calls, [["git", "diff", "--name-only", "origin/release...topic"]])
+        git = FakeGit()
+        run(replace(without(GREEN, "poteto"), git=git, command="gh stack submit --auto"))
+        self.assertEqual(git.calls[-1], ["git", "diff", "--name-only", "origin/main...HEAD"])
+
+    def test_a_passing_open_outside_poteto_never_parses_the_transcript(self):
+        parses = []
+        original = evidence.load_session
+        evidence.load_session = lambda *a: parses.append(a) or original(*a)
+        try:
+            outcome = run(replace(without(GREEN, "poteto"), git=FakeGit(files=("README.md",))))
+        finally:
+            evidence.load_session = original
+        self.assertEqual((outcome.exit_code, outcome.stdout, parses), (0, "", []))
+
+    def test_a_poteto_session_skips_git(self):
+        git = FakeGit(down="git must not run")
+        self.assertEqual(run(replace(GREEN, git=git)).exit_code, 0)
+        self.assertEqual(git.calls, [])
+
+    def test_asking_for_help_opens_no_pr(self):
+        for command in ("gh pr create --help", "gh stack submit -h", "gh pr create --fill -h"):
+            for case in (without(GREEN, "deslop", "no_comments"), without(GREEN, "poteto")):
+                with self.subTest(command=command, pieces=[name for name, _ in case.pieces]):
+                    outcome = run(replace(case, command=command))
+                    self.assertEqual((outcome.exit_code, outcome.stderr), (0, ""))
+
+    def test_warn_on_one_gate_still_lets_another_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = without(GREEN, "poteto")
+            outcome = run_pr_case(case, Path(tmp), gate_modes={"G6": Mode.WARN})
+        self.assertEqual(outcome.exit_code, 0)
+        self.assertIn("FAIL G6.R1", said(outcome))
+
+    def test_a_subagent_counts_the_roots_poteto_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Transcript().slash("pstack:poteto-mode", at(0))
+            path = root.write(Path(tmp) / "sess.jsonl")
+            sub = Transcript()
+            sub.bash(PR_CREATE, at(7), None, tool_id=OPEN_ID)
+            sub.write(Path(tmp) / "sess" / "subagents" / "agent-a3.jsonl")
+            outcome = hook.run(payload(path, PR_CREATE, tool_use_id=OPEN_ID, agent_id="a3"), env(FakeGit()))
+        self.assertEqual(outcome.exit_code, 0, outcome.stderr)
 
 
 if __name__ == "__main__":
