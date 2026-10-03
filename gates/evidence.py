@@ -471,6 +471,20 @@ class Spawned:
     description: str
     prompt: str
     isolation: Optional[str]
+    agent_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class Messaged:
+    stamp: Stamp
+    to: str
+    resumed: Optional[str]
+
+
+@dataclass(frozen=True)
+class Pgrep:
+    stamp: Stamp
+    args: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -741,14 +755,20 @@ def _app_control(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Ite
                 yield AppControl(stamp, app, verb == app.up)
 
 
+def _pgrep(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
+    if inv.tool == "pgrep":
+        yield Pgrep(stamp, tuple(w.text for w in inv.words))
+
+
 Classifier = Callable[[Invocation, Stamp, Optional[Result]], Iterable[Event]]
-CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested, _wrote, _app_control)
+CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested, _wrote, _app_control, _pgrep)
 
 
 _EDIT_TOOLS = {"Write": ("content",), "Edit": ("new_string",), "MultiEdit": ("edits",), "NotebookEdit": ("new_source",)}
 _TASK_CREATED = re.compile(r"Task #(\S+) created")
 _COMMAND_NAME = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 _COMMAND_ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.S)
+_AGENT_ID = re.compile(r"agentId: (\w+)")
 
 
 def is_todo(path: str) -> bool:
@@ -815,6 +835,17 @@ def _opt_str(value: object) -> Optional[str]:
     return None if value is None else str(value)
 
 
+def _resumed(result: Optional[Result]) -> Optional[str]:
+    try:
+        reply = json.loads(result.text) if result else None
+    except ValueError:
+        return None
+    if not isinstance(reply, dict):
+        return None
+    pin = reply.get("pin")
+    return _opt_str(reply.get("resumedAgentId") or (pin.get("id") if isinstance(pin, dict) else None))
+
+
 def _tool_events(item: dict, stamp: Stamp, cwd: Optional[Path], result: Optional[Result]) -> Iterator[Event]:
     name, inp = item.get("name"), item.get("input") or {}
     if name == "Bash":
@@ -826,8 +857,11 @@ def _tool_events(item: dict, stamp: Stamp, cwd: Optional[Path], result: Optional
     elif name == "Skill":
         yield SkillRan(stamp, skill_name(_str(inp.get("skill"))), _str(inp.get("args")))
     elif name == "Agent":
+        m = _AGENT_ID.search(result.text) if result else None
         yield Spawned(stamp, _str(inp.get("subagent_type")) or "general-purpose", inp.get("model"), _str(inp.get("description")),
-                      _str(inp.get("prompt")), inp.get("isolation"))
+                      _str(inp.get("prompt")), inp.get("isolation"), m.group(1) if m else None)
+    elif name == "SendMessage":
+        yield Messaged(stamp, _str(inp.get("to") or inp.get("recipient")), _resumed(result))
     elif name == "TaskCreate":
         m = _TASK_CREATED.search(result.text) if result else None
         yield TaskOp(stamp, name, m.group(1) if m else None, _str(inp.get("subject")), _str(inp.get("description")), "pending")
