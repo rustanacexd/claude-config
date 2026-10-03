@@ -51,9 +51,10 @@ seconds, because a hook that times out allows the call.
 `GATES_MODE` selects the mode for every gate. `GATES_MODE_<gate>`, for example
 `GATES_MODE_G6=warn`, overrides it for one gate.
 
-- With `warn`, the call runs. The model receives the findings as
-  `additionalContext` that starts with `This was NOT blocked, because the gate
-  is in warn mode`.
+- With `warn`, the call runs, and the findings start with `This was NOT
+  blocked, because the gate is in warn mode`. On `PreToolUse` and
+  `SessionStart` the model receives them. On `Stop` and `TaskCompleted` only
+  the user sees them.
 - With any other value, or none, the hook exits 2, and the call does not run.
   The model receives the findings on stderr.
 
@@ -62,22 +63,27 @@ To block, change the command to
 `GATES_LOG=<path>` in the command to append one JSON line per decision,
 including the Python version that ran it.
 
-An advisory requirement never blocks in any mode. Its failure reaches the
-model as a line that starts with `ADVISORY`.
+An advisory requirement never blocks in any mode. Its failure is a line that
+starts with `ADVISORY`, and it goes where the table below sends a warning.
 
 ## How each event reports
 
+Claude Code shows `additionalContext` and stderr to the model, and
+`systemMessage` to the user only.
+
 | Event | Block | Warning, advisory, or skip note | Gate crash |
 | --- | --- | --- | --- |
-| `PreToolUse` | exit 2, stderr | exit 0, `additionalContext` | blocks |
-| `TaskCompleted` | exit 2, stderr | exit 0, `systemMessage` | blocks |
-| `Stop` | exit 2, stderr | exit 0, `systemMessage` | allows, with `systemMessage` |
-| `SessionStart` | never blocks | exit 0, `additionalContext` | allows, with `systemMessage` |
+| `PreToolUse` | exit 2, stderr, to the model | exit 0, `additionalContext`, to the model | blocks |
+| `TaskCompleted` | exit 2, stderr, to the model | exit 0, `systemMessage`, to the user | blocks |
+| `Stop` | exit 2, stderr, to the model | exit 0, `systemMessage`, to the user | allows, with `systemMessage` to the user |
+| `SessionStart` | never blocks | exit 0, `additionalContext`, to the model | allows, with `systemMessage` to the user |
 
-Stop accepts `additionalContext` too, but Claude Code then keeps the
-conversation going, the same as a block. A warning on Stop therefore uses
-`systemMessage`. A crash on Stop or SessionStart allows the call, because a
-Stop gate that always crashed would keep every session from ending.
+TaskCompleted has no `additionalContext`. Stop accepts it, but Claude Code
+then keeps the conversation going, the same as a block. A warning on Stop
+therefore uses `systemMessage`, and the model never sees a warn-mode or
+advisory finding on Stop or TaskCompleted. A crash on Stop or SessionStart
+allows the call, because a Stop gate that always crashed would keep every
+session from ending.
 
 ## What G1 checks
 
@@ -171,8 +177,8 @@ or `TaskUpdate`) or in a `*todo*.md` file:
 skip: G2.R4 the hook needs a network the sandbox lacks
 ```
 
-The reason is required. The allowed call echoes each skip and its reason
-through `additionalContext`, so the skip shows in the transcript.
+The reason is required. The allowed call echoes each skip and its reason as
+a note, through the channel the table in "How each event reports" names.
 
 Claude Code sometimes writes a tool call to the transcript after the next
 call's hook has already run. A skip declared in the call just before can then
@@ -223,7 +229,8 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   longer fails when `git` cannot answer.
 - **Stop reports a warning through `systemMessage`.** The spec's amendment
   asks for `additionalContext`, but on Stop that keeps the conversation going,
-  so a warn-mode gate would hold every turn open.
+  so a warn-mode gate would hold every turn open. The cost is that the model
+  does not see the warning; only the user does.
 - **Block is the default.** An unset `GATES_MODE` blocks. The install snippet
   sets `warn` explicitly.
 

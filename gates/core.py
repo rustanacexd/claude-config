@@ -328,8 +328,8 @@ def _body(decisions: Sequence[Decision]) -> str:
 
 
 def _exit0(event: Event, text: str) -> Outcome:
-    """The exit-0 channel that reaches the model. Stop also accepts additionalContext, but the docs say it keeps
-    the conversation going like a block, so a warning there would hold every turn open; Stop uses systemMessage."""
+    """additionalContext reaches the model; systemMessage reaches only the user. TaskCompleted has no
+    additionalContext, and on Stop it keeps the conversation going like a block, so both use systemMessage."""
     if event in (Event.PRE_TOOL_USE, Event.SESSION_START):
         return Outcome(EXIT_ALLOW, json.dumps({"hookSpecificOutput": {"hookEventName": event.value, "additionalContext": text}}), "")
     return Outcome(EXIT_ALLOW, json.dumps({"systemMessage": text}), "")
