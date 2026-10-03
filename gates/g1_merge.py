@@ -224,15 +224,15 @@ def check_playbook_read(c: MergeCtx) -> Check:
     boundary = actor.last(Compacted)
     after = boundary.stamp.line if boundary else 0
     reads = [r for r in actor.of(Read) if r.path.endswith(SHIPPING_PLAYBOOK) and r.stamp.line > after]
-    full = [r for r in reads if r.complete]
+    full = [r for r in reads if r.complete or r.covers_file()]
     if full:
         return Check.passed(f"read in full at {actor.where(full[-1].stamp)}")
     detail = f"no full read of {SHIPPING_PLAYBOOK}"
     if boundary:
         detail += f" since the compaction at {actor.where(boundary.stamp)}"
     if reads:
-        detail += f"; partial reads at {', '.join(actor.where(r.stamp) for r in reads)} do not count"
-    return Check.failed(detail, f"read {SHIPPING_PLAYBOOK} in full with the Read tool, or with `cat` and no pipe")
+        detail += f"; reads at {', '.join(actor.where(r.stamp) for r in reads)} did not show the whole file"
+    return Check.failed(detail, f"read {SHIPPING_PLAYBOOK} in full, with the Read tool, `cat`, or any command whose output shows every line")
 
 
 AUTH_VERB = re.compile(r"\b(merge|land|ship)\b", re.I)

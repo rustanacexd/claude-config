@@ -77,6 +77,17 @@ class MutationMatrix(unittest.TestCase):
                 self.assertEqual(outcome.exit_code, 2, outcome.stdout)
                 self.assertEqual(failed_ids(outcome), expected, outcome.stderr)
 
+    def test_a_playbook_read_whose_output_shows_every_line_counts_whatever_the_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            book = Path(tmp, "playbooks", "shipping.md")
+            book.parent.mkdir()
+            book.write_text("### Shipping\n\n1. Resolve the forge.\n")
+            shown = "### Shipping\n\n1. Resolve the forge.\n"
+            whole = plus(without(GREEN, "playbook"), ("sed", lambda t: t.bash(f"sed -n 1,80p {book}", at(1), shown)))
+            cut = plus(without(GREEN, "playbook"), ("head", lambda t: t.bash(f"head -1 {book}", at(1), "### Shipping\n")))
+            self.assertEqual(run_case(whole, Path(tmp))[0].exit_code, 0)
+            self.assertEqual(failed_ids(run_case(cut, Path(tmp))[0]), R(5))
+
     def test_declared_skip_resolves_r4_and_is_echoed(self):
         case = plus(without(GREEN, "advisor"), ("skip", lambda t: t.task("skip: G1.R4 advisor offline, user told", at(5, 30))))
         with tempfile.TemporaryDirectory() as tmp:

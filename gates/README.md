@@ -98,7 +98,7 @@ all six requirements:
 | `G1.R2` | The command passes `--match-head-commit` with a literal 40-character SHA equal to the PR's current head. |
 | `G1.R3` | G1 sorts the comments this session did not post into three kinds: conversation comments, review bodies, and diff-line comments. For each kind that has any, a successful read of that kind started at least one second after the newest change to those comments. |
 | `G1.R4` | The acting agent called `advisor` after the last push by the main thread or by itself. A push is `git push` or `gh stack push`, `submit` or `sync`. |
-| `G1.R5` | The acting agent read `playbooks/shipping.md` in full after its own last compaction. A `Read` with `offset` or `limit` and a `cat` piped into another command are partial reads. |
+| `G1.R5` | The acting agent read `playbooks/shipping.md` in full after its own last compaction. A plain `cat` or `Read` counts. So does any other read, such as `sed -n 1,80p` or `cat \| head -60`, whose output shows every non-blank line of the file as it is on disk now. |
 | `G1.R6` | A user message contains `merge`, `land` or `ship`, and the words before it hold no negation such as `don't` or `not yet`. Text the harness adds to a message, such as system reminders, task notifications and slash-command wrappers, does not count. |
 
 The block message lists every requirement, each with its result and the

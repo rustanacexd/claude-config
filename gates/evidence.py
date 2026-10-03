@@ -416,6 +416,15 @@ class Read:
     stamp: Stamp
     path: str
     complete: bool
+    shown: str = field(default="", compare=False, repr=False)
+
+    def covers_file(self) -> bool:
+        try:
+            lines = Path(os.path.expanduser(self.path)).read_text(errors="replace").splitlines()
+        except OSError:
+            return False
+        wanted = [line.strip() for line in lines if line.strip()]
+        return bool(wanted) and all(line in self.shown for line in wanted)
 
 
 @dataclass(frozen=True)
@@ -653,7 +662,7 @@ def _read(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[E
     complete = inv.tool == "cat" and not inv.pipes_into
     for w in inv.words:
         if not w.text.startswith("-"):
-            yield Read(stamp, w.text, complete)
+            yield Read(stamp, w.text, complete, result.text)
 
 
 _IN_PLACE_SCRIPT_FLAGS = {"sed": frozenset({"-e", "--expression", "-f", "--file"}), "perl": frozenset({"-e", "-E"})}
@@ -777,7 +786,7 @@ def _tool_events(item: dict, stamp: Stamp, cwd: Optional[Path], result: Optional
             for classify in CLASSIFIERS:
                 yield from classify(inv, stamp, result)
     elif name == "Read" and result and not result.is_error:
-        yield Read(stamp, _str(inp.get("file_path")), inp.get("offset") is None and inp.get("limit") is None)
+        yield Read(stamp, _str(inp.get("file_path")), inp.get("offset") is None and inp.get("limit") is None, result.text)
     elif name == "Skill":
         yield SkillRan(stamp, skill_name(_str(inp.get("skill"))), _str(inp.get("args")))
     elif name == "Agent":

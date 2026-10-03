@@ -117,6 +117,26 @@ class Records(unittest.TestCase):
         earlier.bash("cat $P/shipping.md", at(2), "# Shipping")
         self.assertEqual([r.path for r in ledger(earlier).of(Read)], ["$P/shipping.md"])
 
+    def test_a_partial_reader_counts_as_complete_only_when_its_output_holds_every_line_of_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d, "playbooks", "shipping.md")
+            path.parent.mkdir()
+            path.write_text("### Shipping\n\n1. Resolve the forge.\n2. Verify each PR.\n")
+            whole = Transcript()
+            whole.bash(f"sed -n 1,80p {path}; gh pr view 1", at(1), "### Shipping\n\n1. Resolve the forge.\n2. Verify each PR.\n{}")
+            cut = Transcript()
+            cut.bash(f"head -3 {path}", at(1), "### Shipping\n\n1. Resolve the forge.\n")
+            self.assertEqual([r.covers_file() for r in ledger(whole).of(Read) if r.path == str(path)], [True])
+            self.assertFalse(any(r.covers_file() for r in ledger(cut).of(Read)))
+            for blank in ("", "\n  \n"):
+                path.write_text(blank)
+                empty = Transcript()
+                empty.bash(f"sed -n 1,80p {path}", at(1), "")
+                self.assertFalse(any(r.covers_file() for r in ledger(empty).of(Read)), repr(blank))
+            missing = Transcript()
+            missing.bash(f"sed -n 1,9p {d}/missing.md", at(1), "anything")
+            self.assertFalse(any(r.covers_file() for r in ledger(missing).of(Read)))
+
     def test_sidechain_records_are_not_the_main_thread(self):
         t = Transcript()
         t.advisor(at(1))
