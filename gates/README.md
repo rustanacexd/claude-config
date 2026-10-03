@@ -133,7 +133,7 @@ poteto-mode is active. R4 applies in every session.
 | `G2.R1` | The session ran the `deslop` skill after its last edit. |
 | `G2.R2` | The session ran the `no-comments` skill after its last edit. |
 | `G2.R3` | Advisory. The session ran, or read in full, both `technical-writing` and `unslop`. |
-| `G2.R4` | The command does not skip the git hooks with `--no-verify`, or with `-n` on `git commit`. |
+| `G2.R4` | The command does not skip the git hooks with `--no-verify` or a prefix of it such as `--no-veri`, with `-n` on `git commit`, or with a `core.hooksPath` override through `-c` or `--config-env`. |
 
 An edit is an `Edit`, `Write`, `MultiEdit` or `NotebookEdit` call that did not
 fail. G2 looks for edits and skill runs in the main transcript and in every
@@ -222,9 +222,13 @@ recognize, ask them to say `merge`, `land` or `ship`.
   held in a variable (`c='gh pr merge 1'; $c`).
 - `gate.sh` starts Python for a Bash command only when the command contains
   `gh pr merge`, `gh stack merge`, `gh pr create`, `gh stack submit`,
-  `git commit`, `git push` or `--no-verify`. A call spelled another way passes
-  unchecked, for example with two spaces, as `gh api -X PUT .../merge`, as
-  `git -C <dir> commit -n`, or from inside `python -c`.
+  `git commit`, `git push` or `--no-verify`, or contains `git -` followed
+  later by ` commit` or ` push`. A call spelled another way passes unchecked,
+  for example with two spaces, as `gh api -X PUT .../merge`, or from inside
+  `python -c`.
+- G2.R4 sees a `core.hooksPath` override only on the command line. It misses
+  one set through `GIT_CONFIG_COUNT` or `GIT_CONFIG_PARAMETERS`, one written
+  earlier with `git config`, and a `-c` whose setting is a shell variable.
 - Once `gate.sh` starts, any failure on `PreToolUse` or `TaskCompleted`
   blocks. Every non-zero exit from Python becomes exit 2, and so does a
   missing `python3`. A missing `gate.sh` exits 127, which Claude Code does not

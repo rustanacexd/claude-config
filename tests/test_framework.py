@@ -124,8 +124,10 @@ class Dispatch(unittest.TestCase):
     def test_the_shell_literals_are_the_bash_gates_literals(self):
         shim = (Path(hook.__file__).parent / "gate.sh").read_text()
         literals = {g for gate in hook.gates() if "Bash" in gate.tools for g in gate.trigger_literals}
-        case_line = next(line for line in shim.splitlines() if '*"gh pr merge"*' in line)
-        self.assertEqual(set(case_line.split('"')[1::2]), literals)
+        block = shim.split('case "$in" in', 1)[1].split("*) exit 0", 1)[0]
+        patterns = {alt[1:-1].replace('"', "") for line in block.splitlines() if line.strip()
+                    for alt in line.strip().rstrip(") ;").split(" | ")}
+        self.assertEqual(patterns, literals)
 
 
 if __name__ == "__main__":

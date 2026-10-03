@@ -51,7 +51,12 @@ class PrGate(unittest.TestCase):
     def test_r1_to_r3_hold_only_in_poteto_sessions_and_r4_everywhere(self):
         bare = without(GREEN, "poteto", "deslop", "no_comments", "technical_writing", "unslop")
         self.assertEqual(flagged_ids(run(replace(bare, git=FakeGit(files=("a.py",))))), frozenset())
-        self.assertEqual(flagged_ids(run(replace(bare, command="git commit -n -m x"))), frozenset({"G2.R4"}))
+        for command in ("git commit -n -m x", "git -c user.name=x commit -n -m x", "git -C /w commit --no-veri -m x",
+                        "git -c core.hooksPath=/dev/null push"):
+            with self.subTest(command):
+                outcome = run(replace(bare, command=command))
+                self.assertEqual(flagged_ids(outcome), frozenset({"G2.R4"}))
+                self.assertIn(f"`{command}` skips the git hooks", outcome.stderr)
 
     def test_a_declared_skip_allows_no_verify_and_is_echoed(self):
         case = plus(replace(GREEN, command="git commit --no-verify -m x"),

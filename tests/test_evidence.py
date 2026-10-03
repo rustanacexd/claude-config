@@ -175,6 +175,20 @@ class SkipsHooks(unittest.TestCase):
             "git push --no-verify": True, "git -C /w commit --no-verify": True,
             "git commit -m '-n'": False, "git commit -m x -- -n": False, "git push -n": False, "git commit -am fix": False,
             "git commit --amend --no-edit": False,
+            "git commit --no-veri -m x": True, "git commit --no-verif -m x": True, "git push --no-veri": True,
+            "git commit --no-verbose -m x": False,
+            "git -c user.name=x commit -n -m x": True, "git -C /w -c a=b --no-pager commit --no-veri": True,
+            "git --git-dir /w/.git --work-tree /w commit -n": True, "git --config-env user.name=N commit -n": True,
+        }
+        for command, expected in cases.items():
+            with self.subTest(command):
+                self.assertEqual(any(skips_hooks(i) for i in parse_shell(command, Path("/"))), expected)
+
+    def test_a_hooks_path_override_skips_the_hooks(self):
+        cases = {
+            "git -c core.hooksPath=/dev/null commit -m x": True, "git -c CORE.HOOKSPATH= push": True,
+            "git --config-env=core.hooksPath=V commit -m x": True, "git --config-env core.hooksPath=V push": True,
+            "git -c user.name=core.hooksPath commit -m x": False, "git -c core.hooksPath=/dev/null log": False,
         }
         for command, expected in cases.items():
             with self.subTest(command):

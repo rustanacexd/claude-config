@@ -49,6 +49,13 @@ class Shim(unittest.TestCase):
             with self.subTest(literal):
                 self.assertEqual(run_shim(f"x {literal} y", python_exit=0)[:2], (0, True))
 
+    def test_global_git_options_before_commit_or_push_start_python_and_others_do_not(self):
+        for command, starts in (("git -c user.name=x commit -n -m x", True), ("git -C /w push --no-veri", True),
+                                ("git --git-dir=/w/.git commit -m x", True), ("git -C /w status", False),
+                                ("git -c color.ui=never log -5", False)):
+            with self.subTest(command):
+                self.assertEqual(run_shim(command, python_exit=0)[:2], (0, starts))
+
     def test_other_tools_and_events_always_start_python(self):
         for args in (("PreToolUse",), ("Stop",), ("TaskCompleted",), ("SessionStart",)):
             with self.subTest(args):

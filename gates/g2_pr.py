@@ -20,7 +20,7 @@ class PrCall:
 
     @property
     def text(self) -> str:
-        return " ".join([self.inv.tool, *self.inv.sub, *(w.text for w in self.inv.words)])
+        return " ".join([self.inv.tool, *(w.text for w in self.inv.global_opts), *self.inv.sub, *(w.text for w in self.inv.words)])
 
 
 def find_calls(hook: HookCall) -> Tuple[PrCall, ...]:
@@ -88,7 +88,8 @@ def check_prose(c: PrCtx) -> Check:
 def check_hooks_kept(c: PrCtx) -> Check:
     return Check.failed(
         f"`{c.call.text}` skips the git hooks",
-        "drop --no-verify (and commit's -n) and fix what the hook reports. If you must skip them, declare "
+        "drop --no-verify (and commit's -n) or the core.hooksPath override, and fix what the hook reports. If you must "
+        "skip them, declare "
         "`skip: G2.R4 <reason>` in a task first",
     )
 
@@ -103,7 +104,7 @@ class PrGate:
     name = "G2"
     event = Event.PRE_TOOL_USE
     tools = frozenset({"Bash"})
-    trigger_literals = ("gh pr create", "gh stack submit", "git commit", "git push", "--no-verify")
+    trigger_literals = ("gh pr create", "gh stack submit", "git commit", "git push", "--no-verify", "git -* commit", "git -* push")
 
     def subjects(self, hook: HookCall) -> Tuple[PrCall, ...]:
         return find_calls(hook)

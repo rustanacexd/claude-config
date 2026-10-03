@@ -26,6 +26,7 @@ class Invocation:
     words: Tuple[Word, ...]
     workdir: Optional[Path]
     pipes_into: Tuple[str, ...]
+    global_opts: Tuple[Word, ...] = ()
 
     def has(self, *flags: str) -> bool:
         return any(w.text in flags or any(w.text.startswith(f + "=") for f in flags if f.startswith("--")) for w in self.words)
@@ -245,7 +246,7 @@ _WRAPPERS = {
 _SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh"})
 _SCRIPT_FLAG = re.compile(r"-[A-Za-z]*c[A-Za-z]*")
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-_GIT_VALUE_FLAGS = frozenset({"-C", "-c", "--git-dir", "--work-tree", "--namespace"})
+_GIT_VALUE_FLAGS = frozenset({"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--attr-source"})
 
 
 def _strip(argv: List[_W]) -> List[_W]:
@@ -277,25 +278,25 @@ def _cd(workdir: Optional[Path], args: Sequence) -> Optional[Path]:
     return workdir / path if workdir is not None else None
 
 
-def _split_sub(tool: str, words: List[Word], workdir: Optional[Path]) -> Tuple[Tuple[str, ...], Tuple[Word, ...], Optional[Path]]:
+def _split_sub(tool: str, words: List[Word], workdir: Optional[Path]) -> Tuple[Tuple[str, ...], Tuple[Word, ...], Optional[Path], Tuple[Word, ...]]:
     if tool == "git":
+        global_opts: List[Word] = []
         while words and words[0].text.startswith("-"):
             flag = words[0].text
-            if flag in _GIT_VALUE_FLAGS and len(words) > 1:
-                if flag == "-C":
-                    workdir = _cd(workdir, [words[1]])
-                words = words[2:]
-            else:
-                words = words[1:]
-        return tuple(w.text for w in words[:1]), tuple(words[1:]), workdir
+            n = 2 if flag in _GIT_VALUE_FLAGS and len(words) > 1 else 1
+            if n == 2 and flag == "-C":
+                workdir = _cd(workdir, [words[1]])
+            global_opts += words[:n]
+            words = words[n:]
+        return tuple(w.text for w in words[:1]), tuple(words[1:]), workdir, tuple(global_opts)
     if tool == "gh":
         n = 1 if words and words[0].text == "api" else 2
         sub: List[str] = []
         while words and len(sub) < n and not words[0].text.startswith("-"):
             sub.append(words[0].text)
             words = words[1:]
-        return tuple(sub), tuple(words), workdir
-    return (), tuple(words), workdir
+        return tuple(sub), tuple(words), workdir, ()
+    return (), tuple(words), workdir, ()
 
 
 def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Optional[Path]:
@@ -344,8 +345,8 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
             if tool == "eval":
                 _build(_Lexer(" ".join(w.text for w in argv[1:])).lex(), workdir, out)
             words = [Word(w.text, w.dynamic) for w in argv[1:]]
-            sub, rest, wd = _split_sub(tool, words, workdir)
-            out.append(Invocation(tool, sub, rest, wd, tuple(t for _, _, t in segments[k + 1 :] if t)))
+            sub, rest, wd, global_opts = _split_sub(tool, words, workdir)
+            out.append(Invocation(tool, sub, rest, wd, tuple(t for _, _, t in segments[k + 1 :] if t), global_opts))
     return workdir
 
 
@@ -508,14 +509,36 @@ _COMMIT_VALUE_FLAGS = frozenset({"-m", "-F", "-c", "-C", "-t", "--message", "--f
                                   "--reedit-message", "--author", "--date", "--cleanup", "--fixup", "--squash", "--trailer"})
 
 
+def _is_no_verify(flag: str) -> bool:
+    """git takes any unambiguous prefix of a long option. --no-v to --no-ver also match --no-verbose, so git rejects
+    them today; they count anyway, so that a git without --no-verbose cannot open a gap."""
+    return flag.startswith("--no-v") and "--no-verify".startswith(flag)
+
+
+def _overrides_hooks_path(global_opts: Sequence[Word]) -> bool:
+    words = iter(global_opts)
+    for w in words:
+        if w.text in ("-c", "--config-env"):
+            setting = next(words, Word("", False)).text
+        elif w.text.startswith("--config-env="):
+            setting = w.text[len("--config-env=") :]
+        else:
+            continue
+        if setting.split("=", 1)[0].lower() == "core.hookspath":
+            return True
+    return False
+
+
 def skips_hooks(inv: Invocation) -> bool:
     if inv.tool != "git" or inv.sub not in (("commit",), ("push",)):
         return False
+    if _overrides_hooks_path(inv.global_opts):
+        return True
     words = iter(inv.words)
     for w in words:
         if w.text == "--":
             return False
-        if w.text == "--no-verify":
+        if _is_no_verify(w.text):
             return True
         if w.text in _COMMIT_VALUE_FLAGS:
             next(words, None)

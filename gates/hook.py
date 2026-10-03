@@ -19,7 +19,10 @@ def gates():
 
 
 def applies(gate, hook) -> bool:
+    """Each trigger literal is a shell `case` pattern that gate.sh tests as `*<literal>*`, so a `*` inside one matches
+    anything and a literal without one is a substring test."""
     from core import Event
+    from fnmatch import fnmatchcase
 
     if gate.event is not hook.event:
         return False
@@ -27,7 +30,7 @@ def applies(gate, hook) -> bool:
         return True
     if hook.tool_name not in gate.tools:
         return False
-    return gate.trigger_literals is None or any(lit in hook.command for lit in gate.trigger_literals)
+    return gate.trigger_literals is None or any(fnmatchcase(hook.command, f"*{lit}*") for lit in gate.trigger_literals)
 
 
 def run(raw: str, env):
