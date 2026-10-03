@@ -19,8 +19,6 @@ def gates():
 
 
 def applies(gate, hook) -> bool:
-    """Each trigger literal is a shell `case` pattern that gate.sh tests as `*<literal>*`, so a `*` inside one matches
-    anything and a literal without one is a substring test."""
     from core import Event
     from fnmatch import fnmatchcase
 

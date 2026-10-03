@@ -350,7 +350,7 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
                 _build(_Lexer(" ".join(w.text for w in argv[1:])).lex(), workdir, out)
             words = [Word(w.text, w.dynamic) for w in argv[1:]]
             sub, rest, wd, global_opts = _split_sub(tool, words, workdir)
-            out.append(Invocation(tool, sub, rest, wd, tuple(s[2] for s in segments[k + 1 :] if s[2]), global_opts, targets))
+            out.append(Invocation(tool, sub, rest, wd, tuple(t for _, _, t, _ in segments[k + 1 :] if t), global_opts, targets))
     return workdir
 
 
@@ -513,10 +513,12 @@ _COMMIT_VALUE_FLAGS = frozenset({"-m", "-F", "-c", "-C", "-t", "--message", "--f
                                   "--reedit-message", "--author", "--date", "--cleanup", "--fixup", "--squash", "--trailer"})
 
 
+SHORTEST_NO_VERIFY_EVEN_IF_GIT_CALLS_IT_AMBIGUOUS = "--no-v"
+
+
 def _is_no_verify(flag: str) -> bool:
-    """git takes any unambiguous prefix of a long option. --no-v to --no-ver also match --no-verbose, so git rejects
-    them today; they count anyway, so that a git without --no-verbose cannot open a gap."""
-    return flag.startswith("--no-v") and "--no-verify".startswith(flag)
+    """git takes any unambiguous prefix of a long option."""
+    return flag.startswith(SHORTEST_NO_VERIFY_EVEN_IF_GIT_CALLS_IT_AMBIGUOUS) and "--no-verify".startswith(flag)
 
 
 def _overrides_hooks_path(global_opts: Sequence[Word]) -> bool:
