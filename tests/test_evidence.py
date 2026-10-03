@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 
 from support import MERGE_ID, PR, Transcript, at
-from evidence import Advised, Compacted, Fetched, Human, Posted, Pushed, Read, load_ledger, load_session
+from evidence import (
+    Advised, Compacted, Edited, Fetched, Human, Posted, Pushed, Read, SkillRan, Spawned, TaskOp, Tested, Transcripts,
+    load_ledger, load_session, parse_shell, skips_hooks,
+)
+from core import Event, HookCall
 from github import Surface
 
 
@@ -108,6 +112,127 @@ class Records(unittest.TestCase):
         t.advisor(at(1))
         t.records[-1]["isSidechain"] = True
         self.assertEqual(ledger(t).of(Advised), ())
+
+
+class WorkflowEvents(unittest.TestCase):
+    def test_skills_from_the_tool_and_from_slash_commands_drop_the_plugin_prefix(self):
+        t = Transcript()
+        t.skill("pstack:deslop", at(1))
+        t.skill("no-comments", at(2))
+        t.slash("pstack:poteto-mode", at(3), "fix it")
+        t.user("<command-name>/pstack:unslop</command-name>", at(4), isMeta=True)
+        self.assertEqual([(r.skill, r.args) for r in ledger(t).of(SkillRan)],
+                         [("deslop", ""), ("no-comments", ""), ("poteto-mode", "fix it")])
+
+    def test_agent_spawns_edits_and_tasks(self):
+        t = Transcript()
+        t.tool("Agent", {"subagent_type": "pstack:poteto-agent", "model": "opus", "description": "d", "prompt": "p",
+                         "isolation": "worktree"}, at(1))
+        t.edit("/w/a.py", at(2))
+        t.tool("Edit", {"file_path": "/w/b.py"}, at(3), "old_string not found", is_error=True)
+        t.tool("NotebookEdit", {"notebook_path": "/w/n.ipynb", "new_source": "x"}, at(4))
+        t.tool("TaskCreate", {"subject": "write tests", "description": "skip: G2.R3 no prose"}, at(5), "Task #7 created successfully: write tests")
+        t.tool("TaskUpdate", {"taskId": "7", "status": "completed"}, at(6))
+        t.tool("TodoWrite", {"todos": [{"content": "ship", "status": "pending"}]}, at(7))
+        t.tool("Write", {"file_path": "/w/todo.md", "content": "- [ ] one\nskip: G1.R4 offline"}, at(8))
+        led = ledger(t)
+        (spawn,) = led.of(Spawned)
+        self.assertEqual((spawn.subagent_type, spawn.model, spawn.isolation), ("pstack:poteto-agent", "opus", "worktree"))
+        self.assertEqual([e.path for e in led.of(Edited)], ["/w/a.py", "/w/n.ipynb", "/w/todo.md"])
+        self.assertEqual([(o.tool, o.task_id, o.status) for o in led.of(TaskOp)],
+                         [("TaskCreate", "7", "pending"), ("TaskUpdate", "7", "completed"), ("TodoWrite", None, "pending"),
+                          ("Write", None, None)])
+        s = load_session_from(t)
+        self.assertIn("skip: G2.R3 no prose", [line for line, _ in s.declared()])
+        self.assertIn("skip: G1.R4 offline", [line for line, _ in s.declared()])
+
+    def test_tested_comes_from_a_table_of_runners(self):
+        t = Transcript()
+        for cmd in ("npm test", "npm run check:node", "python3 -m unittest discover -s tests", "cd x && pytest -q",
+                    "./verify-e2e.sh up", "go test ./...", "npm run build", "python3 script.py", "echo npm test"):
+            t.bash(cmd, at(1))
+        self.assertEqual([e.command for e in ledger(t).of(Tested)],
+                         ["npm test", "npm run check:node", "python3 -m unittest discover -s tests", "pytest -q",
+                          "verify-e2e.sh up", "go test ./..."])
+
+    def test_every_event_carries_its_message_id(self):
+        t = Transcript()
+        t.skill("deslop", at(1))
+        t.records[-2]["message"]["id"] = "msg_1"
+        (run,) = ledger(t).of(SkillRan)
+        self.assertEqual(run.stamp.msg_id, "msg_1")
+
+
+def load_session_from(t: Transcript, agent_id=None):
+    with tempfile.TemporaryDirectory() as tmp:
+        return load_session(t.write(Path(tmp) / "s.jsonl"), agent_id, None)
+
+
+class SkipsHooks(unittest.TestCase):
+    def test_no_verify_forms(self):
+        cases = {
+            "git commit --no-verify -m x": True, "git commit -n -m x": True, "git commit -anm x": True,
+            "git push --no-verify": True, "git -C /w commit --no-verify": True,
+            "git commit -m '-n'": False, "git commit -m x -- -n": False, "git push -n": False, "git commit -am fix": False,
+            "git commit --amend --no-edit": False,
+        }
+        for command, expected in cases.items():
+            with self.subTest(command):
+                self.assertEqual(any(skips_hooks(i) for i in parse_shell(command, Path("/"))), expected)
+
+
+class CrossFile(unittest.TestCase):
+    def test_latest_orders_by_line_within_a_file_and_by_time_across_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Transcript()
+            root.edit("/w/a.py", at(1))
+            root.skill("deslop", at(4))
+            root_path = root.write(Path(tmp) / "sess.jsonl")
+            sub = Transcript()
+            sub.edit("/w/b.py", at(5))
+            sub.edit("/w/c.py", at(3))
+            sub.write(Path(tmp) / "sess" / "subagents" / "agent-a2.jsonl")
+            s = load_session(root_path, None, None)
+        last = s.latest(Edited)
+        self.assertEqual((last.event.path, last.ledger.source), ("/w/c.py", "agent-a2.jsonl"))
+        self.assertEqual(s.latest(Edited, lambda e: e.path != "/w/c.py").event.path, "/w/b.py")
+        (deslop,) = s.root.of(SkillRan)
+        self.assertTrue(last.precedes(deslop, s.root))
+        self.assertFalse(s.latest(Edited, lambda e: e.path != "/w/c.py").precedes(deslop, s.root))
+        self.assertEqual(len(s.everyone), 2)
+
+
+    def test_a_sibling_agent_file_with_no_records_yet_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root_path = Transcript().user("go", at(0)).write(Path(tmp) / "sess.jsonl")
+            empty = Path(tmp) / "sess" / "subagents" / "agent-new.jsonl"
+            empty.parent.mkdir(parents=True)
+            empty.write_text("")
+            s = load_session(root_path, None, None)
+        self.assertEqual(s.everyone, (s.root,))
+
+
+class PotetoActive(unittest.TestCase):
+    def hook(self, path, agent_id=None, agent_type=None):
+        return HookCall(Event.PRE_TOOL_USE, "s", path, Path("/w"), agent_id=agent_id, agent_type=agent_type)
+
+    def test_skill_run_in_root_or_actor_or_the_agent_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Transcript().user("hello, see poteto-mode docs", at(0))
+            root_path = root.write(Path(tmp) / "sess.jsonl")
+            Transcript().user("task", at(1)).write(Path(tmp) / "sess" / "subagents" / "agent-a1.jsonl")
+            self.assertFalse(Transcripts(self.hook(root_path)).poteto_active())
+            self.assertTrue(Transcripts(self.hook(root_path, "a1", "pstack:poteto-agent-xhigh")).poteto_active())
+            root.skill("pstack:poteto-mode", at(2)).write(root_path)
+            self.assertTrue(Transcripts(self.hook(root_path, "a1", "general-purpose")).poteto_active())
+
+    def test_a_session_that_never_mentions_it_is_not_parsed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s.jsonl"
+            path.write_text("{not json\n")
+            transcripts = Transcripts(self.hook(path))
+            self.assertFalse(transcripts.poteto_active())
+            self.assertIsNone(transcripts._session)
 
 
 class SubagentScope(unittest.TestCase):

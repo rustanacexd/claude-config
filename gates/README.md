@@ -28,6 +28,12 @@ Add this entry to `~/.claude/settings.json`, then run `./refresh.sh` so that
 
 Keep `GATES_MODE=warn` in the command. A bare script path installs block mode.
 
+To turn every gate off, run `touch ~/.claude/gates.off`. While that file
+exists, `gate.sh` exits 0 on every event before it reads its input, and
+Python never starts. To turn the gates on again, run
+`rm ~/.claude/gates.off`. The file sits outside the repo, so it cannot be
+committed through the `~/.claude/gates` symlink.
+
 ## Switch from warn to block
 
 `GATES_MODE` selects the mode:

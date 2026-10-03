@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
@@ -14,7 +14,17 @@ C = TypeVar("C")
 
 EXIT_ALLOW = 0
 EXIT_BLOCK = 2
-HOOK_BUDGET_S = 40.0  # below the 60 s settings timeout, because a timed-out hook allows the call
+
+
+class Event(enum.Enum):
+    PRE_TOOL_USE = "PreToolUse"
+    STOP = "Stop"
+    TASK_COMPLETED = "TaskCompleted"
+    SESSION_START = "SessionStart"
+
+
+# Each sits below its settings timeout (60 s, 10 s), because a timed-out hook allows the call.
+BUDGET_S = {Event.PRE_TOOL_USE: 40.0, Event.TASK_COMPLETED: 40.0, Event.STOP: 7.0, Event.SESSION_START: 7.0}
 
 
 class Unavailable(Exception):
@@ -62,21 +72,30 @@ class Mode(enum.Enum):
     WARN = "warn"
 
 
+def _mode(value: Optional[str]) -> Mode:
+    return Mode.WARN if value == "warn" else Mode.BLOCK
+
+
 @dataclass(frozen=True)
 class Env:
     run: Runner
     deadline: Deadline
     mode: Mode
     log_path: Optional[Path]
+    gate_modes: Mapping[str, Mode] = field(default_factory=dict)
+
+    def mode_for(self, gate: str) -> Mode:
+        return self.gate_modes.get(gate, self.mode)
 
     @staticmethod
-    def from_environ(environ: Mapping[str, str]) -> "Env":
+    def from_environ(environ: Mapping[str, str], event: Event) -> "Env":
         log = environ.get("GATES_LOG")
         return Env(
             run=subprocess_runner,
-            deadline=Deadline(time.monotonic() + HOOK_BUDGET_S),
-            mode=Mode.WARN if environ.get("GATES_MODE") == "warn" else Mode.BLOCK,
+            deadline=Deadline(time.monotonic() + BUDGET_S[event]),
+            mode=_mode(environ.get("GATES_MODE")),
             log_path=Path(log) if log else None,
+            gate_modes={k[len("GATES_MODE_"):]: _mode(v) for k, v in environ.items() if k.startswith("GATES_MODE_")},
         )
 
 
@@ -105,30 +124,56 @@ class MalformedHook(Exception):
 
 @dataclass(frozen=True)
 class HookCall:
+    event: Event
     session_id: str
     transcript_path: Path
     cwd: Path
-    tool_name: str
-    command: str
-    tool_use_id: Optional[str]
-    agent_id: Optional[str]
+    agent_id: Optional[str] = None
+    agent_type: Optional[str] = None
+    tool_name: str = ""
+    tool_input: Mapping[str, object] = field(default_factory=dict)
+    tool_use_id: Optional[str] = None
+    stop_hook_active: bool = False
+    last_assistant_message: str = ""
+    task_id: Optional[str] = None
+    task_subject: str = ""
+    task_description: str = ""
+    source: Optional[str] = None
+
+    @property
+    def command(self) -> str:
+        return str(self.tool_input.get("command") or "")
+
+
+def _opt(value: object) -> Optional[str]:
+    return None if value is None else str(value)
 
 
 def parse_hook_call(raw: str) -> HookCall:
     try:
         d = json.loads(raw)
         tool_input = d.get("tool_input") or {}
+        if not isinstance(tool_input, dict):
+            raise TypeError(f"tool_input is {type(tool_input).__name__}")
         return HookCall(
+            event=Event(d["hook_event_name"]),
             session_id=str(d.get("session_id", "")),
             transcript_path=Path(d["transcript_path"]),
             cwd=Path(d.get("cwd") or "."),
+            agent_id=_opt(d.get("agent_id")),
+            agent_type=_opt(d.get("agent_type")),
             tool_name=str(d.get("tool_name", "")),
-            command=str(tool_input.get("command") or ""),
-            tool_use_id=d.get("tool_use_id"),
-            agent_id=d.get("agent_id"),
+            tool_input=tool_input,
+            tool_use_id=_opt(d.get("tool_use_id")),
+            stop_hook_active=d.get("stop_hook_active") is True,
+            last_assistant_message=str(d.get("last_assistant_message") or ""),
+            task_id=_opt(d.get("task_id")),
+            task_subject=str(d.get("task_subject") or ""),
+            task_description=str(d.get("task_description") or ""),
+            source=_opt(d.get("source")),
         )
     except (ValueError, KeyError, TypeError, AttributeError) as exc:
-        raise MalformedHook(f"hook payload is not a PreToolUse call: {exc!r}") from exc
+        raise MalformedHook(f"hook payload is malformed: {exc!r}") from exc
 
 
 @dataclass(frozen=True)
@@ -152,6 +197,7 @@ class Requirement(Generic[C]):
     title: str
     check: Callable[[C], Check]
     escapable: bool = True
+    advisory: bool = False
 
 
 @dataclass(frozen=True)
@@ -203,7 +249,11 @@ class Decision:
 
     @property
     def failed(self) -> Tuple[Failed, ...]:
-        return tuple(f for f in self.findings if isinstance(f, Failed))
+        return tuple(f for f in self.findings if isinstance(f, Failed) and not f.req.advisory)
+
+    @property
+    def advisories(self) -> Tuple[Failed, ...]:
+        return tuple(f for f in self.findings if isinstance(f, Failed) and f.req.advisory)
 
     @property
     def escaped(self) -> Tuple[Escaped, ...]:
@@ -246,17 +296,23 @@ class Outcome:
 
 
 ALLOW = Outcome(EXIT_ALLOW, "", "")
-SKIP_SYNTAX = (
-    "To skip a requirement you cannot meet, add a task or todo line `skip: G1.<Rn> <reason>`. "
-    "G1.R6 cannot be skipped: only a user message that asks to merge, land or ship satisfies it."
-)
+
+
+def _skip_syntax(gates: Iterable[str]) -> str:
+    text = (
+        "To skip a requirement you cannot meet, add a task or todo line `skip: <Gn>.<Rn> <reason>`. A line written in "
+        "the call just before may not be on disk yet, so if you just wrote it, run the command again as its own call."
+    )
+    if "G1" in gates:
+        text += " G1.R6 cannot be skipped: only a user message that asks to merge, land or ship satisfies it."
+    return text
 
 
 def _lines(d: Decision) -> Sequence[str]:
     out = []
     for f in d.findings:
         if isinstance(f, Failed):
-            out.append(f"FAIL {f.req.rid} {f.req.title}: {f.detail}")
+            out.append(f"{'ADVISORY' if f.req.advisory else 'FAIL'} {f.req.rid} {f.req.title}: {f.detail}")
             if f.remedy:
                 out.append(f"     fix: {f.remedy}")
         elif isinstance(f, Escaped):
@@ -266,28 +322,33 @@ def _lines(d: Decision) -> Sequence[str]:
     return out
 
 
-def _context(text: str) -> str:
-    return json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": text}})
+def _body(decisions: Sequence[Decision]) -> str:
+    return "\n".join(line for d in decisions for line in [f"{d.gate} gate: {d.subject}", *_lines(d), ""])
 
 
-def render(decisions: Sequence[Decision], mode: Mode) -> Outcome:
-    """Exit 2 with stderr when blocking. Everything said on exit 0 rides additionalContext, the only exit-0
-    channel that reaches the model and the transcript."""
-    if not decisions:
-        return ALLOW
-    blocked = [d for d in decisions if d.blocked]
-    if blocked:
-        body = "\n".join(
-            line for d in blocked for line in [f"{d.gate} merge gate: {d.subject}", *_lines(d), ""]
-        )
-        if mode is Mode.BLOCK:
-            return Outcome(EXIT_BLOCK, "", f"Blocked by the merge gate.\n{body}{SKIP_SYNTAX}\n")
-        return Outcome(EXIT_ALLOW, _context(f"GATES_MODE=warn, so this was NOT blocked. It would have been:\n{body}"), "")
-    notes = [
-        f"{e.failure.req.rid} skipped: {e.escape.reason} (declared in {e.escape.source})"
-        for d in decisions
-        for e in d.escaped
-    ]
+def _exit0(event: Event, text: str) -> Outcome:
+    """The exit-0 channel that reaches the model. Stop also accepts additionalContext, but the docs say it keeps
+    the conversation going like a block, so a warning there would hold every turn open; Stop uses systemMessage."""
+    if event in (Event.PRE_TOOL_USE, Event.SESSION_START):
+        return Outcome(EXIT_ALLOW, json.dumps({"hookSpecificOutput": {"hookEventName": event.value, "additionalContext": text}}), "")
+    return Outcome(EXIT_ALLOW, json.dumps({"systemMessage": text}), "")
+
+
+def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
+    failing = [d for d in decisions if d.blocked]
+    blocking = [d for d in failing if env.mode_for(d.gate) is Mode.BLOCK and event is not Event.SESSION_START]
+    warned = [d for d in failing if d not in blocking]
+    notes = []
+    if warned:
+        notes.append(f"This was NOT blocked, because the gate is in warn mode or this event never blocks. It would have been:\n{_body(warned)}")
+    for d in decisions:
+        if d in blocking:
+            continue
+        notes += [f"ADVISORY {f.req.rid} {f.req.title}: {f.detail}" + (f" Fix: {f.remedy}" if f.remedy else "") for f in d.advisories]
+        notes += [f"{e.failure.req.rid} skipped: {e.escape.reason} (declared in {e.escape.source})" for e in d.escaped]
+    if blocking:
+        tail = "".join(f"\n{n}" for n in notes)
+        return Outcome(EXIT_BLOCK, "", f"Blocked by the workflow gates.\n{_body(blocking)}{_skip_syntax(d.gate for d in blocking)}\n{tail}")
     if not notes:
         return ALLOW
-    return Outcome(EXIT_ALLOW, _context("Merge gate allowed this merge with notes:\n" + "\n".join(notes)), "")
+    return _exit0(event, "Workflow gates allowed this with notes:\n" + "\n".join(notes))

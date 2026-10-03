@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Dict, NamedTuple, FrozenSet, Iterable, Iterator, List, Optional, Sequence, Tuple, Type, TypeVar
+from typing import Callable, Dict, NamedTuple, FrozenSet, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar
 
-from core import Unavailable
+from core import Escape, HookCall, Loaded, Unavailable, collect_escapes
 from github import Surface, parse_ts
 
 
@@ -358,6 +359,7 @@ def parse_shell(command: str, start_dir: Optional[Path]) -> Tuple[Invocation, ..
 class Stamp:
     line: int
     at: datetime
+    msg_id: Optional[str] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -413,9 +415,46 @@ class Committed:
 
 
 @dataclass(frozen=True)
-class Declared:
+class SkillRan:
     stamp: Stamp
-    line: str
+    skill: str
+    args: str
+
+
+@dataclass(frozen=True)
+class Spawned:
+    stamp: Stamp
+    subagent_type: str
+    model: Optional[str]
+    description: str
+    prompt: str
+    isolation: Optional[str]
+
+
+@dataclass(frozen=True)
+class Edited:
+    stamp: Stamp
+    path: str
+
+
+@dataclass(frozen=True)
+class TaskOp:
+    stamp: Stamp
+    tool: str
+    task_id: Optional[str]
+    subject: str
+    description: str
+    status: Optional[str]
+
+    @property
+    def lines(self) -> Sequence[str]:
+        return [*self.subject.splitlines(), *self.description.splitlines()]
+
+
+@dataclass(frozen=True)
+class Tested:
+    stamp: Stamp
+    command: str
 
 
 Event = object
@@ -465,9 +504,51 @@ def _push(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[E
         yield Pushed(stamp)  # failed or not: `git push -q | tail -1` hides the exit code
 
 
+_COMMIT_VALUE_FLAGS = frozenset({"-m", "-F", "-c", "-C", "-t", "--message", "--file", "--template", "--reuse-message",
+                                  "--reedit-message", "--author", "--date", "--cleanup", "--fixup", "--squash", "--trailer"})
+
+
+def skips_hooks(inv: Invocation) -> bool:
+    if inv.tool != "git" or inv.sub not in (("commit",), ("push",)):
+        return False
+    words = iter(inv.words)
+    for w in words:
+        if w.text == "--":
+            return False
+        if w.text == "--no-verify":
+            return True
+        if w.text in _COMMIT_VALUE_FLAGS:
+            next(words, None)
+        elif inv.sub == ("commit",) and w.text.startswith("-") and not w.text.startswith("--"):
+            for c in w.text[1:]:
+                if c == "n":
+                    return True
+                if "-" + c in _COMMIT_VALUE_FLAGS:
+                    break
+    return False
+
+
 def _commit(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
     if inv.tool == "git" and inv.sub == ("commit",):
-        yield Committed(stamp, inv.has("--no-verify", "-n"))
+        yield Committed(stamp, skips_hooks(inv))
+
+
+_TEST_RUNNERS = (
+    ("npm", ("test",)), ("npm", ("t",)), ("npm", ("run", "test")), ("npm", ("run", "preflight")), ("npm", ("run", "typecheck")),
+    ("npm", ("run", "check:")), ("pytest", ()), ("jest", ()), ("npx", ("jest",)), ("python", ("-m", "unittest")),
+    ("python", ("-m", "pytest")), ("go", ("test",)), ("cargo", ("test",)), ("make", ("test",)),
+)
+
+
+def _tested(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
+    tool = re.sub(r"^python3(\.\d+)?$", "python", inv.tool)
+    words = [w.text for w in inv.words]
+    hit = tool.startswith("verify") or any(
+        tool == t and len(words) >= len(prefix) and all(w == p or (p.endswith(":") and w.startswith(p)) for w, p in zip(words, prefix))
+        for t, prefix in _TEST_RUNNERS
+    )
+    if hit:
+        yield Tested(stamp, " ".join([inv.tool, *words]))
 
 
 def _post(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
@@ -519,11 +600,22 @@ def _read(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[E
 
 
 Classifier = Callable[[Invocation, Stamp, Optional[Result]], Iterable[Event]]
-CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read)
+CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested)
 
 
-_TASK_TOOLS = frozenset({"TaskCreate", "TaskUpdate", "TodoWrite"})
-_EDIT_TOOLS = {"Write": ("content",), "Edit": ("new_string",), "MultiEdit": ("edits",)}
+_EDIT_TOOLS = {"Write": ("content",), "Edit": ("new_string",), "MultiEdit": ("edits",), "NotebookEdit": ("new_source",)}
+_TASK_CREATED = re.compile(r"Task #(\S+) created")
+_COMMAND_NAME = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
+_COMMAND_ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.S)
+
+
+def is_todo(path: str) -> bool:
+    base = os.path.basename(path).lower()
+    return "todo" in base and base.endswith(".md")
+
+
+def skill_name(raw: str) -> str:
+    return raw.strip().lstrip("/").rsplit(":", 1)[-1]
 _LOCAL_COMPACT = "<local-command-stdout>Compacted"
 
 
@@ -573,24 +665,43 @@ def _result_text(item: dict) -> str:
     return content if isinstance(content, str) else " ".join(_strings(content))
 
 
+def _str(value: object) -> str:
+    return "" if value is None else str(value)
+
+
+def _opt_str(value: object) -> Optional[str]:
+    return None if value is None else str(value)
+
+
 def _tool_events(item: dict, stamp: Stamp, cwd: Optional[Path], result: Optional[Result]) -> Iterator[Event]:
     name, inp = item.get("name"), item.get("input") or {}
     if name == "Bash":
-        for inv in parse_shell(str(inp.get("command") or ""), cwd):
+        for inv in parse_shell(_str(inp.get("command")), cwd):
             for classify in CLASSIFIERS:
                 yield from classify(inv, stamp, result)
     elif name == "Read" and result and not result.is_error:
-        yield Read(stamp, str(inp.get("file_path", "")), inp.get("offset") is None and inp.get("limit") is None)
-    elif name in _TASK_TOOLS:
-        for s in _strings(inp):
-            for line in s.splitlines():
-                yield Declared(stamp, line)
+        yield Read(stamp, _str(inp.get("file_path")), inp.get("offset") is None and inp.get("limit") is None)
+    elif name == "Skill":
+        yield SkillRan(stamp, skill_name(_str(inp.get("skill"))), _str(inp.get("args")))
+    elif name == "Agent":
+        yield Spawned(stamp, _str(inp.get("subagent_type")) or "general-purpose", inp.get("model"), _str(inp.get("description")),
+                      _str(inp.get("prompt")), inp.get("isolation"))
+    elif name == "TaskCreate":
+        m = _TASK_CREATED.search(result.text) if result else None
+        yield TaskOp(stamp, name, m.group(1) if m else None, _str(inp.get("subject")), _str(inp.get("description")), "pending")
+    elif name == "TaskUpdate":
+        yield TaskOp(stamp, name, _opt_str(inp.get("taskId")), _str(inp.get("subject")), _str(inp.get("description")), inp.get("status"))
+    elif name == "TodoWrite":
+        for todo in inp.get("todos") or []:
+            if isinstance(todo, dict):
+                yield TaskOp(stamp, name, _opt_str(todo.get("id")), _str(todo.get("content")), "", todo.get("status"))
     elif name in _EDIT_TOOLS:
-        path = os.path.basename(str(inp.get("file_path", ""))).lower()
-        if "todo" in path and path.endswith(".md"):
-            for s in _strings([inp.get(k) for k in _EDIT_TOOLS[name]]):
-                for line in s.splitlines():
-                    yield Declared(stamp, line)
+        if result is not None and result.is_error:
+            return
+        path = _str(inp.get("file_path") or inp.get("notebook_path"))
+        yield Edited(stamp, path)
+        if is_todo(path):
+            yield TaskOp(stamp, name, None, "", "\n".join(_strings([inp.get(k) for k in _EDIT_TOOLS[name]])), None)
 
 
 @dataclass(frozen=True)
@@ -658,7 +769,7 @@ def load_ledger(path: Path, *, drop_sidechain: bool, cut_at_tool_use: Optional[s
         ts = rec.get("timestamp")
         if not ts:
             continue
-        stamp = Stamp(line, parse_ts(ts))
+        stamp = Stamp(line, parse_ts(ts), (rec.get("message") or {}).get("id"))
         kind = rec.get("type")
         if kind == "system" and rec.get("subtype") == "compact_boundary":
             events.append(Compacted(stamp))
@@ -668,6 +779,10 @@ def load_ledger(path: Path, *, drop_sidechain: bool, cut_at_tool_use: Optional[s
                 continue
             if text.lstrip().startswith(_LOCAL_COMPACT):
                 events.append(Compacted(stamp))
+            command = _COMMAND_NAME.search(text) if not (rec.get("isMeta") or rec.get("isCompactSummary")) else None
+            if command:
+                args = _COMMAND_ARGS.search(text)
+                events.append(SkillRan(stamp, skill_name(command.group(1)), args.group(1).strip() if args else ""))
             human = _human(rec, text)
             if human:
                 events.append(Human(stamp, human))
@@ -691,10 +806,15 @@ def load_ledger(path: Path, *, drop_sidechain: bool, cut_at_tool_use: Optional[s
 class Session:
     root: Ledger
     actor: Ledger
+    agents: Tuple[Ledger, ...] = ()
 
     @property
     def ledgers(self) -> Tuple[Ledger, ...]:
         return (self.root,) if self.actor is self.root else (self.root, self.actor)
+
+    @property
+    def everyone(self) -> Tuple[Ledger, ...]:
+        return (self.root, *self.agents)
 
     def own_comment_ids(self) -> FrozenSet[str]:
         return frozenset(i for ledger in self.ledgers for p in ledger.of(Posted) for i in p.ids or ())
@@ -706,8 +826,49 @@ class Session:
             for p in ledger.of(Posted)
         )
 
-    def declared(self) -> Sequence[Tuple[Declared, Ledger]]:
-        return [(d, ledger) for ledger in self.ledgers for d in ledger.of(Declared)]
+    def declared(self) -> Sequence[Tuple[str, str]]:
+        return [(line, ledger.where(t.stamp)) for ledger in self.ledgers for t in ledger.of(TaskOp) for line in t.lines]
+
+    def latest(self, kind: Type[E], where: Callable[[E], bool] = lambda e: True) -> Optional["Placed"]:
+        per_file = [
+            Placed(events[-1], ledger)
+            for ledger in self.everyone
+            for events in [[e for e in ledger.of(kind) if where(e)]]
+            if events
+        ]
+        return max(per_file, key=lambda p: p.event.stamp.at, default=None)
+
+
+@dataclass(frozen=True)
+class Placed:
+    event: Event
+    ledger: Ledger
+
+    def precedes(self, event: Event, ledger: Ledger) -> bool:
+        if ledger is self.ledger:
+            return self.event.stamp.line < event.stamp.line
+        return self.event.stamp.at < event.stamp.at
+
+    @property
+    def where(self) -> str:
+        return self.ledger.where(self.event.stamp)
+
+
+TEMP_DIRS = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
+
+
+@functools.lru_cache(maxsize=256)
+def git_root(path: str) -> Optional[Path]:
+    """The work tree holding `path`: the nearest directory with a `.git` directory or file (a linked worktree)."""
+    p = Path(os.path.realpath(path))
+    for d in (p, *p.parents):
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+def is_scratch(path: str) -> bool:
+    return path.startswith(TEMP_DIRS) and git_root(path) is None
 
 
 def subagent_path(transcript_path: Path, agent_id: str) -> Path:
@@ -716,9 +877,84 @@ def subagent_path(transcript_path: Path, agent_id: str) -> Path:
 
 def load_session(transcript_path: Path, agent_id: Optional[str], tool_use_id: Optional[str]) -> Session:
     """`transcript_path` is the main session file even inside a subagent; `agent_id` names the acting one."""
-    if not agent_id:
-        root = load_ledger(transcript_path, drop_sidechain=True, cut_at_tool_use=tool_use_id)
-        return Session(root, root)
-    root = load_ledger(transcript_path, drop_sidechain=True, cut_at_tool_use=None)
-    actor = load_ledger(subagent_path(transcript_path, agent_id), drop_sidechain=False, cut_at_tool_use=tool_use_id)
-    return Session(root, actor)
+    actor_path = subagent_path(transcript_path, agent_id) if agent_id else None
+    root = load_ledger(transcript_path, drop_sidechain=True, cut_at_tool_use=None if agent_id else tool_use_id)
+    actor = load_ledger(actor_path, drop_sidechain=False, cut_at_tool_use=tool_use_id) if actor_path else root
+    agents = []
+    for path in sorted(transcript_path.with_suffix("").glob("subagents/agent-*.jsonl")):
+        ledger = actor if path == actor_path else _other_agent(path)
+        if ledger is not None:
+            agents.append(ledger)
+    return Session(root, actor, tuple(agents))
+
+
+def _other_agent(path: Path) -> Optional[Ledger]:
+    """Another agent's file may be empty or half-written because it just started; it then holds no evidence."""
+    try:
+        return load_ledger(path, drop_sidechain=False, cut_at_tool_use=None)
+    except Unavailable:
+        return None
+
+
+POTETO_MARKERS = (b"poteto-mode", b"poteto-agent", b"pstack:poteto")
+POTETO_AGENT = "pstack:poteto-agent"
+
+
+class Transcripts:
+    def __init__(self, hook: HookCall) -> None:
+        self.hook = hook
+        self._session: Optional[Loaded] = None
+
+    @property
+    def session(self) -> "Loaded[Session]":
+        if self._session is None:
+            self._session = Loaded.of(self._load)
+        return self._session
+
+    def _load(self) -> Session:
+        try:
+            return load_session(self.hook.transcript_path, self.hook.agent_id, self.hook.tool_use_id)
+        except Unavailable:
+            raise
+        except Exception as exc:
+            raise Unavailable(f"could not parse the transcript: {exc!r}", "report this gate bug to the user") from exc
+
+    def escapes(self) -> "Escapes":
+        return Escapes(self)
+
+    def poteto_active(self) -> bool:
+        if (self.hook.agent_type or "").startswith(POTETO_AGENT):
+            return True
+        if not self._may_mention_poteto():
+            return False
+        return any(r.skill == "poteto-mode" for ledger in self.session.get().ledgers for r in ledger.of(SkillRan))
+
+    def _may_mention_poteto(self) -> bool:
+        """A substring test on the raw files, so a session that never names poteto-mode is never parsed. An
+        unreadable file answers yes, and the parse then reports why it cannot read it."""
+        files = [self.hook.transcript_path]
+        if self.hook.agent_id:
+            files.append(subagent_path(self.hook.transcript_path, self.hook.agent_id))
+        texts = [_bytes(f) for f in files]
+        return None in texts or any(marker in t for t in texts for marker in POTETO_MARKERS)
+
+
+class Escapes:
+    """Declared skips, read only when a requirement fails, so a passing gate never parses the transcript."""
+
+    def __init__(self, transcripts: Transcripts) -> None:
+        self._transcripts = transcripts
+        self._found: Optional[Mapping[str, Escape]] = None
+
+    def get(self, rid: str) -> Optional[Escape]:
+        if self._found is None:
+            session = self._transcripts.session
+            self._found = collect_escapes(session.value.declared()) if session.value else {}
+        return self._found.get(rid)
+
+
+def _bytes(path: Path) -> Optional[bytes]:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None

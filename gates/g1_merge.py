@@ -4,13 +4,13 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
-from core import Check, Decision, Env, HookCall, Loaded, Requirement, adjudicate, collect_escapes
-from evidence import Advised, Compacted, Fetched, Human, Invocation, Pushed, Read, Session, Word, parse_shell
+from core import Check, Decision, Env, Event, HookCall, Loaded, Requirement, adjudicate
+from evidence import Advised, Compacted, Fetched, Human, Invocation, Pushed, Read, Session, Transcripts, Word, parse_shell
 from github import GhCli, PrFacts, Surface
 
-TRIGGER = "gh pr merge"
+PR_MERGE = ("pr", "merge")
 SHIPPING_PLAYBOOK = "playbooks/shipping.md"
 TS_FLOOR = timedelta(seconds=1)  # GitHub floors timestamps to the second
 RETRY_HINT = "If you just did this, run the merge again as its own command."
@@ -33,8 +33,6 @@ class MergeCall:
 
 
 def find_merges(hook: HookCall) -> Tuple[MergeCall, ...]:
-    if hook.tool_name != "Bash":
-        return ()
     return tuple(
         MergeCall(
             inv,
@@ -44,7 +42,7 @@ def find_merges(hook: HookCall) -> Tuple[MergeCall, ...]:
             inv.workdir or hook.cwd,
         )
         for inv in parse_shell(hook.command, hook.cwd)
-        if inv.tool == "gh" and inv.sub == ("pr", "merge") and not inv.has("--disable-auto", "--help", "-h")
+        if inv.tool == "gh" and inv.sub == PR_MERGE and not inv.has("--disable-auto", "--help", "-h")
     )
 
 
@@ -226,17 +224,16 @@ def _subject(c: MergeCtx) -> str:
 
 class MergeGate:
     name = "G1"
-    trigger_literal = TRIGGER
+    event = Event.PRE_TOOL_USE
+    tools = frozenset({"Bash"})
+    trigger_literals = ("gh pr merge",)
 
     def subjects(self, hook: HookCall) -> Tuple[MergeCall, ...]:
         return find_merges(hook)
 
-    def decide(self, subjects: Sequence[MergeCall], session: Loaded[Session], env: Env) -> Tuple[Decision, ...]:
-        escapes: Mapping = (
-            collect_escapes((d.line, ledger.where(d.stamp)) for d, ledger in session.value.declared())
-            if session.value
-            else {}
-        )
+    def decide(self, subjects: Sequence[MergeCall], transcripts: Transcripts, env: Env) -> Tuple[Decision, ...]:
+        session = transcripts.session
+        escapes = transcripts.escapes()
         decisions = []
         for merge in subjects:
             ctx = MergeCtx(merge, gather_pr(merge, env), session)

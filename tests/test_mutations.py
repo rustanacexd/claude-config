@@ -5,9 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from support import (
-    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, Case, at, comment, gh_at, merge_command, plus, review,
-    run_case,
-    failed_ids, without,
+    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, Case, at, comment, gh_at,
+    merge_command, plus, review, run_case, failed_ids, without,
 )
 
 GREEN = Case()

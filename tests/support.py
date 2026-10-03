@@ -75,6 +75,18 @@ class Transcript:
         self.tool("Read", {"file_path": path, **inp}, when, "# Shipping\n...")
         return self
 
+    def skill(self, name: str, when: str) -> "Transcript":
+        self.tool("Skill", {"skill": name, "args": ""}, when, f"Launching skill: {name}")
+        return self
+
+    def slash(self, name: str, when: str, args: str = "") -> "Transcript":
+        return self.user(f"<command-message>{name}</command-message>\n<command-name>/{name}</command-name>\n"
+                         f"<command-args>{args}</command-args>", when)
+
+    def edit(self, path: str, when: str) -> "Transcript":
+        self.tool("Edit", {"file_path": path, "old_string": "a", "new_string": "b"}, when, "The file has been updated.")
+        return self
+
     def write(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("".join(json.dumps(r) + "\n" for r in self.records))
@@ -191,13 +203,24 @@ def _first_time(piece: Piece) -> str:
     return probe.records[0]["timestamp"]
 
 
-def without(case: Case, *names: str) -> Case:
+def without(case, *names: str):
     return replace(case, pieces=tuple(p for p in case.pieces if p[0] not in names))
 
 
-def plus(case: Case, *pieces: Tuple[str, Piece]) -> Case:
+def plus(case, *pieces: Tuple[str, Piece]):
     return replace(case, pieces=case.pieces + pieces)
 
 
 def failed_ids(outcome: Outcome) -> frozenset:
     return frozenset(line.split()[1] for line in outcome.stderr.splitlines() if line.startswith("FAIL "))
+
+
+def said(outcome: Outcome) -> str:
+    if outcome.stderr or not outcome.stdout:
+        return outcome.stderr
+    out = json.loads(outcome.stdout)
+    return out.get("systemMessage") or out["hookSpecificOutput"]["additionalContext"]
+
+
+def flagged_ids(outcome: Outcome) -> frozenset:
+    return frozenset(line.split()[1] for line in said(outcome).splitlines() if line.startswith(("FAIL ", "ADVISORY ")))
