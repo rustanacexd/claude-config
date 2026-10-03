@@ -126,5 +126,19 @@
       "**Trusted repo**: The git repository the agent started in (/Users/rustancorpuz) \u2014 no remote is configured; there is nothing tracked in it currently (0 tracked files)",
       "**Org-specific CLIs**: None configured (gcloud, bq, and other CLIs seen in usage are generic vendor tools, not org-specific)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/g1.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
   }
 }
