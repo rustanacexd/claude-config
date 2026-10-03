@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import atexit
 import json
+import shutil
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -9,6 +12,10 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 GATES = Path(__file__).resolve().parent.parent / "gates"
 sys.path.insert(0, str(GATES))
+
+WORKTREE = Path(tempfile.mkdtemp(prefix="gates-worktree-"))
+(WORKTREE / ".git").mkdir()
+atexit.register(shutil.rmtree, WORKTREE, True)
 
 from core import Deadline, Env, Mode, Outcome, RunFailed  # noqa: E402
 
@@ -75,6 +82,18 @@ class Transcript:
         self.tool("Read", {"file_path": path, **inp}, when, "# Shipping\n...")
         return self
 
+    def skill(self, name: str, when: str) -> "Transcript":
+        self.tool("Skill", {"skill": name, "args": ""}, when, f"Launching skill: {name}")
+        return self
+
+    def slash(self, name: str, when: str, args: str = "") -> "Transcript":
+        return self.user(f"<command-message>{name}</command-message>\n<command-name>/{name}</command-name>\n"
+                         f"<command-args>{args}</command-args>", when)
+
+    def edit(self, path: str, when: str) -> "Transcript":
+        self.tool("Edit", {"file_path": path, "old_string": "a", "new_string": "b"}, when, "The file has been updated.")
+        return self
+
     def write(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("".join(json.dumps(r) + "\n" for r in self.records))
@@ -103,6 +122,7 @@ class Facts:
     reviews: Tuple[dict, ...] = ()
     inline: Tuple[dict, ...] = ()
     down: Optional[str] = None
+    stack: Tuple[Tuple[int, str], ...] = ((40, "MERGED"), (PR, "OPEN"), (PR + 1, "OPEN"))
 
 
 class FakeGh:
@@ -114,6 +134,10 @@ class FakeGh:
         self.calls.append(list(argv))
         if self.facts.down:
             raise RunFailed(self.facts.down)
+        if list(argv[1:3]) == ["stack", "view"]:
+            return json.dumps({"trunk": "main", "branches": [
+                {"name": f"b{n}", "isMerged": state == "MERGED", "pr": {"number": n, "url": f"https://github.com/{REPO}/pull/{n}", "state": state}}
+                for n, state in self.facts.stack]})
         if list(argv[1:3]) == ["pr", "view"]:
             return json.dumps({"number": PR, "url": f"https://github.com/{REPO}/pull/{PR}", "headRefOid": self.facts.head, "state": "OPEN"})
         path = argv[2]
@@ -191,13 +215,74 @@ def _first_time(piece: Piece) -> str:
     return probe.records[0]["timestamp"]
 
 
-def without(case: Case, *names: str) -> Case:
+def without(case, *names: str):
     return replace(case, pieces=tuple(p for p in case.pieces if p[0] not in names))
 
 
-def plus(case: Case, *pieces: Tuple[str, Piece]) -> Case:
+def plus(case, *pieces: Tuple[str, Piece]):
     return replace(case, pieces=case.pieces + pieces)
 
 
 def failed_ids(outcome: Outcome) -> frozenset:
     return frozenset(line.split()[1] for line in outcome.stderr.splitlines() if line.startswith("FAIL "))
+
+
+def said(outcome: Outcome) -> str:
+    if outcome.stderr or not outcome.stdout:
+        return outcome.stderr
+    out = json.loads(outcome.stdout)
+    return out.get("systemMessage") or out["hookSpecificOutput"]["additionalContext"]
+
+
+def flagged_ids(outcome: Outcome) -> frozenset:
+    return frozenset(line.split()[1] for line in said(outcome).splitlines() if line.startswith(("FAIL ", "ADVISORY ")))
+
+
+OPEN_ID = "toolu_open"
+PR_CREATE = "gh pr create --base main --title 'fix: a thing' --body-file /tmp/body.md"
+
+
+class FakeGit:
+    def __init__(self, files: Sequence[str] = ("src/a.py", "src/b.py"), down: Optional[str] = None, remote_base: bool = True) -> None:
+        self.files, self.down, self.remote_base = files, down, remote_base
+        self.calls: List[Sequence[str]] = []
+
+    def __call__(self, argv: Sequence[str], cwd: Path, timeout: float) -> str:
+        self.calls.append(list(argv))
+        if self.down:
+            raise RunFailed(self.down)
+        if not self.remote_base and argv[-1].startswith("origin/"):
+            raise RunFailed(f"fatal: bad revision '{argv[-1]}'")
+        if list(argv[:2]) == ["git", "symbolic-ref"]:
+            return "origin/main\n"
+        if list(argv[:3]) == ["git", "diff", "--name-only"]:
+            return "".join(f + "\n" for f in self.files)
+        raise AssertionError(f"unexpected call {argv}")
+
+
+PR_GREEN_PIECES: Tuple[Tuple[str, Piece], ...] = (
+    ("poteto", lambda t: t.slash("pstack:poteto-mode", at(0), "fix the bug")),
+    ("edit", lambda t: t.edit(f"{WORKTREE}/src/a.py", at(1))),
+    ("deslop", lambda t: t.skill("pstack:deslop", at(2))),
+    ("no_comments", lambda t: t.skill("pstack:no-comments", at(3))),
+    ("technical_writing", lambda t: t.skill("pstack:technical-writing", at(4))),
+    ("unslop", lambda t: t.skill("pstack:unslop", at(5))),
+)
+
+
+@dataclass(frozen=True)
+class PrCase:
+    pieces: Tuple[Tuple[str, Piece], ...] = PR_GREEN_PIECES
+    command: str = PR_CREATE
+    git: FakeGit = field(default_factory=FakeGit)
+
+
+def run_pr_case(case: PrCase, tmp: Path, mode: Mode = Mode.BLOCK, gate_modes=None) -> Outcome:
+    t = Transcript()
+    for _, piece in sorted(case.pieces, key=lambda p: _first_time(p[1])):
+        piece(t)
+    t.bash(case.command, at(7), None, tool_id=OPEN_ID)
+    import hook
+
+    e = replace(env(case.git, mode), gate_modes=gate_modes or {})
+    return hook.run(payload(t.write(tmp / "session.jsonl"), case.command, tool_use_id=OPEN_ID), e)

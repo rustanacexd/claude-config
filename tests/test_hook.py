@@ -6,8 +6,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from support import (
-    GREEN_FACTS, GREEN_PIECES, HEAD, MERGE_ID, PR, Case, FakeGh, Transcript, at, env, failed_ids, forbidden_runner,
-    gh_at, inline, merge_command, payload, plus, run_case, without,
+    GREEN_FACTS, GREEN_PIECES, HEAD, MERGE_ID, PR, Case, FakeGh, Transcript, at, comment, env, failed_ids, forbidden_runner,
+    PASS_BODY, REPO, gh_at, inline, merge_command, payload, plus, run_case, without,
 )
 import hook
 import g1_merge
@@ -53,7 +53,9 @@ class Requirements(unittest.TestCase):
             with self.subTest(text):
                 case = plus(without(GREEN, "user"), ("user", lambda t, text=text: t.user(text, at(0))),
                             ("quote", lambda t, text=text: t.task(f'land authorized: "{text}"', at(0, 30))))
-                self.assertEqual(failed_ids(self.run_case(case)), frozenset({"G1.R6"}))
+                outcome = self.run_case(case)
+                self.assertEqual(failed_ids(outcome), frozenset({"G1.R6"}))
+                self.assertIn("G1.R6 cannot be skipped", outcome.stderr)
 
     def test_a_post_without_an_id_claims_only_comments_made_while_it_ran(self):
         quiet_post = ("post", lambda t: t.bash(f"gh pr comment {PR} --body-file /tmp/n.md >/dev/null", at(3, 50), ""))
@@ -82,6 +84,45 @@ class Requirements(unittest.TestCase):
         self.assertEqual((outcome.exit_code, outcome.stderr), (0, ""))
         self.assertIn("NOT blocked", context(outcome))
         self.assertIn("FAIL G1.R4", context(outcome))
+
+
+class StackMerge(unittest.TestCase):
+    def run_case(self, command, facts=GREEN_FACTS):
+        with tempfile.TemporaryDirectory() as tmp:
+            return run_case(replace(GREEN, command=command, facts=facts), Path(tmp))
+
+    def test_a_pr_target_checks_it_and_every_unmerged_pr_below(self):
+        outcome, gh = self.run_case(f"gh stack merge {PR + 1} --yes --squash")
+        self.assertEqual(outcome.exit_code, 0, outcome.stderr)
+        viewed = [c[3] for c in gh.calls if c[1:3] == ["pr", "view"]]
+        self.assertEqual(viewed, [str(PR), str(PR + 1)])
+        outcome, gh = self.run_case(f"gh stack merge {PR} --yes")
+        self.assertEqual([c[3] for c in gh.calls if c[1:3] == ["pr", "view"]], [str(PR)])
+
+    def test_r2_needs_a_verdict_naming_each_head_instead_of_a_pin(self):
+        facts = replace(GREEN_FACTS, issue=GREEN_FACTS.issue[:1] + (comment(1000000009, gh_at(4), "PASS, looks good"),))
+        outcome, _ = self.run_case("gh stack merge --yes", facts)
+        self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2"}))
+        self.assertIn("gh stack merge cannot pin heads", outcome.stderr)
+
+    def test_an_inline_verdict_naming_the_head_does_not_satisfy_r2(self):
+        facts = replace(GREEN_FACTS, issue=GREEN_FACTS.issue[:1], inline=(inline(3000000001, gh_at(4), PASS_BODY),))
+        case = plus(replace(GREEN, command="gh stack merge --yes", facts=facts),
+                    ("read_inline", lambda t: t.bash(f"gh api repos/{REPO}/pulls/{PR}/comments", at(6, 10), "[]")))
+        with tempfile.TemporaryDirectory() as tmp:
+            outcome, _ = run_case(case, Path(tmp))
+        self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2"}))
+
+    def test_an_unresolvable_set_blocks_with_a_remedy(self):
+        all_merged = replace(GREEN_FACTS, stack=((40, "MERGED"), (PR, "MERGED")))
+        for command, facts, reason in (("gh stack merge 7 --yes", GREEN_FACTS, "#7 is not an unmerged PR"),
+                                       ("gh stack merge $N --yes", GREEN_FACTS, "not a literal PR number"),
+                                       ("gh stack merge --yes", all_merged, "has no unmerged PR")):
+            with self.subTest(command, reason=reason):
+                outcome, _ = self.run_case(command, facts)
+                self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2", "G1.R3"}))
+                self.assertIn(reason, outcome.stderr)
+                self.assertIn("gh stack view --json", outcome.stderr)
 
 
 class Subagent(unittest.TestCase):

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from support import env, failed_ids, forbidden_runner
+from core import RunFailed
 import hook
 from github import decode_concatenated, parse_ts
 
@@ -70,55 +71,118 @@ def _write(path: Path, records: List[dict]) -> Path:
     return path
 
 
-def replay(case: dict, table: dict, tmp: Path):
+class RecordedGit:
+    def __init__(self, files: Optional[List[str]]) -> None:
+        self.files = files
+
+    def __call__(self, argv, cwd, timeout):
+        if list(argv[:2]) == ["git", "symbolic-ref"]:
+            return "origin/main\n"
+        if self.files is None:
+            raise RunFailed("this replay case records no diff")
+        return "".join(f + "\n" for f in self.files)
+
+
+def _bash_call(rec: dict) -> dict:
+    (call,) = [c for c in rec["message"]["content"] if c.get("type") == "tool_use" and c.get("name") == "Bash"]
+    return call
+
+
+def _copy_agents(src: Path, tmp: Path, cut: datetime, skip: Optional[Path]) -> None:
+    for agent_file in src.with_suffix("").glob("subagents/agent-*.jsonl"):
+        if agent_file != skip:
+            kept = [r for r in map(json.loads, agent_file.read_text().splitlines()) if r.get("timestamp") and parse_ts(r["timestamp"]) <= cut]
+            if kept:
+                _write(tmp / src.stem / "subagents" / agent_file.name, kept)
+
+
+def replay(case: dict, table: dict, tmp: Path, line: Optional[int] = None, agent_file: Optional[str] = None):
     (src,) = glob.glob(f"{table['projects']}/{case['project']}/{case['session']}*.jsonl")
     src = Path(src)
-    lines = src.read_text().splitlines()
-    merge_rec = json.loads(lines[case["line"] - 1])
-    (merge,) = [c for c in merge_rec["message"]["content"] if c.get("type") == "tool_use" and c.get("name") == "Bash"]
-    cut = parse_ts(merge_rec["timestamp"])
-    command = merge["input"]["command"]
+    line = line or case["line"]
+    agent_file = agent_file or case.get("agent_file")
+    acting = src.with_suffix("") / "subagents" / agent_file if agent_file else src
+    acting_lines = acting.read_text().splitlines()
+    gated_rec = json.loads(acting_lines[line - 1])
+    gated = _bash_call(gated_rec)
+    cut = parse_ts(gated_rec["timestamp"])
+    command = gated["input"]["command"]
+    payload = {"session_id": src.stem, "cwd": gated_rec.get("cwd", "/"), "hook_event_name": "PreToolUse", "tool_name": "Bash",
+               "tool_input": {"command": command}, "tool_use_id": gated["id"]}
 
-    through_merge = lines[: case["line"]]
-    root_lines = through_merge[:-1] if case.get("actor") else through_merge
-    records = [json.loads(line) for line in root_lines]
+    if agent_file:
+        root_records = [r for r in map(json.loads, src.read_text().splitlines()) if not r.get("timestamp") or parse_ts(r["timestamp"]) <= cut]
+        _write(tmp / src.stem / "subagents" / agent_file, [json.loads(x) for x in acting_lines[:line]])
+        meta = json.loads(acting.with_name(agent_file.replace(".jsonl", ".meta.json")).read_text())
+        payload.update(agent_id=acting.stem[len("agent-"):], agent_type=meta.get("agentType", "replay"))
+        _copy_agents(src, tmp, cut, acting)
+    else:
+        through = acting_lines[:line]
+        root_records = [json.loads(x) for x in (through[:-1] if case.get("actor") else through)]
+        _copy_agents(src, tmp, cut, None)
     for n, spec in enumerate(case.get("insert", [])):
         for rec in _synthetic(spec, n):
-            _insert_by_time(records, rec)
-    root = _write(tmp / src.name, records)
+            _insert_by_time(root_records, rec)
+    payload["transcript_path"] = str(_write(tmp / src.name, root_records))
 
-    payload = {"session_id": src.stem, "transcript_path": str(root), "cwd": merge_rec.get("cwd", "/"),
-               "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command},
-               "tool_use_id": merge["id"]}
     if case.get("actor"):
         metas = [m for m in src.with_suffix("").glob("subagents/agent-*.meta.json")
                  if re.search(case["actor"], json.loads(m.read_text()).get("description", ""))]
         (meta,) = metas
-        agent_file = meta.with_name(meta.name.replace(".meta.json", ".jsonl"))
-        sub = [r for r in map(json.loads, agent_file.read_text().splitlines()) if r.get("timestamp") and parse_ts(r["timestamp"]) <= cut]
-        sub.append({**merge_rec, "isSidechain": True, "message": {**merge_rec["message"], "content": [{**merge, "id": REPLAY_TOOL_ID}]}})
-        _write(tmp / src.stem / "subagents" / agent_file.name, sub)
-        payload.update(tool_use_id=REPLAY_TOOL_ID, agent_id=agent_file.stem[len("agent-"):], agent_type="replay")
+        actor_file = meta.with_name(meta.name.replace(".meta.json", ".jsonl"))
+        sub = [r for r in map(json.loads, actor_file.read_text().splitlines()) if r.get("timestamp") and parse_ts(r["timestamp"]) <= cut]
+        sub.append({**gated_rec, "isSidechain": True, "message": {**gated_rec["message"], "content": [{**gated, "id": REPLAY_TOOL_ID}]}})
+        _write(tmp / src.stem / "subagents" / actor_file.name, sub)
+        payload.update(tool_use_id=REPLAY_TOOL_ID, agent_id=actor_file.stem[len("agent-"):], agent_type="replay")
 
-    run = RecordedGh(Path(table["fixtures"]) / case["fixture"], cut, case.get("add_comments", [])) if case["fixture"] else forbidden_runner
-    return hook.run(json.dumps(payload), env(run))
+    gh = RecordedGh(Path(table["fixtures"]) / case["fixture"], cut, case.get("add_comments", [])) if case.get("fixture") else forbidden_runner
+    git = RecordedGit(case.get("git_files"))
+    return hook.run(json.dumps(payload), env(lambda argv, cwd, timeout: (git if argv[0] == "git" else gh)(argv, cwd, timeout)))
+
+
+def bash_points(case: dict, table: dict):
+    (src,) = glob.glob(f"{table['projects']}/{case['project']}/{case['session']}*.jsonl")
+    for path in (Path(src), *sorted(Path(src).with_suffix("").glob("subagents/agent-*.jsonl"))):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if '"Bash"' in line and '"tool_use"' in line:
+                rec = json.loads(line)
+                if rec.get("type") == "assistant" and any(c.get("name") == "Bash" for c in rec["message"]["content"] if isinstance(c, dict)):
+                    yield n, (None if path == Path(src) else path.name)
+
+
+def _rid(r) -> str:
+    return f"G1.R{r}" if isinstance(r, int) else r
 
 
 @unittest.skipUnless(CASES.exists(), f"local replay table {CASES} is absent")
 class ReplayLocal(unittest.TestCase):
     def test_cases(self):
         table = json.loads(CASES.read_text())
+        registered = {gate.name for gate in hook.gates()}
         for case in table["cases"]:
+            if case.get("silent") or not {_rid(r).split(".")[0] for r in case["must_fail"]} <= registered:
+                continue
             with self.subTest(case["id"]), tempfile.TemporaryDirectory() as tmp:
                 outcome = replay(case, table, Path(tmp))
                 failed = failed_ids(outcome)
-                must = {f"G1.R{n}" for n in case["must_fail"]}
-                may = {f"G1.R{n}" for n in case["may_fail"]}
+                must = {_rid(r) for r in case["must_fail"]}
+                may = {_rid(r) for r in case["may_fail"]}
                 if not must:
                     self.assertEqual((outcome.exit_code, failed), (0, frozenset()), outcome.stderr)
                     continue
                 self.assertEqual(outcome.exit_code, 2)
                 self.assertTrue(must <= failed <= must | may, f"failed {sorted(failed)}\n{outcome.stderr}")
+
+    def test_silent_sessions_stay_silent_at_every_bash_call(self):
+        table = json.loads(CASES.read_text())
+        for case in table["cases"]:
+            if not case.get("silent"):
+                continue
+            points = list(bash_points(case, table))
+            for line, agent_file in points:
+                with self.subTest(case["id"], line=line, agent=agent_file), tempfile.TemporaryDirectory() as tmp:
+                    outcome = replay(case, table, Path(tmp), line, agent_file)
+                    self.assertEqual((outcome.exit_code, outcome.stdout, outcome.stderr), (0, "", ""))
 
 
 if __name__ == "__main__":

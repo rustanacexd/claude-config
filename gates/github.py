@@ -131,3 +131,25 @@ class GhCli:
             return PrFacts(full, number, head, str(v["state"]), tuple(sorted(comments, key=lambda c: c.created_at)))
         except (KeyError, TypeError, ValueError, IndexError, AttributeError) as exc:
             raise FactsUnavailable(f"could not read gh output: {exc!r}") from exc
+
+
+def stack_prs(run: Runner, deadline: Deadline, workdir: Path) -> List[Tuple[int, str]]:
+    remaining = deadline.remaining()
+    if remaining < 1:
+        raise FactsUnavailable("ran out of time before asking gh stack", "run the merge again")
+    try:
+        view = json.loads(run(["gh", "stack", "view", "--json"], workdir, min(GH_CALL_TIMEOUT_S, remaining)))
+        out = []
+        for branch in view["branches"]:
+            pr = branch.get("pr")
+            if branch.get("isMerged") or not pr or pr.get("state") == "MERGED":
+                continue
+            m = _PR_URL.match(pr["url"])
+            if not m:
+                raise ValueError(f"unexpected PR url {pr['url']!r}")
+            out.append((int(pr["number"]), m.group(1)))
+        return out
+    except RunFailed as exc:
+        raise FactsUnavailable(str(exc), "run the merge from a checkout of the stack, or check `gh auth status`") from exc
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise FactsUnavailable(f"could not read `gh stack view --json`: {exc!r}") from exc

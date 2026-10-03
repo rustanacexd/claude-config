@@ -134,7 +134,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "GATES_MODE=warn $HOME/.claude/gates/g1.sh",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse Bash",
             "timeout": 60
           }
         ]

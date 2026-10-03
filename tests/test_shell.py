@@ -43,6 +43,16 @@ class ParseShell(unittest.TestCase):
         (m,) = merges("gh pr merge 3 --match-head-commit $(git rev-parse HEAD)")
         self.assertTrue(m.value_of("--match-head-commit").dynamic)
 
+    def test_a_variable_assigned_earlier_on_the_line_is_substituted_and_an_unknown_one_stays_dynamic(self):
+        (cat,) = parse_shell("P=~/skills/playbooks; cat $P/opening-a-pr.md ${P}/shipping.md", Path("/w"))
+        home = str(Path.home())
+        self.assertEqual([(w.text, w.dynamic) for w in cat.words],
+                         [(f"{home}/skills/playbooks/opening-a-pr.md", False), (f"{home}/skills/playbooks/shipping.md", False)])
+        (cat,) = parse_shell("cat $P/shipping.md", Path("/w"))
+        self.assertEqual([(w.text, w.dynamic) for w in cat.words], [("$P/shipping.md", True)])
+        cat = parse_shell("P=/x Q=$(pwd); cat $P/a $Q/b $PX/c", Path("/w"))[-1]
+        self.assertEqual([(w.text, w.dynamic) for w in cat.words], [("/x/a", False), ("$Q/b", True), ("$PX/c", True)])
+
     def test_cd_sets_the_workdir_of_later_commands(self):
         invs = parse_shell("cd /repo && gh pr merge 3; cd sub && git push; cd $X && git push", Path("/start"))
         self.assertEqual([i.workdir for i in invs], [Path("/repo"), Path("/repo/sub"), None])
