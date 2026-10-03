@@ -5,8 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from support import (
-    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, Case, at, comment, gh_at,
-    merge_command, plus, review, run_case, failed_ids, without,
+    BOT_ID, GREEN_FACTS, HEAD, OTHER, PASS_BODY, PASS_ID, PR, WORKTREE, Case, PrCase, at, comment, flagged_ids, gh_at,
+    merge_command, plus, review, run_case, run_pr_case, failed_ids, without,
 )
 
 GREEN = Case()
@@ -84,6 +84,43 @@ class MutationMatrix(unittest.TestCase):
         self.assertEqual(outcome.exit_code, 0, outcome.stderr)
         context = json.loads(outcome.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("G1.R4 skipped: advisor offline, user told", context)
+
+
+PR_GREEN = PrCase()
+
+
+def ids(*rids):
+    return frozenset(rids)
+
+
+PR_MUTATIONS = (
+    ("no deslop", ids("G2.R1"), without(PR_GREEN, "deslop")),
+    ("an edit after deslop", ids("G2.R1"), plus(PR_GREEN, ("late", lambda t: t.edit(f"{WORKTREE}/src/b.py", at(2, 30))))),
+    ("no no-comments", ids("G2.R2"), without(PR_GREEN, "no_comments")),
+    ("no-comments before the last edit", ids("G2.R2"),
+     plus(without(PR_GREEN, "no_comments"), ("early", lambda t: t.skill("pstack:no-comments", at(0, 30))))),
+    ("no technical-writing", ids("G2.R3"), without(PR_GREEN, "technical_writing")),
+    ("unslop read only in part", ids("G2.R3"),
+     plus(without(PR_GREEN, "unslop"), ("partial", lambda t: t.read("/p/skills/unslop/SKILL.md", at(5), limit=40)))),
+    ("git commit --no-verify", ids("G2.R4"), replace(PR_GREEN, command="git commit --no-verify -m 'fix: a thing'")),
+    ("git commit -an", ids("G2.R4"), replace(PR_GREEN, command="git commit -an -m 'fix: a thing'")),
+    ("git -C dir push --no-verify", ids("G2.R4"), replace(PR_GREEN, command="git -C /work push --no-verify origin fix")),
+)
+
+
+class PrMutationMatrix(unittest.TestCase):
+    def test_green_allows_silently(self):
+        for command in (PR_GREEN.command, "git commit -m 'fix: a thing' && git push origin fix", "gh stack submit --auto"):
+            with self.subTest(command), tempfile.TemporaryDirectory() as tmp:
+                outcome = run_pr_case(replace(PR_GREEN, command=command), Path(tmp))
+                self.assertEqual((outcome.exit_code, outcome.stdout, outcome.stderr), (0, "", ""))
+
+    def test_each_mutation_flags_exactly_its_requirement(self):
+        for name, expected, case in PR_MUTATIONS:
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                outcome = run_pr_case(case, Path(tmp))
+                self.assertEqual(flagged_ids(outcome), expected, outcome.stderr or outcome.stdout)
+                self.assertEqual(outcome.exit_code, 0 if expected == ids("G2.R3") else 2)
 
 
 if __name__ == "__main__":

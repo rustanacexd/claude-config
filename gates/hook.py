@@ -12,8 +12,9 @@ NEVER_BLOCK_ON_CRASH = ("Stop", "SessionStart")
 def gates():
     # Imported here so that an import or syntax error on an older Python reaches main's handler.
     from g1_merge import GATE as G1
+    from g2_pr import GATE as G2
 
-    return (G1,)
+    return (G1, G2)
 
 
 def applies(gate, hook) -> bool:

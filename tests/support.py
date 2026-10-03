@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import atexit
 import json
+import shutil
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -9,6 +12,10 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 GATES = Path(__file__).resolve().parent.parent / "gates"
 sys.path.insert(0, str(GATES))
+
+WORKTREE = Path(tempfile.mkdtemp(prefix="gates-worktree-"))
+(WORKTREE / ".git").mkdir()
+atexit.register(shutil.rmtree, WORKTREE, True)
 
 from core import Deadline, Env, Mode, Outcome, RunFailed  # noqa: E402
 
@@ -229,3 +236,51 @@ def said(outcome: Outcome) -> str:
 
 def flagged_ids(outcome: Outcome) -> frozenset:
     return frozenset(line.split()[1] for line in said(outcome).splitlines() if line.startswith(("FAIL ", "ADVISORY ")))
+
+
+OPEN_ID = "toolu_open"
+PR_CREATE = "gh pr create --base main --title 'fix: a thing' --body-file /tmp/body.md"
+
+
+class FakeGit:
+    def __init__(self, files: Sequence[str] = ("src/a.py", "src/b.py"), down: Optional[str] = None) -> None:
+        self.files, self.down = files, down
+        self.calls: List[Sequence[str]] = []
+
+    def __call__(self, argv: Sequence[str], cwd: Path, timeout: float) -> str:
+        self.calls.append(list(argv))
+        if self.down:
+            raise RunFailed(self.down)
+        if list(argv[:2]) == ["git", "symbolic-ref"]:
+            return "origin/main\n"
+        if list(argv[:3]) == ["git", "diff", "--name-only"]:
+            return "".join(f + "\n" for f in self.files)
+        raise AssertionError(f"unexpected call {argv}")
+
+
+PR_GREEN_PIECES: Tuple[Tuple[str, Piece], ...] = (
+    ("poteto", lambda t: t.slash("pstack:poteto-mode", at(0), "fix the bug")),
+    ("edit", lambda t: t.edit(f"{WORKTREE}/src/a.py", at(1))),
+    ("deslop", lambda t: t.skill("pstack:deslop", at(2))),
+    ("no_comments", lambda t: t.skill("pstack:no-comments", at(3))),
+    ("technical_writing", lambda t: t.skill("pstack:technical-writing", at(4))),
+    ("unslop", lambda t: t.skill("pstack:unslop", at(5))),
+)
+
+
+@dataclass(frozen=True)
+class PrCase:
+    pieces: Tuple[Tuple[str, Piece], ...] = PR_GREEN_PIECES
+    command: str = PR_CREATE
+    git: FakeGit = field(default_factory=FakeGit)
+
+
+def run_pr_case(case: PrCase, tmp: Path, mode: Mode = Mode.BLOCK, gate_modes=None) -> Outcome:
+    t = Transcript()
+    for _, piece in sorted(case.pieces, key=lambda p: _first_time(p[1])):
+        piece(t)
+    t.bash(case.command, at(7), None, tool_id=OPEN_ID)
+    import hook
+
+    e = replace(env(case.git, mode), gate_modes=gate_modes or {})
+    return hook.run(payload(t.write(tmp / "session.jsonl"), case.command, tool_use_id=OPEN_ID), e)
