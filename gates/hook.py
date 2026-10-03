@@ -15,8 +15,9 @@ def gates():
     from g2_pr import GATE as G2
     from g3_stop import GATE as G3
     from g6_mandate import GATE as G6
+    from g7_compact import GATE as G7
 
-    return (G1, G2, G3, G6)
+    return (G1, G2, G3, G6, G7)
 
 
 def applies(gate, hook) -> bool:
