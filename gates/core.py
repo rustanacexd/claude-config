@@ -298,13 +298,14 @@ class Outcome:
 ALLOW = Outcome(EXIT_ALLOW, "", "")
 
 
-def _skip_syntax(gates: Iterable[str]) -> str:
+def _skip_syntax(blocking: Sequence[Decision]) -> str:
     text = (
         "To skip a requirement you cannot meet, add a task or todo line `skip: <Gn>.<Rn> <reason>`. A line written in "
         "the call just before may not be on disk yet, so if you just wrote it, run the command again as its own call."
     )
-    if "G1" in gates:
-        text += " G1.R6 cannot be skipped: only a user message that asks to merge, land or ship satisfies it."
+    fixed = sorted({f.req.rid for d in blocking for f in d.failed if not f.req.escapable})
+    if fixed:
+        text += f" {' and '.join(fixed)} cannot be skipped; only its fix above satisfies it."
     return text
 
 
@@ -348,7 +349,7 @@ def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
         notes += [f"{e.failure.req.rid} skipped: {e.escape.reason} (declared in {e.escape.source})" for e in d.escaped]
     if blocking:
         tail = "".join(f"\n{n}" for n in notes)
-        return Outcome(EXIT_BLOCK, "", f"Blocked by the workflow gates.\n{_body(blocking)}{_skip_syntax(d.gate for d in blocking)}\n{tail}")
+        return Outcome(EXIT_BLOCK, "", f"Blocked by the workflow gates.\n{_body(blocking)}{_skip_syntax(blocking)}\n{tail}")
     if not notes:
         return ALLOW
     return _exit0(event, "Workflow gates allowed this with notes:\n" + "\n".join(notes))

@@ -98,6 +98,14 @@ class MandateGate(unittest.TestCase):
         self.assertIn("--base $B is a shell expression", outcome.stderr)
         self.assertEqual(git.calls, [])
 
+    def test_a_skip_line_does_not_waive_the_mandate(self):
+        for where, piece in (("task", lambda t: t.task("skip: G6.R1 small change", at(6))),
+                             ("todo", lambda t: t.tool("Write", {"file_path": f"{WORKTREE}/todo.md", "content": "- [ ] skip: G6.R1 trivial"}, at(6)))):
+            with self.subTest(where):
+                outcome = run(plus(without(GREEN, "poteto"), ("skip", piece)))
+                self.assertEqual(flagged_ids(outcome), frozenset({"G6.R1"}))
+                self.assertIn("G6.R1 cannot be skipped", outcome.stderr)
+
     def test_a_passing_open_outside_poteto_never_parses_the_transcript(self):
         parses = []
         original = evidence.load_session

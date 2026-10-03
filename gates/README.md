@@ -178,8 +178,9 @@ Claude Code sometimes writes a tool call to the transcript after the next
 call's hook has already run. A skip declared in the call just before can then
 be missing, and the block message says to run the command again.
 
-`G1.R6` cannot be skipped. If the user authorized landing in words G1 does not
-recognize, ask them to say `merge`, `land` or `ship`.
+`G1.R6` and `G6.R1` cannot be skipped. If the user authorized landing in
+words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
+`G6.R1`, run the poteto-mode skill.
 
 ## Where the gates differ from the written spec
 
@@ -190,6 +191,11 @@ recognize, ask them to say `merge`, `land` or `ship`.
   `skip: G1.R6` line or a `land authorized:` quote would be written by the
   model, so it would be the model authorizing itself. G1 ignores both. To
   restore the spec's skip, set `escapable=True` on `R6` in `g1_merge.py`.
+- **G6.R1 cannot be skipped.** The spec lets a `skip:` line waive any
+  requirement. G6.R1 exists to make the model follow poteto-mode, and the
+  model writes the skip lines, so a skip would be the model waiving its own
+  mandate. G6 ignores a `skip: G6.R1` line. To restore the spec's skip, set
+  `escapable=True` on `R1` in `g6_mandate.py`.
 - **G1.R3 checks each kind of comment against its latest change.** The spec
   compares one read against the newest comment's creation time. G1 compares
   each kind separately and uses the later of the creation and update times,

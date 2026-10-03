@@ -53,7 +53,9 @@ class Requirements(unittest.TestCase):
             with self.subTest(text):
                 case = plus(without(GREEN, "user"), ("user", lambda t, text=text: t.user(text, at(0))),
                             ("quote", lambda t, text=text: t.task(f'land authorized: "{text}"', at(0, 30))))
-                self.assertEqual(failed_ids(self.run_case(case)), frozenset({"G1.R6"}))
+                outcome = self.run_case(case)
+                self.assertEqual(failed_ids(outcome), frozenset({"G1.R6"}))
+                self.assertIn("G1.R6 cannot be skipped", outcome.stderr)
 
     def test_a_post_without_an_id_claims_only_comments_made_while_it_ran(self):
         quiet_post = ("post", lambda t: t.bash(f"gh pr comment {PR} --body-file /tmp/n.md >/dev/null", at(3, 50), ""))

@@ -81,7 +81,7 @@ def check_mandate(c: MandateCtx) -> Check:
     )
 
 
-R1 = Requirement("G6.R1", "poteto-mode for a multi-file PR", check_mandate)
+R1 = Requirement("G6.R1", "poteto-mode for a multi-file PR", check_mandate, escapable=False)
 
 
 class MandateGate:
