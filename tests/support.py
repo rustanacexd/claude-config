@@ -243,14 +243,16 @@ PR_CREATE = "gh pr create --base main --title 'fix: a thing' --body-file /tmp/bo
 
 
 class FakeGit:
-    def __init__(self, files: Sequence[str] = ("src/a.py", "src/b.py"), down: Optional[str] = None) -> None:
-        self.files, self.down = files, down
+    def __init__(self, files: Sequence[str] = ("src/a.py", "src/b.py"), down: Optional[str] = None, remote_base: bool = True) -> None:
+        self.files, self.down, self.remote_base = files, down, remote_base
         self.calls: List[Sequence[str]] = []
 
     def __call__(self, argv: Sequence[str], cwd: Path, timeout: float) -> str:
         self.calls.append(list(argv))
         if self.down:
             raise RunFailed(self.down)
+        if not self.remote_base and argv[-1].startswith("origin/"):
+            raise RunFailed(f"fatal: bad revision '{argv[-1]}'")
         if list(argv[:2]) == ["git", "symbolic-ref"]:
             return "origin/main\n"
         if list(argv[:3]) == ["git", "diff", "--name-only"]:

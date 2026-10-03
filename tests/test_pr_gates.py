@@ -79,6 +79,19 @@ class MandateGate(unittest.TestCase):
         run(replace(without(GREEN, "poteto"), git=git, command="gh stack submit --auto"))
         self.assertEqual(git.calls[-1], ["git", "diff", "--name-only", "origin/main...HEAD"])
 
+    def test_a_missing_remote_base_falls_back_to_the_local_branch(self):
+        git = FakeGit(files=("README.md",), remote_base=False)
+        outcome = run(replace(without(GREEN, "poteto"), git=git))
+        self.assertEqual(outcome.exit_code, 0, outcome.stderr)
+        self.assertEqual(git.calls[-2:], [["git", "diff", "--name-only", "origin/main...HEAD"], ["git", "diff", "--name-only", "main...HEAD"]])
+
+    def test_a_base_held_in_a_shell_variable_fails_without_asking_git(self):
+        git = FakeGit(files=("README.md",))
+        outcome = run(replace(without(GREEN, "poteto"), git=git, command="gh pr create --base $B --fill"))
+        self.assertEqual(flagged_ids(outcome), frozenset({"G6.R1"}))
+        self.assertIn("--base $B is a shell expression", outcome.stderr)
+        self.assertEqual(git.calls, [])
+
     def test_a_passing_open_outside_poteto_never_parses_the_transcript(self):
         parses = []
         original = evidence.load_session

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from support import (
     GREEN_FACTS, GREEN_PIECES, HEAD, MERGE_ID, PR, Case, FakeGh, Transcript, at, comment, env, failed_ids, forbidden_runner,
-    gh_at, inline, merge_command, payload, plus, run_case, without,
+    PASS_BODY, REPO, gh_at, inline, merge_command, payload, plus, run_case, without,
 )
 import hook
 import g1_merge
@@ -103,11 +103,21 @@ class StackMerge(unittest.TestCase):
         self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2"}))
         self.assertIn("gh stack merge cannot pin heads", outcome.stderr)
 
+    def test_an_inline_verdict_naming_the_head_does_not_satisfy_r2(self):
+        facts = replace(GREEN_FACTS, issue=GREEN_FACTS.issue[:1], inline=(inline(3000000001, gh_at(4), PASS_BODY),))
+        case = plus(replace(GREEN, command="gh stack merge --yes", facts=facts),
+                    ("read_inline", lambda t: t.bash(f"gh api repos/{REPO}/pulls/{PR}/comments", at(6, 10), "[]")))
+        with tempfile.TemporaryDirectory() as tmp:
+            outcome, _ = run_case(case, Path(tmp))
+        self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2"}))
+
     def test_an_unresolvable_set_blocks_with_a_remedy(self):
-        for command, reason in (("gh stack merge 7 --yes", "#7 is not an unmerged PR"),
-                                ("gh stack merge $N --yes", "not a literal PR number")):
-            with self.subTest(command):
-                outcome, _ = self.run_case(command)
+        all_merged = replace(GREEN_FACTS, stack=((40, "MERGED"), (PR, "MERGED")))
+        for command, facts, reason in (("gh stack merge 7 --yes", GREEN_FACTS, "#7 is not an unmerged PR"),
+                                       ("gh stack merge $N --yes", GREEN_FACTS, "not a literal PR number"),
+                                       ("gh stack merge --yes", all_merged, "has no unmerged PR")):
+            with self.subTest(command, reason=reason):
+                outcome, _ = self.run_case(command, facts)
                 self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2", "G1.R3"}))
                 self.assertIn(reason, outcome.stderr)
                 self.assertIn("gh stack view --json", outcome.stderr)
