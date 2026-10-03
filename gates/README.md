@@ -8,10 +8,17 @@ evidence at one point:
   ran, and refuses a `git commit` or `git push` that skips the git hooks.
 - G3 refuses to end a poteto-mode turn that has no todolist, cites a principle
   it did not read, or changed code without a later advisor call.
+- G4 refuses to complete a poteto-mode task that names a skill the session
+  never ran.
+- G5 refuses the bundled `babysit` skill in a poteto-mode session, and warns
+  on a third parallel `Agent` call that no fan-out skill organized.
 - G6 refuses `gh pr create` and `gh stack submit` on a diff of more than one
   file when poteto-mode is not active.
 - G7 never refuses anything. After a compaction in a poteto-mode session, it
   gives the model back the playbooks it read, its open tasks and its skips.
+- G8 refuses a write into a worktree that the session handed to an agent,
+  until a `pgrep` for that worktree runs after the agent was last spawned or
+  messaged. It also warns on a settings file written without `update-config`.
 
 ## Install the gates
 
@@ -27,6 +34,37 @@ that `~/.claude/gates` links to this directory:
 				{
 					"type": "command",
 					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse Bash",
+					"timeout": 60
+				}
+			]
+		},
+		{
+			"matcher": "Edit|Write|MultiEdit",
+			"hooks": [
+				{
+					"type": "command",
+					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse 'Edit|Write|MultiEdit'",
+					"timeout": 60
+				}
+			]
+		},
+		{
+			"matcher": "Skill|Agent",
+			"hooks": [
+				{
+					"type": "command",
+					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse 'Skill|Agent'",
+					"timeout": 60
+				}
+			]
+		}
+	],
+	"TaskCompleted": [
+		{
+			"hooks": [
+				{
+					"type": "command",
+					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh TaskCompleted",
 					"timeout": 60
 				}
 			]
@@ -70,7 +108,7 @@ committed through the `~/.claude/gates` symlink.
 
 `gate.sh` takes the hook event as its first argument. With `PreToolUse Bash`,
 it starts Python only when the command contains a trigger literal of a Bash
-gate. Every other event starts Python on every call. Give an entry for `Stop`
+gate. Every other event and tool starts Python on every call. Give an entry for `Stop`
 or `SessionStart` a `timeout` of 10, and an entry for `PreToolUse` or
 `TaskCompleted` a `timeout` of 60. The gates stop themselves at 7 and 40
 seconds, because a hook that times out allows the call.
@@ -217,6 +255,49 @@ R1, R3 and R4 can block. The install blocks on R1 only and warns on R3 and
 R4. G3 reads the final reply from `last_assistant_message`, because the
 transcript can lag it.
 
+## What G4 checks
+
+G4 runs when a task is marked `completed` in a poteto-mode session, from the
+main agent or a subagent.
+
+| Requirement | Passes when |
+| --- | --- |
+| `G4.R1` | Every skill that the task's subject or description names ran through the Skill tool or as a slash command, in the main transcript or any subagent transcript. A task whose text contains `skip:` passes. |
+
+G4 knows these skills: `deslop`, `no-comments`, `technical-writing`,
+`unslop`, `architect`, `arena`, `swarm`, `interrogate`, `show-me-your-work`,
+`figure-it-out` and `tdd`. It matches whole words, so `deslopped` names
+nothing. `how` and `why` are common words, so G4 counts them only as `/how`,
+`pstack:how` or `how skill`, and the same forms of `why`.
+
+A task that names no skill passes without reading the transcript. A
+transcript that cannot be read refuses the completion.
+
+In block mode, Claude Code keeps the task open and returns the findings to
+the model as a tool error. In warn mode, the findings go to `systemMessage`,
+which only the user sees. TaskCompleted has no `additionalContext`.
+
+## What G5 checks
+
+G5 runs on every `Skill` and `Agent` call in a poteto-mode session.
+
+| Requirement | Passes when |
+| --- | --- |
+| `G5.R1` | Advisory. An `Agent` call has fewer than two earlier `Agent` calls in the same assistant message, or the session ran `swarm`, `arena`, `architect` or `interrogate`. |
+| `G5.R2` | The `Skill` call is not `babysit` or `<plugin>:babysit`. poteto-mode routes a PR-status request to its `playbooks/babysit.md` instead. |
+
+R2 blocks. The model receives both requirements' findings: a block on stderr,
+and a warning or advisory through `additionalContext`.
+
+R1 finds the call's message through the call's own record. Claude Code writes
+that record before the hook only sometimes. Without it, R1 uses the newest
+assistant message, which is right for a parallel call and wrong for the first
+call of a new message. Claude Code also runs the hooks of parallel calls at
+the same time, before it writes their records. In a live run, three parallel
+`Agent` calls each saw at most one earlier call, so R1 did not fire. R1
+therefore misses most real fan-outs. Replayed against the finished
+transcript, the same third call fails R1.
+
 ## What G6 checks
 
 G6 runs on `gh pr create` and `gh stack submit` in every session.
@@ -248,6 +329,55 @@ with these items:
 
 When the text is longer than 2,000 characters, G7 cuts the last lines and ends
 with `cut at 2000 characters`.
+
+## What G8 checks
+
+G8 runs on every `Edit`, `Write` and `MultiEdit` call, and on a Bash command
+that contains one of its trigger literals. It runs in every session, not only
+in poteto-mode.
+
+| Requirement | Passes when |
+| --- | --- |
+| `G8.R1` | The write is not into a linked worktree that an `Agent` prompt in this session named, or a Bash `pgrep` whose arguments name that worktree ran after the agent's spawn and after every `SendMessage` to it. Only the main agent is checked. |
+| `G8.R2` | Advisory. The write to a `*settings*.json` file under a `.claude` directory, or to the file that `~/.claude/<name>` links to, comes after an `update-config` skill run in the session. |
+
+R1 blocks. The model receives the findings: a block on stderr, and a warning
+or advisory through `additionalContext`.
+
+G8 finds the target of each write:
+
+- For `Edit`, `Write` and `MultiEdit`, the target is `file_path`.
+- For `git commit`, `reset`, `checkout`, `rebase`, `stash`, `clean`, `merge`
+  and `push`, the target is the directory the command runs in, after any `cd`
+  or `git -C`.
+- For `rm`, the targets are the file operands.
+- For any Bash command, the targets also include the files it writes as G2
+  counts a Bash write: `>` and `>>` targets, `tee` operands, and the files of
+  `sed -i` and `perl -i`. A Bash command reaches G8 only when it holds a
+  trigger literal, so a `tee` or `sed -i` into a worktree alone is not checked.
+  A relative path resolves against the command's working directory, which is
+  the hook's `cwd` moved by any `cd` on the line; after a `cd` to a shell
+  expression it falls back to the hook's `cwd`.
+
+A linked worktree is the nearest directory whose `.git` is a file. A `.git`
+directory first means a main checkout, which G8 does not check. A write into
+the worktree that holds the hook's `cwd` passes. G8 compares the path as
+written, its real path, its `~` form and, under `/private`, the path without
+that prefix, so `/tmp` and `/private/tmp` match in either direction. Through
+any other symlink, a prompt matches only when it names the real path.
+A path followed by a letter, digit, `-` or `.x` is a different path.
+
+The pgrep must be its own earlier Bash call. A `pgrep` in the same command as
+the write does not count, because the write is not yet on disk when the hook
+reads the transcript.
+
+A `SendMessage` resumes the agent, so it restarts R1. G8 matches the
+message's `to` field and the `resumedAgentId` in its result against the
+`agentId` from the spawn result.
+
+An ordinary edit costs one walk up the directory tree. G8 reads the
+transcript only when the target is in another linked worktree, and parses
+it only when a line that holds an `Agent` call also names that worktree.
 
 ## Skip a requirement
 
@@ -326,6 +456,21 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   does not see the warning; only the user does.
 - **Block is the default.** An unset `GATES_MODE` blocks. The install snippet
   sets `warn` explicitly.
+- **G5.R1 is poteto-scoped.** The spec scopes every gate but G1 to poteto-mode
+  unless a row says otherwise, and R1 does not.
+- **G8 adds `git -<option>` before a write verb, three `rm` spellings and
+  `settings` to the Bash trigger literals.** The spec lists the eleven git and
+  `rm` literals. Without `git -<option> <write verb>`, a reset into another
+  worktree spelled `git -C <dir> reset` would pass unchecked, while
+  `git -C <dir> status` still exits in the shell. `rm -R`, `rm --recursive`
+  and `rm --force` delete as `rm -r` and `rm -f` do. Without `settings`, R2
+  would never see a Bash write. In past sessions, 757 of 27,292
+  Bash commands (2.8%) contain `settings`.
+- **G8.R1 reads `rm` operands, not the `rm` working directory.** `rm -rf
+  ../wt/build` deletes inside `../wt`, wherever it runs.
+- **G8 reads every Bash write that G2 counts.** The spec names `sed -i` and
+  `>` for R2. G8 takes its Bash writes from the same definition as G2, which
+  adds `>>`, `tee` and `perl -i`.
 
 ## Limits
 
@@ -338,11 +483,9 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   `P=~/x; cat $P/f`. Then the word carries the value. A variable assigned in
   an earlier Bash call, or from a command substitution, is not substituted.
 - `gate.sh` starts Python for a Bash command only when the command contains
-  `gh pr merge`, `gh stack merge`, `gh pr create`, `gh stack submit`,
-  `git commit`, `git push` or `--no-verify`, or contains `git -` followed
-  later by ` commit` or ` push`. A call spelled another way passes unchecked,
-  for example with two spaces, as `gh api -X PUT .../merge`, or from inside
-  `python -c`.
+  a trigger literal of a Bash gate, each gate's `trigger_literals`. A call
+  spelled another way passes unchecked, for example with two spaces, as
+  `gh api -X PUT .../merge`, or from inside `python -c`.
 - G2.R4 sees a `core.hooksPath` override only on the command line. It misses
   one set through `GIT_CONFIG_COUNT` or `GIT_CONFIG_PARAMETERS`, one written
   earlier with `git config`, and a `-c` whose setting is a shell variable.
@@ -375,6 +518,19 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   `up` has its `down`.
 - G7 lists the items of the last `TodoWrite` call only. An item that an
   earlier call held and the last call dropped is not restored.
+- G8.R1 proves that a `pgrep` ran, not that it found nothing. `pgrep -fl
+  <worktree>` matches only a process whose command line holds the path, and an
+  agent's `sleep 90` does not. Read the `pgrep` output yourself.
+- G8.R1 checks only the eight git verbs it lists. `git switch`, `restore`,
+  `pull`, `cherry-pick`, `branch -D` and `git worktree remove` pass, and
+  `git -C <wt> stash list` is treated as a write.
+- G8.R1 counts any prompt that names the worktree, even one that says not to
+  touch it. A prompt that spells it `$HOME/<wt>` does not name it.
+- G8.R1 misses a worktree that an `Agent` call created with
+  `isolation: "worktree"`, because no prompt names its path.
+- G8 runs Python on every `Edit`, `Write` and `MultiEdit` call. With Homebrew
+  Python, an ordinary edit adds about 50 ms. With `/usr/bin/python3` 3.9, it
+  adds about 145 ms.
 
 ## Layout and tests
 
@@ -390,8 +546,9 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   a file write, a commit and a test run. It also records skill runs, agent spawns, edits and
   task changes.
 - `github.py` reads PR facts and stack membership through `gh`.
-- `g1_merge.py`, `g2_pr.py`, `g3_stop.py` and `g6_mandate.py` hold each
-  gate's requirements. `g7_compact.py` builds the text that G7 returns.
+- `g1_merge.py`, `g2_pr.py`, `g3_stop.py`, `g4_task.py`, `g5_routing.py`,
+  `g6_mandate.py` and `g8_worktree.py` hold each gate's requirements.
+  `g7_compact.py` builds the text that G7 returns.
 
 Run the tests from the repo root:
 
