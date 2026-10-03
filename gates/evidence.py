@@ -729,15 +729,18 @@ def _written(inv: Invocation) -> Iterator[Word]:
         yield from files if inv.has(*script_flags) else files[1:]
 
 
-def _wrote(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
-    if result is not None and result.is_error:
-        return
+def written(inv: Invocation) -> Iterator[Path]:
     for w in _written(inv):
         if w.dynamic or w.text in ("", "-") or w.text.startswith("/dev/"):
             continue
         path = Path(os.path.expanduser(w.text))
-        if not path.is_absolute() and inv.workdir is not None:
-            path = inv.workdir / path
+        yield inv.workdir / path if not path.is_absolute() and inv.workdir is not None else path
+
+
+def _wrote(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
+    if result is not None and result.is_error:
+        return
+    for path in written(inv):
         yield Edited(stamp, str(path))
         if is_todo(str(path)):
             yield TaskOp(stamp, "Bash", None, "", "", None, todo_file=str(path))

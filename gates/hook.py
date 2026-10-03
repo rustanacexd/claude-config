@@ -18,8 +18,9 @@ def gates():
     from g5_routing import GATE as G5
     from g6_mandate import GATE as G6
     from g7_compact import GATE as G7
+    from g8_worktree import BASH_GATE as G8_BASH, FILE_GATE as G8_FILES
 
-    return (G1, G2, G3, G4, G5, G6, G7)
+    return (G1, G2, G3, G4, G5, G6, G7, G8_BASH, G8_FILES)
 
 
 def applies(gate, hook) -> bool:

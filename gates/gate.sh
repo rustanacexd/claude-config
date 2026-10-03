@@ -7,8 +7,8 @@ HOOK="$(dirname "$0")/hook.py"
 in=$(cat)
 if [ "$1" = PreToolUse ] && [ "$2" = Bash ]; then
   case "$in" in
-    *"gh pr merge"* | *"gh stack merge"* | *"gh pr create"* | *"gh stack submit"* | *"git commit"* | *"git push"* | *"--no-verify"*) ;;
-    *"git -"*" commit"* | *"git -"*" push"*) ;;
+    *"gh pr merge"* | *"gh stack merge"* | *"gh pr create"* | *"gh stack submit"* | *"git commit"* | *"git push"* | *"--no-verify"* | *"git reset"* | *"git checkout"* | *"git rebase"* | *"git stash"* | *"git clean"* | *"git merge"* | *"rm -r"* | *"rm -f"* | *"rm -rf"* | *"rm -R"* | *"rm --recursive"* | *"rm --force"* | *"settings"*) ;;
+    *"git -"*" commit"* | *"git -"*" push"* | *"git -"*" reset"* | *"git -"*" checkout"* | *"git -"*" rebase"* | *"git -"*" stash"* | *"git -"*" clean"* | *"git -"*" merge"*) ;;
     *) exit 0 ;;
   esac
 fi
