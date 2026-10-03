@@ -22,8 +22,14 @@ class PrGate(unittest.TestCase):
     def test_a_commit_a_scratch_file_or_a_todo_tick_after_deslop_does_not_reset_it(self):
         case = plus(GREEN, ("commit", lambda t: t.bash("git commit -am 'fix: a thing'", at(6))),
                     ("body", lambda t: t.tool("Write", {"file_path": "/tmp/body.md", "content": "## Why"}, at(6, 30))),
-                    ("todo", lambda t: t.tool("Write", {"file_path": f"{WORKTREE}/todo.md", "content": "- [x] deslop"}, at(6, 40))))
+                    ("todo", lambda t: t.tool("Write", {"file_path": f"{WORKTREE}/todo.md", "content": "- [x] deslop"}, at(6, 40))),
+                    ("bash_body", lambda t: t.bash("cat > /tmp/body.md <<'EOF'\n## Why\nEOF", at(6, 50))))
         self.assertEqual(run(case).exit_code, 0)
+
+    def test_a_file_written_from_bash_after_deslop_then_committed_needs_another_deslop(self):
+        case = plus(GREEN, ("heredoc", lambda t: t.bash(f"cat > {WORKTREE}/src/b.py <<'EOF'\nprint(1)\nEOF", at(6))),
+                    ("commit", lambda t: t.bash("git add -A && git commit -m 'add b'", at(6, 30))))
+        self.assertEqual(flagged_ids(run(case)), frozenset({"G2.R1", "G2.R2"}))
 
     def test_no_edits_passes_and_says_so(self):
         outcome = run(without(GREEN, "edit", "deslop", "no_comments"))

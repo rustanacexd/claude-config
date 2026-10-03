@@ -27,6 +27,7 @@ class Invocation:
     workdir: Optional[Path]
     pipes_into: Tuple[str, ...]
     global_opts: Tuple[Word, ...] = ()
+    redirects_to: Tuple[Word, ...] = ()
 
     def has(self, *flags: str) -> bool:
         return any(w.text in flags or any(w.text.startswith(f + "=") for f in flags if f.startswith("--")) for w in self.words)
@@ -67,6 +68,7 @@ class _W:
 
 _OPS = ("&&", "||", ";;", "|&", "<<<", "<<-", "<<", "&>>", "&>", ">>", ">&", "<&", ">|", "<>", ";", "&", "|", "(", ")", "<", ">")
 _REDIRS = frozenset({"<<<", "<<-", "<<", "&>>", "&>", ">>", ">&", "<&", ">|", "<>", "<", ">"})
+_OUTPUT_REDIRS = frozenset({">", ">>", ">|", "&>", "&>>"})
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-]")
 
 
@@ -314,23 +316,25 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
         for seg in pipe:
             argv: List[_W] = []
             heredocs: List[str] = []
-            redirect = False
+            outputs: List[Word] = []
+            redirect: Optional[str] = None
             for t in seg:
                 if isinstance(t, str):
-                    redirect = True
+                    redirect = t
                     continue
                 for sub in t.subs:
                     _build(sub, workdir, out)
-                if redirect:
-                    if t.heredoc is not None:
-                        heredocs.append(t.heredoc)
-                    redirect = False
-                else:
+                if redirect is None:
                     argv.append(t)
+                elif t.heredoc is not None:
+                    heredocs.append(t.heredoc)
+                elif redirect in _OUTPUT_REDIRS:
+                    outputs.append(Word(t.text, t.dynamic))
+                redirect = None
             argv = _strip(argv)
-            segments.append((argv, heredocs, os.path.basename(argv[0].text) if argv else ""))
+            segments.append((argv, heredocs, os.path.basename(argv[0].text) if argv else "", tuple(outputs)))
 
-        for k, (argv, heredocs, tool) in enumerate(segments):
+        for k, (argv, heredocs, tool, targets) in enumerate(segments):
             if not argv:
                 continue
             if tool == "cd":
@@ -346,7 +350,7 @@ def _build(toks: list, workdir: Optional[Path], out: List[Invocation]) -> Option
                 _build(_Lexer(" ".join(w.text for w in argv[1:])).lex(), workdir, out)
             words = [Word(w.text, w.dynamic) for w in argv[1:]]
             sub, rest, wd, global_opts = _split_sub(tool, words, workdir)
-            out.append(Invocation(tool, sub, rest, wd, tuple(t for _, _, t in segments[k + 1 :] if t), global_opts))
+            out.append(Invocation(tool, sub, rest, wd, tuple(s[2] for s in segments[k + 1 :] if s[2]), global_opts, targets))
     return workdir
 
 
@@ -622,8 +626,48 @@ def _read(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[E
             yield Read(stamp, w.text, complete)
 
 
+_IN_PLACE_SCRIPT_FLAGS = {"sed": frozenset({"-e", "--expression", "-f", "--file"}), "perl": frozenset({"-e", "-E"})}
+_TAKES_VALUE = {"sed": "efl", "perl": "eEIMmxCdD"}
+_PERL_DIGIT_SWITCHES = re.compile(r"[0l]\d*")
+
+
+def _in_place(tool: str, flag: str) -> bool:
+    if flag.startswith("--in-place"):
+        return True
+    if not flag.startswith("-") or flag.startswith("--"):
+        return False
+    for c in _PERL_DIGIT_SWITCHES.sub("", flag[1:]) if tool == "perl" else flag[1:]:
+        if c == "i":
+            return True
+        if c in _TAKES_VALUE[tool]:
+            return False
+    return False
+
+
+def _written(inv: Invocation) -> Iterator[Word]:
+    yield from inv.redirects_to
+    if inv.tool == "tee":
+        yield from inv.positional(frozenset())
+    elif inv.tool in _IN_PLACE_SCRIPT_FLAGS and any(_in_place(inv.tool, w.text) for w in inv.words):
+        script_flags = _IN_PLACE_SCRIPT_FLAGS[inv.tool]
+        files = [w for w in inv.positional(script_flags) if w.text]
+        yield from files if inv.has(*script_flags) else files[1:]
+
+
+def _wrote(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
+    if result is not None and result.is_error:
+        return
+    for w in _written(inv):
+        if w.dynamic or w.text in ("", "-") or w.text.startswith("/dev/"):
+            continue
+        path = Path(os.path.expanduser(w.text))
+        if not path.is_absolute() and inv.workdir is not None:
+            path = inv.workdir / path
+        yield Edited(stamp, str(path))
+
+
 Classifier = Callable[[Invocation, Stamp, Optional[Result]], Iterable[Event]]
-CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested)
+CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested, _wrote)
 
 
 _EDIT_TOOLS = {"Write": ("content",), "Edit": ("new_string",), "MultiEdit": ("edits",), "NotebookEdit": ("new_source",)}

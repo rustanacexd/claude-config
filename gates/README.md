@@ -136,7 +136,9 @@ poteto-mode is active. R4 applies in every session.
 | `G2.R4` | The command does not skip the git hooks with `--no-verify` or a prefix of it such as `--no-veri`, with `-n` on `git commit`, or with a `core.hooksPath` override through `-c` or `--config-env`. |
 
 An edit is an `Edit`, `Write`, `MultiEdit` or `NotebookEdit` call that did not
-fail. G2 looks for edits and skill runs in the main transcript and in every
+fail, or a Bash command that writes a file with `>`, `>>`, `tee`, `sed -i` or
+`perl -i` and did not exit with an error. A command whose result has not
+arrived yet counts. A write to `/dev/` is not an edit. G2 looks for edits and skill runs in the main transcript and in every
 subagent transcript. Within one file it orders them by line, and across files
 by timestamp. With no edit in the session, R1 and R2 pass.
 
@@ -195,9 +197,14 @@ recognize, ask them to say `merge`, `land` or `ship`.
   information. A `--jq` filter that prints less than every comment still
   counts as a read.
 - **G2.R1 and G2.R2 restart at an edit, not at a commit.** The spec restarts
-  them at the last edit or commit. The usual order is edit, deslop, commit,
-  then open the PR. A commit adds no code that an edit did not add. In a sweep
-  of past sessions, 38 of 191 failures were a commit made after deslop.
+  them at the last edit or commit. poteto-mode runs deslop before a commit, so
+  the usual order is edit, deslop, commit, then open the PR, and a commit adds
+  no code that an edit did not add. A file written from Bash counts as an
+  edit instead, which closes the path where a Bash write and a commit after
+  deslop reached the PR unreviewed. Across 213 PR opens in past poteto
+  sessions, a commit restart failed 211, and the edit restart with Bash writes
+  failed 177. Of the 71 opens that the Bash writes added, 57 changed source,
+  tests, config or docs after deslop.
 - **G2.R1 and G2.R2 ignore scratch files.** A scratch file sits under `/tmp`
   or another temp directory and outside any git work tree, such as a PR body
   written for `gh pr create --body-file`. An edit in a git work tree under
@@ -233,19 +240,26 @@ recognize, ask them to say `merge`, `land` or `ship`.
   blocks. Every non-zero exit from Python becomes exit 2, and so does a
   missing `python3`. A missing `gate.sh` exits 127, which Claude Code does not
   treat as a block, so the call runs.
-- G2 sees an edit only through the edit tools. A file written by a Bash
-  heredoc or `sed -i` is not an edit.
+- G2 sees a Bash write only through `>`, `>>`, `tee`, `sed -i` and `perl -i`.
+  It misses `cp`, `mv`, `patch`, `git apply`, `dd`, `install`, `rsync`,
+  `truncate`, `git checkout <rev> -- <path>`, `gsed -i`, a `sed -i` run by
+  `xargs` or `find -exec`, a redirect with no command such as `> file`, a
+  script that writes files, and a redirect to a path held in a shell variable.
+  A write to a decision log in the repo, such as `.audit/log.tsv`, counts as an
+  edit.
 
 ## Layout and tests
 
 - `gate.sh` is the shell entry point that every hook command runs.
 - `hook.py` reads the hook payload, picks the gates registered for its event
-  and tool, runs them, and exits 0 or 2.
+  and tool, runs them, and exits 0 or 2. A gate's `trigger_literals` are shell
+  `case` patterns: `gate.sh` and `hook.py` both match each as `*<pattern>*`,
+  and a test checks that the two lists agree.
 - `core.py` defines events, requirements, escapes and decisions, and renders
   the hook output for each event.
 - `evidence.py` parses shell commands and transcripts. Its classifier table is
   the one definition of a push, a comment read, a comment post, a file read,
-  a commit and a test run. It also records skill runs, agent spawns, edits and
+  a file write, a commit and a test run. It also records skill runs, agent spawns, edits and
   task changes.
 - `github.py` reads PR facts and stack membership through `gh`.
 - `g1_merge.py`, `g2_pr.py` and `g6_mandate.py` hold each gate's requirements.

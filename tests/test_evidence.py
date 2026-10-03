@@ -195,6 +195,35 @@ class SkipsHooks(unittest.TestCase):
                 self.assertEqual(any(skips_hooks(i) for i in parse_shell(command, Path("/"))), expected)
 
 
+class BashWrites(unittest.TestCase):
+    def test_redirects_tee_and_in_place_edits_are_edits_and_streams_are_not(self):
+        cases = {
+            "cat > src/b.py <<'EOF'\nx\nEOF": ["/work/src/b.py"],
+            "echo x >> notes.md": ["/work/notes.md"],
+            "cd /w && printf x | tee -a a.py b.py": ["/w/a.py", "/w/b.py"],
+            "sed -i '' 's/a/b/' src/a.py": ["/work/src/a.py"],
+            "sed -i -e s/a/b/ x.py y.py": ["/work/x.py", "/work/y.py"],
+            "perl -pi -e 's/a/b/' /w/c.py": ["/w/c.py"],
+            "perl -Ilib -Mstrict -e 1 f.py": [], "sed -ni.bak p g.py": ["/work/g.py"],
+            "perl -0pi -e 's/a/b/' /w/c.py": ["/w/c.py"], "perl -lpi -e 's/a/b/' /w/c.py": ["/w/c.py"],
+            "perl -lni -e 'print' /w/c.py": ["/w/c.py"], "perl -0777 -ne 'print' f.py": [], "perl -l0ne 'print' f.py": [],
+            "npm test 2>/dev/null >&2": [], "ls 2>&1 | head": [], 'cat > "$F"': [], "sed 's/a/b/' f.py": [],
+        }
+        for command, paths in cases.items():
+            with self.subTest(command):
+                t = Transcript()
+                t.bash(command, at(1))
+                self.assertEqual([e.path for e in ledger(t).of(Edited)], paths)
+
+    def test_a_write_whose_command_failed_is_not_an_edit_but_one_still_running_is(self):
+        failed = Transcript()
+        failed.bash("cat > src/b.py <<'EOF'\nx\nEOF", at(1), "Exit code 1\nsrc: No such file or directory", is_error=True)
+        self.assertEqual([e.path for e in ledger(failed).of(Edited)], [])
+        pending = Transcript()
+        pending.bash("cat > src/b.py <<'EOF'\nx\nEOF", at(1), None)
+        self.assertEqual([e.path for e in ledger(pending).of(Edited)], ["/work/src/b.py"])
+
+
 class CrossFile(unittest.TestCase):
     def test_latest_orders_by_line_within_a_file_and_by_time_across_files(self):
         with tempfile.TemporaryDirectory() as tmp:
