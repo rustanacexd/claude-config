@@ -235,6 +235,7 @@ class Failed:
     req: Requirement
     detail: str
     remedy: str
+    crashed: bool = False
 
 
 @dataclass(frozen=True)
@@ -279,16 +280,17 @@ def adjudicate(
 ) -> Decision:
     findings = []
     for req in requirements:
+        crashed = False
         try:
             chk = req.check(ctx)
         except Unavailable as exc:
             chk = Check.failed(f"cannot verify: {exc}", exc.remedy)
         except Exception as exc:
-            chk = Check.failed(f"internal error in this check: {exc!r}", "report this gate bug to the user")
+            chk, crashed = Check.failed(f"internal error in this check: {exc!r}", "report this gate bug to the user"), True
         if chk.ok:
             findings.append(Passed(req, chk.detail))
             continue
-        failure = Failed(req, chk.detail, chk.remedy)
+        failure = Failed(req, chk.detail, chk.remedy, crashed)
         esc = escapes.get(req.rid) if req.escapable else None
         findings.append(Escaped(failure, esc) if esc else failure)
     return Decision(gate, subject, tuple(findings))
@@ -344,7 +346,10 @@ def _exit0(event: Event, text: str) -> Outcome:
 def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
     can_block = event is not Event.SESSION_START and env.no_block_reason is None
     failing = [d for d in decisions if d.blocked]
-    blocking = [d for d in failing if can_block and env.mode_for(d.gate) is Mode.BLOCK]
+    blocking = [
+        d for d in failing
+        if can_block and env.mode_for(d.gate) is Mode.BLOCK and not (event is Event.STOP and all(f.crashed for f in d.failed))
+    ]
     warned = [d for d in failing if d not in blocking]
     notes = []
     if warned:

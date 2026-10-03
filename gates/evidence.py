@@ -487,10 +487,17 @@ class TaskOp:
     subject: str
     description: str
     status: Optional[str]
+    todo_file: Optional[str] = None
 
     @property
     def lines(self) -> Sequence[str]:
-        return [*self.subject.splitlines(), *self.description.splitlines()]
+        text = [self.subject, self.description]
+        if self.todo_file:
+            try:
+                text.append(Path(self.todo_file).read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                pass
+        return [line for t in text for line in t.splitlines()]
 
 
 @dataclass(frozen=True)
@@ -718,6 +725,8 @@ def _wrote(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[
         if not path.is_absolute() and inv.workdir is not None:
             path = inv.workdir / path
         yield Edited(stamp, str(path))
+        if is_todo(str(path)):
+            yield TaskOp(stamp, "Bash", None, "", "", None, todo_file=str(path))
 
 
 APP_SCRIPTS = (DetachedAppScript("npm", "e2e:control", "up", "down"),)

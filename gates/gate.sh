@@ -12,8 +12,12 @@ if [ "$1" = PreToolUse ] && [ "$2" = Bash ]; then
     *) exit 0 ;;
   esac
 fi
-printf %s "$in" | python3 -S -E "$HOOK" "$1"
-rc=$?
+if [ -r "$HOOK" ]; then
+  printf %s "$in" | python3 -S -E "$HOOK" "$1"
+  rc=$?
+else
+  rc=127
+fi
 case "$rc:$1" in
   0:* | 2:*) exit $rc ;;
   *:Stop | *:SessionStart) printf '{"systemMessage": "The workflow gate crashed (exit %s), so it did not check this %s. The bug is in ~/.claude/gates."}\n' "$rc" "$1"; exit 0 ;;

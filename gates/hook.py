@@ -13,9 +13,10 @@ def gates():
     # Imported here so that an import or syntax error on an older Python reaches main's handler.
     from g1_merge import GATE as G1
     from g2_pr import GATE as G2
+    from g3_stop import GATE as G3
     from g6_mandate import GATE as G6
 
-    return (G1, G2, G6)
+    return (G1, G2, G3, G6)
 
 
 def applies(gate, hook) -> bool:
@@ -39,6 +40,10 @@ def run(raw: str, env):
     active = [g for g in gates() if applies(g, hook)]
     if not active:
         return ALLOW
+    if hook.stop_hook_active:
+        from dataclasses import replace
+
+        env = replace(env, no_block_reason="Claude Code is already continuing this turn because a Stop hook blocked it once")
     transcripts = Transcripts(hook)
     decisions = []
     for gate in active:

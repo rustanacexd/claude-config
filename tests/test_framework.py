@@ -6,7 +6,7 @@ from pathlib import Path
 from support import env, forbidden_runner
 import hook
 from core import (
-    Check, Env, Event, MalformedHook, Mode, Requirement, adjudicate, parse_hook_call, render,
+    Check, Env, Escape, Event, MalformedHook, Mode, Requirement, adjudicate, parse_hook_call, render,
 )
 
 HARD = Requirement("G9.R1", "hard", lambda c: Check.failed("hard failed", "fix it"))
@@ -105,6 +105,19 @@ class CrashPolicy(unittest.TestCase):
                 code, out, _ = self.crash(event, "not json")
                 self.assertEqual(code, 0)
                 self.assertIn("crashed", json.loads(out)["systemMessage"])
+
+    def test_a_check_that_raises_never_blocks_stop_but_blocks_a_tool_call(self):
+        boom = Requirement("G9.R1", "boom", lambda c: 1 // 0)
+        stop = render(Event.STOP, [decision(boom)], Env.from_environ({}, Event.STOP))
+        self.assertEqual(stop.exit_code, 0, stop.stderr)
+        self.assertIn("internal error in this check", json.loads(stop.stdout)["systemMessage"])
+        pre = render(Event.PRE_TOOL_USE, [decision(boom)], Env.from_environ({}, Event.PRE_TOOL_USE))
+        self.assertEqual(pre.exit_code, 2)
+        self.assertIn("internal error in this check", pre.stderr)
+        skipped = adjudicate("G9", "subject", (boom,), None, {"G9.R1": Escape("G9.R1", "the gate bug is reported", "todo.md:3")})
+        allowed = render(Event.PRE_TOOL_USE, [skipped], Env.from_environ({}, Event.PRE_TOOL_USE))
+        self.assertEqual(allowed.exit_code, 0, allowed.stderr)
+        self.assertIn("G9.R1 skipped: the gate bug is reported", allowed.stdout)
 
     def test_tool_and_task_events_block_on_a_crash(self):
         for event in ("PreToolUse", "TaskCompleted", "NoSuchEvent"):

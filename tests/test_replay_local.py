@@ -150,6 +150,42 @@ def bash_points(case: dict, table: dict):
                     yield n, (None if path == Path(src) else path.name)
 
 
+def _reply(rec: dict) -> Optional[str]:
+    content = (rec.get("message") or {}).get("content")
+    if rec.get("type") != "assistant" or not isinstance(content, list):
+        return None
+    texts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
+    return "\n".join(texts) if texts else None
+
+
+def turn_end_lines(src: Path):
+    from evidence import _human, _text
+
+    last = None
+    for n, line in enumerate(src.read_text().splitlines(), 1):
+        rec = json.loads(line)
+        if _reply(rec) is not None:
+            last = n
+        elif rec.get("type") == "user" and last is not None:
+            text = _text((rec.get("message") or {}).get("content"))
+            if text and _human(rec, text):
+                yield last
+                last = None
+    if last is not None:
+        yield last
+
+
+def replay_stop(case: dict, table: dict, tmp: Path, line: int):
+    (src,) = glob.glob(f"{table['projects']}/{case['project']}/{case['session']}*.jsonl")
+    src = Path(src)
+    lines = src.read_text().splitlines()
+    rec = json.loads(lines[line - 1])
+    _copy_agents(src, tmp, parse_ts(rec["timestamp"]), None)
+    payload = {"session_id": src.stem, "transcript_path": str(_write(tmp / src.name, [json.loads(x) for x in lines[:line]])),
+               "cwd": rec.get("cwd", "/"), "hook_event_name": "Stop", "stop_hook_active": False, "last_assistant_message": _reply(rec)}
+    return hook.run(json.dumps(payload), env(forbidden_runner))
+
+
 def _rid(r) -> str:
     return f"G1.R{r}" if isinstance(r, int) else r
 
@@ -163,7 +199,8 @@ class ReplayLocal(unittest.TestCase):
             if case.get("silent") or not {_rid(r).split(".")[0] for r in case["must_fail"]} <= registered:
                 continue
             with self.subTest(case["id"]), tempfile.TemporaryDirectory() as tmp:
-                outcome = replay(case, table, Path(tmp))
+                stop = case.get("event") == "Stop"
+                outcome = replay_stop(case, table, Path(tmp), case["line"]) if stop else replay(case, table, Path(tmp))
                 failed = failed_ids(outcome)
                 must = {_rid(r) for r in case["must_fail"]}
                 may = {_rid(r) for r in case["may_fail"]}
@@ -182,6 +219,17 @@ class ReplayLocal(unittest.TestCase):
             for line, agent_file in points:
                 with self.subTest(case["id"], line=line, agent=agent_file), tempfile.TemporaryDirectory() as tmp:
                     outcome = replay(case, table, Path(tmp), line, agent_file)
+                    self.assertEqual((outcome.exit_code, outcome.stdout, outcome.stderr), (0, "", ""))
+
+    def test_silent_sessions_stay_silent_at_every_turn_end(self):
+        table = json.loads(CASES.read_text())
+        for case in table["cases"]:
+            if not case.get("silent"):
+                continue
+            (src,) = glob.glob(f"{table['projects']}/{case['project']}/{case['session']}*.jsonl")
+            for line in turn_end_lines(Path(src)):
+                with self.subTest(case["id"], line=line), tempfile.TemporaryDirectory() as tmp:
+                    outcome = replay_stop(case, table, Path(tmp), line)
                     self.assertEqual((outcome.exit_code, outcome.stdout, outcome.stderr), (0, "", ""))
 
 

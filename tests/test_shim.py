@@ -77,6 +77,18 @@ class Shim(unittest.TestCase):
                 self.assertEqual(code, 0)
                 self.assertIn("crashed (exit 127)", json.loads(out)["systemMessage"])
 
+    def test_a_missing_hook_allows_stop_and_session_start_and_blocks_a_tool_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lone = Path(tmp) / "gate.sh"
+            lone.write_text(SHIM.read_text())
+            for args, want in ((("Stop",), 0), (("SessionStart",), 0), (("PreToolUse", "Bash"), 2)):
+                with self.subTest(args):
+                    proc = subprocess.run(["/bin/sh", str(lone), *args], input='{"tool_input": {"command": "git commit"}}',
+                                          text=True, capture_output=True, env={"PATH": "/usr/bin:/bin"})
+                    self.assertEqual(proc.returncode, want, proc.stderr)
+                    if want == 0:
+                        self.assertIn("crashed", json.loads(proc.stdout)["systemMessage"])
+
 
 if __name__ == "__main__":
     unittest.main()
