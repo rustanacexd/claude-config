@@ -83,6 +83,7 @@ class Env:
     mode: Mode
     log_path: Optional[Path]
     gate_modes: Mapping[str, Mode] = field(default_factory=dict)
+    no_block_reason: Optional[str] = None
 
     def mode_for(self, gate: str) -> Mode:
         return self.gate_modes.get(gate, self.mode)
@@ -250,6 +251,7 @@ class Decision:
     gate: str
     subject: str
     findings: Tuple[Finding, ...]
+    context: str = ""
 
     @property
     def failed(self) -> Tuple[Failed, ...]:
@@ -340,12 +342,14 @@ def _exit0(event: Event, text: str) -> Outcome:
 
 
 def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
+    can_block = event is not Event.SESSION_START and env.no_block_reason is None
     failing = [d for d in decisions if d.blocked]
-    blocking = [d for d in failing if env.mode_for(d.gate) is Mode.BLOCK and event is not Event.SESSION_START]
+    blocking = [d for d in failing if can_block and env.mode_for(d.gate) is Mode.BLOCK]
     warned = [d for d in failing if d not in blocking]
     notes = []
     if warned:
-        notes.append(f"This was NOT blocked, because the gate is in warn mode or this event never blocks. It would have been:\n{_body(warned)}")
+        why = env.no_block_reason or "the gate is in warn mode or this event never blocks"
+        notes.append(f"This was NOT blocked, because {why}. It would have been:\n{_body(warned)}")
     for d in decisions:
         if d in blocking:
             continue
@@ -354,6 +358,7 @@ def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
     if blocking:
         tail = "".join(f"\n{n}" for n in notes)
         return Outcome(EXIT_BLOCK, "", f"Blocked by the workflow gates.\n{_body(blocking)}{_skip_syntax(blocking)}\n{tail}")
-    if not notes:
-        return ALLOW
-    return _exit0(event, "Workflow gates allowed this with notes:\n" + "\n".join(notes))
+    lines = [d.context for d in decisions if d.context]
+    if notes:
+        lines += ["Workflow gates allowed this with notes:", *notes]
+    return _exit0(event, "\n".join(lines)) if lines else ALLOW

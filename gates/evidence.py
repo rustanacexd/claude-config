@@ -499,6 +499,21 @@ class Tested:
     command: str
 
 
+@dataclass(frozen=True)
+class DetachedAppScript:
+    tool: str
+    script: str
+    up: str
+    down: str
+
+
+@dataclass(frozen=True)
+class AppControl:
+    stamp: Stamp
+    app: DetachedAppScript
+    up: bool
+
+
 Event = object
 E = TypeVar("E")
 
@@ -705,8 +720,20 @@ def _wrote(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[
         yield Edited(stamp, str(path))
 
 
+APP_SCRIPTS = (DetachedAppScript("npm", "e2e:control", "up", "down"),)
+
+
+def _app_control(inv: Invocation, stamp: Stamp, result: Optional[Result]) -> Iterable[Event]:
+    words = [w.text for w in inv.words]
+    for app in APP_SCRIPTS:
+        if inv.tool == app.tool and app.script in words:
+            verb = next((w for w in words[words.index(app.script) + 1 :] if not w.startswith("-")), None)
+            if verb in (app.up, app.down):
+                yield AppControl(stamp, app, verb == app.up)
+
+
 Classifier = Callable[[Invocation, Stamp, Optional[Result]], Iterable[Event]]
-CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested, _wrote)
+CLASSIFIERS: Tuple[Classifier, ...] = (_push, _commit, _post, _fetch, _read, _tested, _wrote, _app_control)
 
 
 _EDIT_TOOLS = {"Write": ("content",), "Edit": ("new_string",), "MultiEdit": ("edits",), "NotebookEdit": ("new_source",)}
