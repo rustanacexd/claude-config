@@ -6,17 +6,20 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
-from core import Check, Decision, Env, Event, HookCall, Loaded, Requirement, adjudicate
+from core import Check, Decision, Env, Event, HookCall, Loaded, Requirement, Unavailable, adjudicate
 from evidence import Advised, Compacted, Fetched, Human, Invocation, Pushed, Read, Session, Transcripts, Word, parse_shell
-from github import GhCli, PrFacts, Surface
+from github import GhCli, PrFacts, Surface, stack_prs
 
-PR_MERGE = ("pr", "merge")
+PR_MERGE, STACK_MERGE = ("pr", "merge"), ("stack", "merge")
 SHIPPING_PLAYBOOK = "playbooks/shipping.md"
 TS_FLOOR = timedelta(seconds=1)  # GitHub floors timestamps to the second
 RETRY_HINT = "If you just did this, run the merge again as its own command."
 MERGE_VALUE_FLAGS = frozenset(
     {"--match-head-commit", "--repo", "-R", "--body", "-b", "--body-file", "-F", "--subject", "-t", "--author-email", "-A"}
 )
+
+
+STACK_MERGE_VALUE_FLAGS = frozenset({"--merge-method"})
 
 
 @dataclass(frozen=True)
@@ -28,22 +31,50 @@ class MergeCall:
     workdir: Path
 
     @property
+    def stacked(self) -> bool:
+        return self.inv.sub == STACK_MERGE
+
+    @property
     def text(self) -> str:
-        return " ".join(["gh pr merge", *(w.text for w in self.inv.words)])
+        return " ".join(["gh", *self.inv.sub, *(w.text for w in self.inv.words)])
 
 
 def find_merges(hook: HookCall) -> Tuple[MergeCall, ...]:
     return tuple(
         MergeCall(
             inv,
-            next(iter(inv.positional(MERGE_VALUE_FLAGS)), None),
+            next(iter(inv.positional(STACK_MERGE_VALUE_FLAGS if inv.sub == STACK_MERGE else MERGE_VALUE_FLAGS)), None),
             inv.value_of("--repo", "-R"),
             inv.value_of("--match-head-commit"),
             inv.workdir or hook.cwd,
         )
         for inv in parse_shell(hook.command, hook.cwd)
-        if inv.tool == "gh" and inv.sub == PR_MERGE and not inv.has("--disable-auto", "--help", "-h")
+        if inv.tool == "gh" and inv.sub in (PR_MERGE, STACK_MERGE) and not inv.has("--disable-auto", "--help", "-h")
     )
+
+
+STACK_REMEDY = (
+    "run `gh stack merge <pr-number> --yes` from a checkout of the stack, naming a PR in `gh stack view --json`, "
+    "or merge each PR with `gh pr merge --match-head-commit`"
+)
+
+
+def resolve_stack(merge: MergeCall, env: Env) -> Tuple[MergeCall, ...]:
+    """`gh stack merge <pr>` merges that PR and every unmerged PR below it; with no target, the whole stack.
+    A bare number is a stack number first for gh, and `gh stack view` cannot name stacks, so a target must be a
+    PR of the checked-out stack."""
+    target = merge.selector
+    if target is not None and (target.dynamic or not target.text.isdigit()):
+        raise Unavailable(f"the stack merge target {target.text} is not a literal PR number", STACK_REMEDY)
+    prs = stack_prs(env.run, env.deadline, merge.workdir)
+    if target is not None:
+        numbers = [n for n, _ in prs]
+        if int(target.text) not in numbers:
+            raise Unavailable(f"#{target.text} is not an unmerged PR of the stack checked out in {merge.workdir}", STACK_REMEDY)
+        prs = prs[: numbers.index(int(target.text)) + 1]
+    if not prs:
+        raise Unavailable(f"the stack checked out in {merge.workdir} has no unmerged PR", STACK_REMEDY)
+    return tuple(MergeCall(merge.inv, Word(str(n), False), Word(repo, False), None, merge.workdir) for n, repo in prs)
 
 
 @dataclass(frozen=True)
@@ -109,6 +140,19 @@ def check_verdict(c: MergeCtx) -> Check:
         "; ".join(reasons),
         f"have a verifier subagent that did not write the code post PASS or PASS+NOTES naming {pr.head_sha} "
         "on the PR (playbooks/shipping.md). Do not post it yourself.",
+    )
+
+
+def check_stack_head_verdict(c: MergeCtx) -> Check:
+    pr = c.pr.get()
+    named = [cm for cm in pr.comments if cm.surface is not Surface.INLINE and VERDICT.search(cm.body)
+             and any(pr.head_sha.startswith(s.lower()) for s in SHA_TOKEN.findall(cm.body))]
+    if named:
+        return Check.passed(f"a verdict names the head {pr.head_sha[:12]} ({named[-1].url})")
+    return Check.failed(
+        f"gh stack merge cannot pin heads, and no verdict comment on #{pr.number} names its head {pr.head_sha[:12]}",
+        f"have a verifier post a verdict naming {pr.head_sha} on #{pr.number}, or merge it with "
+        f"`gh pr merge {pr.number} --repo {pr.repo} --squash --match-head-commit {pr.head_sha}`",
     )
 
 
@@ -213,7 +257,9 @@ R3 = Requirement("G1.R3", "PR comments read after the newest", check_comments_re
 R4 = Requirement("G1.R4", "advisor after the last push", check_advisor)
 R5 = Requirement("G1.R5", "shipping playbook read since compaction", check_playbook_read)
 R6 = Requirement("G1.R6", "the user authorized landing", check_authority, escapable=False)
+R2_STACK = Requirement("G1.R2", "a verdict names each stacked PR's head", check_stack_head_verdict)
 REQUIREMENTS = (R1, R2, R3, R4, R5, R6)
+STACK_REQUIREMENTS = (R1, R2_STACK, R3, R4, R5, R6)
 
 
 def _subject(c: MergeCtx) -> str:
@@ -226,7 +272,7 @@ class MergeGate:
     name = "G1"
     event = Event.PRE_TOOL_USE
     tools = frozenset({"Bash"})
-    trigger_literals = ("gh pr merge",)
+    trigger_literals = ("gh pr merge", "gh stack merge")
 
     def subjects(self, hook: HookCall) -> Tuple[MergeCall, ...]:
         return find_merges(hook)
@@ -236,8 +282,19 @@ class MergeGate:
         escapes = transcripts.escapes()
         decisions = []
         for merge in subjects:
-            ctx = MergeCtx(merge, gather_pr(merge, env), session)
-            decisions.append(adjudicate(self.name, _subject(ctx), REQUIREMENTS, ctx, escapes))
+            if not merge.stacked:
+                ctx = MergeCtx(merge, gather_pr(merge, env), session)
+                decisions.append(adjudicate(self.name, _subject(ctx), REQUIREMENTS, ctx, escapes))
+                continue
+            try:
+                members = resolve_stack(merge, env)
+            except Unavailable as exc:
+                ctx = MergeCtx(merge, Loaded(None, str(exc), exc.remedy), session)
+                decisions.append(adjudicate(self.name, _subject(ctx), STACK_REQUIREMENTS, ctx, escapes))
+                continue
+            for member in members:
+                ctx = MergeCtx(member, gather_pr(member, env), session)
+                decisions.append(adjudicate(self.name, _subject(ctx), STACK_REQUIREMENTS, ctx, escapes))
         return tuple(decisions)
 
 

@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from support import (
-    GREEN_FACTS, GREEN_PIECES, HEAD, MERGE_ID, PR, Case, FakeGh, Transcript, at, env, failed_ids, forbidden_runner,
+    GREEN_FACTS, GREEN_PIECES, HEAD, MERGE_ID, PR, Case, FakeGh, Transcript, at, comment, env, failed_ids, forbidden_runner,
     gh_at, inline, merge_command, payload, plus, run_case, without,
 )
 import hook
@@ -82,6 +82,35 @@ class Requirements(unittest.TestCase):
         self.assertEqual((outcome.exit_code, outcome.stderr), (0, ""))
         self.assertIn("NOT blocked", context(outcome))
         self.assertIn("FAIL G1.R4", context(outcome))
+
+
+class StackMerge(unittest.TestCase):
+    def run_case(self, command, facts=GREEN_FACTS):
+        with tempfile.TemporaryDirectory() as tmp:
+            return run_case(replace(GREEN, command=command, facts=facts), Path(tmp))
+
+    def test_a_pr_target_checks_it_and_every_unmerged_pr_below(self):
+        outcome, gh = self.run_case(f"gh stack merge {PR + 1} --yes --squash")
+        self.assertEqual(outcome.exit_code, 0, outcome.stderr)
+        viewed = [c[3] for c in gh.calls if c[1:3] == ["pr", "view"]]
+        self.assertEqual(viewed, [str(PR), str(PR + 1)])
+        outcome, gh = self.run_case(f"gh stack merge {PR} --yes")
+        self.assertEqual([c[3] for c in gh.calls if c[1:3] == ["pr", "view"]], [str(PR)])
+
+    def test_r2_needs_a_verdict_naming_each_head_instead_of_a_pin(self):
+        facts = replace(GREEN_FACTS, issue=GREEN_FACTS.issue[:1] + (comment(1000000009, gh_at(4), "PASS, looks good"),))
+        outcome, _ = self.run_case("gh stack merge --yes", facts)
+        self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2"}))
+        self.assertIn("gh stack merge cannot pin heads", outcome.stderr)
+
+    def test_an_unresolvable_set_blocks_with_a_remedy(self):
+        for command, reason in (("gh stack merge 7 --yes", "#7 is not an unmerged PR"),
+                                ("gh stack merge $N --yes", "not a literal PR number")):
+            with self.subTest(command):
+                outcome, _ = self.run_case(command)
+                self.assertEqual(failed_ids(outcome), frozenset({"G1.R1", "G1.R2", "G1.R3"}))
+                self.assertIn(reason, outcome.stderr)
+                self.assertIn("gh stack view --json", outcome.stderr)
 
 
 class Subagent(unittest.TestCase):

@@ -115,6 +115,7 @@ class Facts:
     reviews: Tuple[dict, ...] = ()
     inline: Tuple[dict, ...] = ()
     down: Optional[str] = None
+    stack: Tuple[Tuple[int, str], ...] = ((40, "MERGED"), (PR, "OPEN"), (PR + 1, "OPEN"))
 
 
 class FakeGh:
@@ -126,6 +127,10 @@ class FakeGh:
         self.calls.append(list(argv))
         if self.facts.down:
             raise RunFailed(self.facts.down)
+        if list(argv[1:3]) == ["stack", "view"]:
+            return json.dumps({"trunk": "main", "branches": [
+                {"name": f"b{n}", "isMerged": state == "MERGED", "pr": {"number": n, "url": f"https://github.com/{REPO}/pull/{n}", "state": state}}
+                for n, state in self.facts.stack]})
         if list(argv[1:3]) == ["pr", "view"]:
             return json.dumps({"number": PR, "url": f"https://github.com/{REPO}/pull/{PR}", "headRefOid": self.facts.head, "state": "OPEN"})
         path = argv[2]
