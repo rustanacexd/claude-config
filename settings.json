@@ -138,6 +138,37 @@
             "timeout": 60
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse 'Edit|Write|MultiEdit'",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Skill|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse 'Skill|Agent'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh TaskCompleted",
+            "timeout": 60
+          }
+        ]
       }
     ],
     "Stop": [
