@@ -7,7 +7,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Generic, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Callable, Generic, Iterable, Mapping, Optional, Protocol, Sequence, Tuple, TypeVar, Union
 
 T = TypeVar("T")
 C = TypeVar("C")
@@ -207,6 +207,10 @@ class Escape:
     source: str
 
 
+class EscapeLookup(Protocol):
+    def get(self, rid: str) -> Optional[Escape]: ...
+
+
 SKIP_LINE = re.compile(r"^\s*(?:[-*]\s*(?:\[[ xX]\]\s*)?)?skip:\s*(G\d+\.R\d+)\s+(\S.*?)\s*$")
 
 
@@ -269,7 +273,7 @@ class Decision:
 
 
 def adjudicate(
-    gate: str, subject: str, requirements: Sequence[Requirement[C]], ctx: C, escapes: Mapping[str, Escape]
+    gate: str, subject: str, requirements: Sequence[Requirement[C]], ctx: C, escapes: EscapeLookup
 ) -> Decision:
     findings = []
     for req in requirements:
