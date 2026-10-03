@@ -139,6 +139,29 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh Stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh SessionStart compact",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
