@@ -14,10 +14,12 @@ def gates():
     from g1_merge import GATE as G1
     from g2_pr import GATE as G2
     from g3_stop import GATE as G3
+    from g4_task import GATE as G4
+    from g5_routing import GATE as G5
     from g6_mandate import GATE as G6
     from g7_compact import GATE as G7
 
-    return (G1, G2, G3, G6, G7)
+    return (G1, G2, G3, G4, G5, G6, G7)
 
 
 def applies(gate, hook) -> bool:
