@@ -1,12 +1,13 @@
 import io
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from support import env, forbidden_runner
 import hook
 from core import (
-    Check, Env, Event, MalformedHook, Mode, Requirement, adjudicate, parse_hook_call, render,
+    Check, Env, Escape, Event, MalformedHook, Mode, Requirement, adjudicate, parse_hook_call, render,
 )
 
 HARD = Requirement("G9.R1", "hard", lambda c: Check.failed("hard failed", "fix it"))
@@ -87,6 +88,27 @@ class PerGateMode(unittest.TestCase):
         self.assertIn("G9 gate", outcome.stderr)
         self.assertNotIn("G1 gate", outcome.stderr.split("Blocked")[1].split("To skip")[0])
 
+    def test_a_requirement_mode_blocks_only_that_requirement(self):
+        e = Env.from_environ({"GATES_MODE": "warn", "GATES_MODE_G9_R1": "block"}, Event.STOP)
+        self.assertEqual((e.mode_for("G9", "G9.R1"), e.mode_for("G9", "G9.R2")), (Mode.BLOCK, Mode.WARN))
+        r1 = Requirement("G9.R1", "first", lambda _: Check.failed("missing one", "add one"))
+        r2 = Requirement("G9.R2", "second", lambda _: Check.failed("missing two", "add two"))
+        d = adjudicate("G9", "turn end", (r1, r2), None, {})
+        outcome = render(Event.STOP, [d], e)
+        self.assertEqual(outcome.exit_code, 2)
+        blocked, _, warned = outcome.stderr.partition("This was NOT blocked")
+        self.assertIn("FAIL G9.R1", blocked)
+        self.assertNotIn("G9.R2", blocked)
+        self.assertIn("FAIL G9.R2", warned)
+        self.assertEqual(render(Event.STOP, [adjudicate("G9", "turn end", (r2,), None, {})], e).exit_code, 0)
+
+    def test_a_requirement_mode_beats_its_gate_mode_in_both_directions(self):
+        for gate, req in (("warn", "block"), ("block", "warn")):
+            with self.subTest(gate=gate, req=req):
+                e = Env.from_environ({"GATES_MODE_G9": gate, "GATES_MODE_G9_R1": req}, Event.STOP)
+                self.assertEqual((e.mode_for("G9", "G9.R1"), e.mode_for("G9", "G9.R2")), (Mode(req), Mode(gate)))
+                self.assertEqual(render(Event.STOP, [decision(HARD)], e).exit_code, 2 if req == "block" else 0)
+
     def test_deadline_is_set_per_event(self):
         pre = Env.from_environ({}, Event.PRE_TOOL_USE).deadline.remaining()
         stop = Env.from_environ({}, Event.STOP).deadline.remaining()
@@ -105,6 +127,26 @@ class CrashPolicy(unittest.TestCase):
                 code, out, _ = self.crash(event, "not json")
                 self.assertEqual(code, 0)
                 self.assertIn("crashed", json.loads(out)["systemMessage"])
+
+    def test_a_check_that_raises_never_blocks_stop_but_blocks_a_tool_call(self):
+        boom = Requirement("G9.R1", "boom", lambda c: 1 // 0)
+        stop = render(Event.STOP, [decision(boom)], Env.from_environ({}, Event.STOP))
+        self.assertEqual(stop.exit_code, 0, stop.stderr)
+        said = json.loads(stop.stdout)["systemMessage"]
+        self.assertIn("internal error in this check", said)
+        self.assertIn("NOT blocked, because a check crashed, and a crashed check never blocks a Stop.", said)
+        self.assertNotIn("warn mode", said)
+        warned = Requirement("G9.R2", "warned", lambda c: Check.failed("warned failed", "fix it"))
+        mixed = render(Event.STOP, [decision(boom, warned)], replace(Env.from_environ({}, Event.STOP), gate_modes={"G9_R2": Mode.WARN}))
+        self.assertIn("because a check crashed, and a crashed check never blocks a Stop, and the gate is in warn mode",
+                      json.loads(mixed.stdout)["systemMessage"])
+        pre = render(Event.PRE_TOOL_USE, [decision(boom)], Env.from_environ({}, Event.PRE_TOOL_USE))
+        self.assertEqual(pre.exit_code, 2)
+        self.assertIn("internal error in this check", pre.stderr)
+        skipped = adjudicate("G9", "subject", (boom,), None, {"G9.R1": Escape("G9.R1", "the gate bug is reported", "todo.md:3")})
+        allowed = render(Event.PRE_TOOL_USE, [skipped], Env.from_environ({}, Event.PRE_TOOL_USE))
+        self.assertEqual(allowed.exit_code, 0, allowed.stderr)
+        self.assertIn("G9.R1 skipped: the gate bug is reported", allowed.stdout)
 
     def test_tool_and_task_events_block_on_a_crash(self):
         for event in ("PreToolUse", "TaskCompleted", "NoSuchEvent"):

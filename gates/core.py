@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Mapping, Optional, Protocol, Sequence, Tuple, TypeVar, Union
 
@@ -83,9 +83,10 @@ class Env:
     mode: Mode
     log_path: Optional[Path]
     gate_modes: Mapping[str, Mode] = field(default_factory=dict)
+    no_block_reason: Optional[str] = None
 
-    def mode_for(self, gate: str) -> Mode:
-        return self.gate_modes.get(gate, self.mode)
+    def mode_for(self, gate: str, rid: str = "") -> Mode:
+        return self.gate_modes.get(rid.replace(".", "_"), self.gate_modes.get(gate, self.mode))
 
     @staticmethod
     def from_environ(environ: Mapping[str, str], event: Event) -> "Env":
@@ -234,6 +235,7 @@ class Failed:
     req: Requirement
     detail: str
     remedy: str
+    crashed: bool = False
 
 
 @dataclass(frozen=True)
@@ -250,6 +252,7 @@ class Decision:
     gate: str
     subject: str
     findings: Tuple[Finding, ...]
+    context: str = ""
 
     @property
     def failed(self) -> Tuple[Failed, ...]:
@@ -277,16 +280,17 @@ def adjudicate(
 ) -> Decision:
     findings = []
     for req in requirements:
+        crashed = False
         try:
             chk = req.check(ctx)
         except Unavailable as exc:
             chk = Check.failed(f"cannot verify: {exc}", exc.remedy)
         except Exception as exc:
-            chk = Check.failed(f"internal error in this check: {exc!r}", "report this gate bug to the user")
+            chk, crashed = Check.failed(f"internal error in this check: {exc!r}", "report this gate bug to the user"), True
         if chk.ok:
             findings.append(Passed(req, chk.detail))
             continue
-        failure = Failed(req, chk.detail, chk.remedy)
+        failure = Failed(req, chk.detail, chk.remedy, crashed)
         esc = escapes.get(req.rid) if req.escapable else None
         findings.append(Escaped(failure, esc) if esc else failure)
     return Decision(gate, subject, tuple(findings))
@@ -339,21 +343,35 @@ def _exit0(event: Event, text: str) -> Outcome:
     return Outcome(EXIT_ALLOW, json.dumps({"systemMessage": text}), "")
 
 
+WARN_WHY = "the gate is in warn mode or this event never blocks"
+CRASHED_WHY = "a check crashed, and a crashed check never blocks a Stop"
+
+
 def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
-    failing = [d for d in decisions if d.blocked]
-    blocking = [d for d in failing if env.mode_for(d.gate) is Mode.BLOCK and event is not Event.SESSION_START]
-    warned = [d for d in failing if d not in blocking]
+    can_block = event is not Event.SESSION_START and env.no_block_reason is None
+    blocking, warned, quiet, reasons = [], [], [], []
+    for d in decisions:
+        would_block = [f for f in d.failed if can_block and env.mode_for(d.gate, f.req.rid) is Mode.BLOCK]
+        hard = {f.req.rid for f in would_block if not (f.crashed and event is Event.STOP)}
+        soft = tuple(f for f in d.failed if f.req.rid not in hard)
+        reasons += [CRASHED_WHY if f in would_block else WARN_WHY for f in soft]
+        if hard:
+            blocking.append(replace(d, findings=tuple(f for f in d.findings if f not in soft)))
+        else:
+            quiet.append(d)
+        if soft:
+            warned.append(replace(d, findings=soft))
     notes = []
     if warned:
-        notes.append(f"This was NOT blocked, because the gate is in warn mode or this event never blocks. It would have been:\n{_body(warned)}")
-    for d in decisions:
-        if d in blocking:
-            continue
+        reason = env.no_block_reason or ", and ".join(dict.fromkeys(reasons))
+        notes.append(f"This was NOT blocked, because {reason}. It would have been:\n{_body(warned)}")
+    for d in quiet:
         notes += [f"ADVISORY {f.req.rid} {f.req.title}: {f.detail}" + (f" Fix: {f.remedy}" if f.remedy else "") for f in d.advisories]
         notes += [f"{e.failure.req.rid} skipped: {e.escape.reason} (declared in {e.escape.source})" for e in d.escaped]
     if blocking:
         tail = "".join(f"\n{n}" for n in notes)
         return Outcome(EXIT_BLOCK, "", f"Blocked by the workflow gates.\n{_body(blocking)}{_skip_syntax(blocking)}\n{tail}")
-    if not notes:
-        return ALLOW
-    return _exit0(event, "Workflow gates allowed this with notes:\n" + "\n".join(notes))
+    lines = [d.context for d in decisions if d.context]
+    if notes:
+        lines += ["Workflow gates allowed this with notes:", *notes]
+    return _exit0(event, "\n".join(lines)) if lines else ALLOW

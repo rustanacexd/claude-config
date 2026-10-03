@@ -38,6 +38,7 @@ class Transcript:
     def __init__(self) -> None:
         self.records: List[dict] = []
         self._n = 0
+        self._tasks = 0
 
     def _assistant(self, content: dict, when: str) -> None:
         self.records.append({"type": "assistant", "isSidechain": False, "timestamp": when, "cwd": "/work",
@@ -75,7 +76,16 @@ class Transcript:
         return self.user("<local-command-stdout>Compacted </local-command-stdout>", when)
 
     def task(self, subject: str, when: str) -> "Transcript":
-        self.tool("TaskCreate", {"subject": subject, "description": ""}, when, "Task created")
+        self._tasks += 1
+        self.tool("TaskCreate", {"subject": subject, "description": ""}, when, f"Task #{self._tasks} created successfully: {subject}")
+        return self
+
+    def task_update(self, task_id: str, status: str, when: str) -> "Transcript":
+        self.tool("TaskUpdate", {"taskId": task_id, "status": status}, when, "Updated task")
+        return self
+
+    def say(self, text: str, when: str) -> "Transcript":
+        self._assistant({"type": "text", "text": text}, when)
         return self
 
     def read(self, path: str, when: str, **inp) -> "Transcript":

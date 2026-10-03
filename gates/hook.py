@@ -13,9 +13,11 @@ def gates():
     # Imported here so that an import or syntax error on an older Python reaches main's handler.
     from g1_merge import GATE as G1
     from g2_pr import GATE as G2
+    from g3_stop import GATE as G3
     from g6_mandate import GATE as G6
+    from g7_compact import GATE as G7
 
-    return (G1, G2, G6)
+    return (G1, G2, G3, G6, G7)
 
 
 def applies(gate, hook) -> bool:
@@ -39,6 +41,10 @@ def run(raw: str, env):
     active = [g for g in gates() if applies(g, hook)]
     if not active:
         return ALLOW
+    if hook.stop_hook_active:
+        from dataclasses import replace
+
+        env = replace(env, no_block_reason="Claude Code is already continuing this turn because a Stop hook blocked it once")
     transcripts = Transcripts(hook)
     decisions = []
     for gate in active:
@@ -58,7 +64,7 @@ def _log(path, env, hook, decisions) -> None:
         "at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version,
         "event": hook.event.value,
-        "modes": {d.gate: env.mode_for(d.gate).value for d in decisions},
+        "modes": {f.req.rid: env.mode_for(d.gate, f.req.rid).value for d in decisions for f in d.failed},
         "session": hook.session_id,
         "agent": hook.agent_id,
         "subjects": [f"{d.gate} {d.subject}" for d in decisions],
@@ -66,6 +72,8 @@ def _log(path, env, hook, decisions) -> None:
         "advisory": sorted(f.req.rid for d in decisions for f in d.advisories),
         "escaped": sorted(e.failure.req.rid for d in decisions for e in d.escaped),
     }
+    if not row["modes"]:
+        del row["modes"]
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")
