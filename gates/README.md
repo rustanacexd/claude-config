@@ -1,18 +1,22 @@
 # Workflow gates
 
-The gates are Claude Code hooks. Each one refuses a tool call until the session
-shows the workflow evidence for it:
+The gates are Claude Code hooks. Each one checks the session for workflow
+evidence at one point:
 
 - G1 refuses `gh pr merge` and `gh stack merge`.
 - G2 refuses `gh pr create` and `gh stack submit` until deslop and no-comments
   ran, and refuses a `git commit` or `git push` that skips the git hooks.
+- G3 refuses to end a poteto-mode turn that has no todolist, cites a principle
+  it did not read, or changed code without a later advisor call.
 - G6 refuses `gh pr create` and `gh stack submit` on a diff of more than one
   file when poteto-mode is not active.
+- G7 never refuses anything. After a compaction in a poteto-mode session, it
+  gives the model back the playbooks it read, its open tasks and its skips.
 
 ## Install the gates in warn mode
 
-Add this entry to `~/.claude/settings.json`, then run `./refresh.sh` so that
-`~/.claude/gates` links to this directory:
+Add these entries to `~/.claude/settings.json`, then run `./refresh.sh` so
+that `~/.claude/gates` links to this directory:
 
 ```json
 "hooks": {
@@ -24,6 +28,29 @@ Add this entry to `~/.claude/settings.json`, then run `./refresh.sh` so that
 					"type": "command",
 					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh PreToolUse Bash",
 					"timeout": 60
+				}
+			]
+		}
+	],
+	"Stop": [
+		{
+			"hooks": [
+				{
+					"type": "command",
+					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh Stop",
+					"timeout": 10
+				}
+			]
+		}
+	],
+	"SessionStart": [
+		{
+			"matcher": "compact",
+			"hooks": [
+				{
+					"type": "command",
+					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh SessionStart compact",
+					"timeout": 10
 				}
 			]
 		}
@@ -78,12 +105,21 @@ Claude Code shows `additionalContext` and stderr to the model, and
 | `Stop` | exit 2, stderr, to the model | exit 0, `systemMessage`, to the user | allows, with `systemMessage` to the user |
 | `SessionStart` | never blocks | exit 0, `additionalContext`, to the model | allows, with `systemMessage` to the user |
 
-TaskCompleted has no `additionalContext`. Stop accepts it, but Claude Code
-then keeps the conversation going, the same as a block. A warning on Stop
-therefore uses `systemMessage`, and the model never sees a warn-mode or
-advisory finding on Stop or TaskCompleted. A crash on Stop or SessionStart
-allows the call, because a Stop gate that always crashed would keep every
-session from ending.
+TaskCompleted has no `additionalContext`. Stop accepts `additionalContext` too, but Claude Code then keeps the turn
+going, the same as a block. A warning on Stop therefore uses `systemMessage`.
+Claude Code shows that message to the user and does not send it to the model,
+in this turn or the next. In warn mode, G3 reports to the user only.
+
+A crash on Stop or SessionStart allows the call, because a Stop gate that
+always crashed would keep every session from ending. So does a transcript the
+gate cannot read, a missing `hook.py`, and a check that raises an error. On
+`PreToolUse` and `TaskCompleted` each of these blocks.
+
+After a Stop hook blocks, Claude Code continues the turn and sends the next
+Stop with `stop_hook_active` set. The gates never block that Stop. They report
+what still fails through `systemMessage` and let the turn end, so a gate
+blocks a turn at most once. Claude Code also stops honoring blocks after
+eight in a row, but the gates do not rely on that limit.
 
 ## What G1 checks
 
@@ -154,6 +190,25 @@ poteto-mode is active when the main session or the acting subagent ran the
 user typed. `pstack:deslop`, `/pstack:deslop` and `deslop` name the same
 skill.
 
+## What G3 checks
+
+G3 runs when the main agent ends a turn in a poteto-mode session. A subagent's
+turn ends through `SubagentStop`, which G3 does not handle. A turn is
+everything after the last message the user typed. Messages that Claude Code
+adds, such as Stop hook feedback and task notifications, do not start a turn.
+
+| Requirement | Passes when |
+| --- | --- |
+| `G3.R1` | A task change (`TaskCreate`, `TaskUpdate`, `TodoWrite`) or a write to a `*todo*.md` file, from an edit tool or from Bash, follows the last `poteto-mode` run. The main transcript and every subagent transcript count. |
+| `G3.R2` | Advisory. For each poteto-mode playbook read in full after the first `poteto-mode` run, every numbered step appears in the task and todo text. G3 compares the first 40 characters of each step, in lower case, without `*` or backticks. A todo line that holds `skip:` and the step's number also covers the step. |
+| `G3.R3` | Every principle that the final reply names, by its display name or its slug, was read in full or run as a skill in this session. G3 reads the names from the Principles index of the poteto-mode `SKILL.md` that the session read, or else from the newest one in the plugin cache. |
+| `G3.R4` | If this turn edited, committed or pushed, an `advisor` call follows the last of those changes. Changes in subagent transcripts count. |
+| `G3.R5` | Advisory. If the final reply says `done`, `fixed`, `merged`, `landed`, `complete` or `ready for review` without a negation just before it, no edit in this turn follows the turn's last test run. |
+| `G3.R6` | Advisory. Every app session brought up with `npm run e2e:control -- up` was later brought down with `down`. `APP_SCRIPTS` in `evidence.py` lists the scripts and their verbs. |
+
+R1, R3 and R4 block. G3 reads the final reply from `last_assistant_message`,
+because the transcript can lag it.
+
 ## What G6 checks
 
 G6 runs on `gh pr create` and `gh stack submit` in every session.
@@ -168,6 +223,24 @@ remote branch is missing. The base is `--base`, else the remote default
 branch, else `main`. The head is `--head`, else `HEAD`. If `git` fails, R1
 fails. Inside a subagent, a `poteto-mode` run in the main session counts.
 
+## What G7 adds after a compaction
+
+G7 runs on `SessionStart` with the `compact` source in a poteto-mode session.
+It never blocks. It returns `additionalContext` of at most 2,000 characters
+with these items:
+
+- A line that tells the model to re-read each playbook in full, and that G1
+  accepts only a full read of `playbooks/shipping.md` made after the
+  compaction.
+- The paths of the poteto-mode playbooks the session read.
+- The open tasks. A task is open until a `TaskUpdate` marks it `completed` or
+  `deleted`. For `TodoWrite`, G7 lists the open items of the last call.
+- The `*todo*.md` files the session wrote.
+- Each task or todo line that contains `skip:`.
+
+When the text is longer than 2,000 characters, G7 cuts the last lines and ends
+with `cut at 2000 characters`.
+
 ## Skip a requirement
 
 To skip a requirement you cannot meet, write this line in a task (`TaskCreate`
@@ -176,6 +249,9 @@ or `TaskUpdate`) or in a `*todo*.md` file:
 ```text
 skip: G2.R4 the hook needs a network the sandbox lacks
 ```
+
+A todo file written from Bash, for example through a heredoc, leaves no text
+in the transcript, so the gates read its lines from the file when they run.
 
 The reason is required. The allowed call echoes each skip and its reason as
 a note, through the channel the table in "How each event reports" names.
@@ -227,6 +303,15 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
 - **G6 checks poteto-mode before it runs `git`.** The spec counts the files
   first. The verdict is the same whenever `git` works, and a poteto session no
   longer fails when `git` cannot answer.
+- **G3.R3 counts a skill run as a read.** The Skill tool loads the same
+  `SKILL.md` that a Read would.
+- **G3.R4 and G3.R5 ignore scratch files and `*todo*.md` files,** for the
+  reasons given for G2.R1 above.
+- **G3.R6 keeps its commands in `evidence.py`.** The spec reads them from a
+  project's verification skill at run time. That path names a private
+  project, and the commands are the same generic `npm run e2e:control` verbs.
+- **G7 names only G1 in its re-read line.** The spec says G1 and G2 require
+  the re-read. G2 does not check playbook reads.
 - **Stop reports a warning through `systemMessage`.** The spec's amendment
   asks for `additionalContext`, but on Stop that keeps the conversation going,
   so a warn-mode gate would hold every turn open. The cost is that the model
@@ -264,6 +349,24 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   script that writes files, and a redirect to a path held in a shell variable.
   A write to a decision log in the repo, such as `.audit/log.tsv`, counts as an
   edit.
+- G3.R6 misses a `down` that runs inside a script file, for example a
+  heredoc written to `run.sh` and then run with `bash run.sh`.
+- G3 reads a `*todo*.md` file that Bash wrote from disk when the turn ends,
+  so a tick or a skip line added to the file later counts. A file moved or
+  deleted before the turn ends still satisfies R1, because the transcript
+  holds the write, but its skip lines are gone. A write from an edit tool
+  keeps its content in the transcript.
+- G3.R2 checks the steps of a playbook only after a complete read of it. A
+  playbook read with `head`, `sed -n`, a piped `cat`, or `Read` with an
+  offset or limit is not checked.
+- G3.R4 and G3.R5 do not count a write to a scratch file or a `*todo*.md`
+  file, so such a write after the advisor call, or after the last test run,
+  passes.
+- G3.R6 looks at the newest `up` only. A `down` before it does not count, and
+  an earlier `up` of the same app that never came down passes once a later
+  `up` has its `down`.
+- G7 lists the items of the last `TodoWrite` call only. An item that an
+  earlier call held and the last call dropped is not restored.
 
 ## Layout and tests
 
@@ -279,7 +382,8 @@ words G1 does not recognize, ask them to say `merge`, `land` or `ship`. For
   a file write, a commit and a test run. It also records skill runs, agent spawns, edits and
   task changes.
 - `github.py` reads PR facts and stack membership through `gh`.
-- `g1_merge.py`, `g2_pr.py` and `g6_mandate.py` hold each gate's requirements.
+- `g1_merge.py`, `g2_pr.py`, `g3_stop.py` and `g6_mandate.py` hold each
+  gate's requirements. `g7_compact.py` builds the text that G7 returns.
 
 Run the tests from the repo root:
 
