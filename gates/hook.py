@@ -64,7 +64,7 @@ def _log(path, env, hook, decisions) -> None:
         "at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version,
         "event": hook.event.value,
-        "modes": {d.gate: env.mode_for(d.gate).value for d in decisions},
+        "modes": {f.req.rid: env.mode_for(d.gate, f.req.rid).value for d in decisions for f in d.failed},
         "session": hook.session_id,
         "agent": hook.agent_id,
         "subjects": [f"{d.gate} {d.subject}" for d in decisions],
@@ -72,6 +72,8 @@ def _log(path, env, hook, decisions) -> None:
         "advisory": sorted(f.req.rid for d in decisions for f in d.advisories),
         "escaped": sorted(e.failure.req.rid for d in decisions for e in d.escaped),
     }
+    if not row["modes"]:
+        del row["modes"]
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")

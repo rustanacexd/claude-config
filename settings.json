@@ -145,7 +145,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh Stop",
+            "command": "GATES_MODE=warn GATES_MODE_G3_R1=block $HOME/.claude/gates/gate.sh Stop",
             "timeout": 10
           }
         ]

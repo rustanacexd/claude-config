@@ -13,7 +13,7 @@ evidence at one point:
 - G7 never refuses anything. After a compaction in a poteto-mode session, it
   gives the model back the playbooks it read, its open tasks and its skips.
 
-## Install the gates in warn mode
+## Install the gates
 
 Add these entries to `~/.claude/settings.json`, then run `./refresh.sh` so
 that `~/.claude/gates` links to this directory:
@@ -37,7 +37,7 @@ that `~/.claude/gates` links to this directory:
 			"hooks": [
 				{
 					"type": "command",
-					"command": "GATES_MODE=warn $HOME/.claude/gates/gate.sh Stop",
+					"command": "GATES_MODE=warn GATES_MODE_G3_R1=block $HOME/.claude/gates/gate.sh Stop",
 					"timeout": 10
 				}
 			]
@@ -59,6 +59,8 @@ that `~/.claude/gates` links to this directory:
 ```
 
 Keep `GATES_MODE=warn` in the command. A bare script path installs block mode.
+Every gate warns, except that the Stop entry sets `GATES_MODE_G3_R1=block`, so
+a poteto-mode turn that ends with no todolist is held open once.
 
 To turn every gate off, run `touch ~/.claude/gates.off`. While that file
 exists, `gate.sh` exits 0 on every event before it reads its input, and
@@ -76,7 +78,10 @@ seconds, because a hook that times out allows the call.
 ## Switch from warn to block
 
 `GATES_MODE` selects the mode for every gate. `GATES_MODE_<gate>`, for example
-`GATES_MODE_G6=warn`, overrides it for one gate.
+`GATES_MODE_G6=warn`, overrides it for one gate. `GATES_MODE_<gate>_<Rn>`, for
+example `GATES_MODE_G3_R1=block`, overrides it for one requirement. When only
+some failed requirements block, the block message lists those, and the rest
+arrive as a `This was NOT blocked` note.
 
 - With `warn`, the call runs, and the findings start with `This was NOT
   blocked, because the gate is in warn mode`. On `PreToolUse` and
@@ -88,7 +93,8 @@ seconds, because a hook that times out allows the call.
 To block, change the command to
 `GATES_MODE=block $HOME/.claude/gates/gate.sh PreToolUse Bash`. Set
 `GATES_LOG=<path>` in the command to append one JSON line per decision,
-including the Python version that ran it.
+including the Python version that ran it and, when a requirement failed, the
+mode of each failed requirement.
 
 An advisory requirement never blocks in any mode. Its failure is a line that
 starts with `ADVISORY`, and it goes where the table below sends a warning.
@@ -108,7 +114,8 @@ Claude Code shows `additionalContext` and stderr to the model, and
 TaskCompleted has no `additionalContext`. Stop accepts `additionalContext` too, but Claude Code then keeps the turn
 going, the same as a block. A warning on Stop therefore uses `systemMessage`.
 Claude Code shows that message to the user and does not send it to the model,
-in this turn or the next. In warn mode, G3 reports to the user only.
+in this turn or the next. A G3 requirement in warn mode therefore reports to
+the user only.
 
 A crash on Stop or SessionStart allows the call, because a Stop gate that
 always crashed would keep every session from ending. So does a transcript the
@@ -206,8 +213,9 @@ adds, such as Stop hook feedback and task notifications, do not start a turn.
 | `G3.R5` | Advisory. If the final reply says `done`, `fixed`, `merged`, `landed`, `complete` or `ready for review` without a negation just before it, no edit in this turn follows the turn's last test run. |
 | `G3.R6` | Advisory. Every app session brought up with `npm run e2e:control -- up` was later brought down with `down`. `APP_SCRIPTS` in `evidence.py` lists the scripts and their verbs. |
 
-R1, R3 and R4 block. G3 reads the final reply from `last_assistant_message`,
-because the transcript can lag it.
+R1, R3 and R4 can block. The install blocks on R1 only and warns on R3 and
+R4. G3 reads the final reply from `last_assistant_message`, because the
+transcript can lag it.
 
 ## What G6 checks
 

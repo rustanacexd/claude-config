@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Mapping, Optional, Protocol, Sequence, Tuple, TypeVar, Union
 
@@ -85,8 +85,8 @@ class Env:
     gate_modes: Mapping[str, Mode] = field(default_factory=dict)
     no_block_reason: Optional[str] = None
 
-    def mode_for(self, gate: str) -> Mode:
-        return self.gate_modes.get(gate, self.mode)
+    def mode_for(self, gate: str, rid: str = "") -> Mode:
+        return self.gate_modes.get(rid.replace(".", "_"), self.gate_modes.get(gate, self.mode))
 
     @staticmethod
     def from_environ(environ: Mapping[str, str], event: Event) -> "Env":
@@ -343,21 +343,29 @@ def _exit0(event: Event, text: str) -> Outcome:
     return Outcome(EXIT_ALLOW, json.dumps({"systemMessage": text}), "")
 
 
+WARN_WHY = "the gate is in warn mode or this event never blocks"
+CRASHED_WHY = "a check crashed, and a crashed check never blocks a Stop"
+
+
 def render(event: Event, decisions: Sequence[Decision], env: Env) -> Outcome:
     can_block = event is not Event.SESSION_START and env.no_block_reason is None
-    failing = [d for d in decisions if d.blocked]
-    blocking = [
-        d for d in failing
-        if can_block and env.mode_for(d.gate) is Mode.BLOCK and not (event is Event.STOP and all(f.crashed for f in d.failed))
-    ]
-    warned = [d for d in failing if d not in blocking]
+    blocking, warned, quiet, reasons = [], [], [], []
+    for d in decisions:
+        would_block = [f for f in d.failed if can_block and env.mode_for(d.gate, f.req.rid) is Mode.BLOCK]
+        hard = {f.req.rid for f in would_block if not (f.crashed and event is Event.STOP)}
+        soft = tuple(f for f in d.failed if f.req.rid not in hard)
+        reasons += [CRASHED_WHY if f in would_block else WARN_WHY for f in soft]
+        if hard:
+            blocking.append(replace(d, findings=tuple(f for f in d.findings if f not in soft)))
+        else:
+            quiet.append(d)
+        if soft:
+            warned.append(replace(d, findings=soft))
     notes = []
     if warned:
-        why = env.no_block_reason or "the gate is in warn mode or this event never blocks"
-        notes.append(f"This was NOT blocked, because {why}. It would have been:\n{_body(warned)}")
-    for d in decisions:
-        if d in blocking:
-            continue
+        reason = env.no_block_reason or ", and ".join(dict.fromkeys(reasons))
+        notes.append(f"This was NOT blocked, because {reason}. It would have been:\n{_body(warned)}")
+    for d in quiet:
         notes += [f"ADVISORY {f.req.rid} {f.req.title}: {f.detail}" + (f" Fix: {f.remedy}" if f.remedy else "") for f in d.advisories]
         notes += [f"{e.failure.req.rid} skipped: {e.escape.reason} (declared in {e.escape.source})" for e in d.escaped]
     if blocking:

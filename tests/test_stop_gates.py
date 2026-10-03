@@ -61,7 +61,7 @@ def stop_payload(path: Path, case: StopCase) -> str:
     return json.dumps(d)
 
 
-def run_stop(case: StopCase, tmp: Path, mode: Mode = Mode.BLOCK):
+def run_stop(case: StopCase, tmp: Path, mode: Mode = Mode.BLOCK, e=None):
     t = Transcript()
     for _, piece in sorted(case.pieces, key=lambda p: _when(p[1])):
         piece(t)
@@ -72,7 +72,7 @@ def run_stop(case: StopCase, tmp: Path, mode: Mode = Mode.BLOCK):
         for _, piece in case.sub_pieces:
             piece(sub)
         sub.write(tmp / "session" / "subagents" / "agent-d1.jsonl")
-    return hook.run(stop_payload(path, case), env(forbidden_runner, mode))
+    return hook.run(stop_payload(path, case), e or env(forbidden_runner, mode))
 
 
 def _when(piece: Piece) -> str:
@@ -186,6 +186,17 @@ class StopScope(unittest.TestCase):
         self.assertEqual(outcome.exit_code, 0, outcome.stderr)
         self.assertIn("G3.R4 skipped: the advisor tool is offline", said(outcome))
         self.assertNotIn("G3.R2", said(outcome))
+
+    def test_the_log_records_the_mode_of_each_failed_requirement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "gates.jsonl"
+            installed = replace(env(forbidden_runner, Mode.WARN), gate_modes={"G3_R1": Mode.BLOCK}, log_path=log)
+            outcome = run_stop(without(green(Path(tmp)), "task1", "task2", "advisor"), Path(tmp), e=installed)
+            passing = run_stop(green(Path(tmp)), Path(tmp), e=installed)
+            failed_row, passing_row = map(json.loads, log.read_text().splitlines())
+        self.assertEqual((outcome.exit_code, passing.exit_code), (2, 0))
+        self.assertEqual(failed_row["modes"], {"G3.R1": "block", "G3.R4": "warn"})
+        self.assertEqual((passing_row["failed"], "modes" in passing_row), ([], False))
 
     def test_a_skip_line_naming_the_step_number_covers_it(self):
         outcome = self.outcome(lambda g, tmp: plus(without(g, "task2"), ("skip", lambda t: t.task("2. skip: one file, no delegate", at(2, 10)))))
