@@ -35,7 +35,6 @@ link settings.json
 link CLAUDE.md
 link pstack-models.md
 link statusline.sh
-link gates
 for f in "$REPO"/output-styles/*.md; do
   [ -e "$f" ] || continue
   link "output-styles/$(basename "$f")"

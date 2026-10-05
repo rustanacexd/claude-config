@@ -11,7 +11,6 @@ My Claude Code config, kept in git and symlinked into `~/.claude`.
 | `statusline.sh` | `~/.claude/statusline.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |
 | `skills/*/` | `~/.claude/skills/` |
-| `gates/` | `~/.claude/gates` |
 
 Nothing else from `~/.claude` is tracked. Sessions, history, caches, plugins,
 and skills not in this repo stay local.
@@ -36,25 +35,6 @@ The script does two things:
 - It creates any symlink that is missing.
 
 Run it as often as you want. It skips links that are already correct.
-
-## Turn the workflow gates off or on
-
-The hooks in `settings.json` run the workflow gates in `gates/` on every tool
-call. To turn every gate off, run:
-
-```sh
-touch ~/.claude/gates.off
-```
-
-To turn them back on, run:
-
-```sh
-rm ~/.claude/gates.off
-```
-
-The change takes effect on the next tool call. You do not need to restart
-Claude Code or edit `settings.json`. While the file exists, every gate exits at
-once and Python never starts. `gates/README.md` describes each gate.
 
 ## Limits
 
