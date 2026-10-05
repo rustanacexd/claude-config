@@ -1,3 +1,14 @@
+# Slash commands are skill invocations
+
+A message that starts with `/<skill>` means the first tool call of that turn is `Skill`
+with that exact name. Reading the skill's SKILL.md or one of its playbook files with cat
+or Read is not an invocation and does not count. This holds after a context handoff,
+compaction, or new session, since whatever was loaded earlier is gone. For poteto-mode
+the evidence it ran is the todolist with the playbook steps copied in verbatim and a
+`skip: <reason>` on every step not done. No such list means the playbook was not
+followed, whatever files were read. The concise output style governs the reply, not the
+steps.
+
 # Search routing
 
 Answer from the repo, conversation, or installed skills before searching. Programming
