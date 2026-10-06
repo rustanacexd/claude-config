@@ -42,4 +42,14 @@ search itself answers. To work while a delegate holds a worktree, use a second o
 reset another agent's database, rebase, `git checkout --`, or commit work you did not
 write in its worktree.
 
+# Cross-model work
+
+Claude models are one family and Codex models are another. When a pstack skill asks for a
+different model family or a model-diverse panel, include Codex. Architect runners,
+interrogate reviewers, and arena runners and judges each get one Codex member alongside the
+Claude models in `pstack-models.md`. The `show-me-your-work` trail review, the Eval judge,
+and the Orchestrate verifier run on Codex. Dispatch Codex through T3's `delegate_task` with
+`gpt-6.1-sol` at high effort. If Codex is unavailable or out of quota, use the Claude model
+the parent is not running on, and say so in the reply.
+
 @~/.claude/pstack-models.md
