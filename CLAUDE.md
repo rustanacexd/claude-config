@@ -23,6 +23,10 @@ Build and land PR stacks with `gh stack`, never by hand, and read the `gh-stack`
 file even when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
+# Merging PRs
+
+Squash-merge pull requests unless the repository disallows it.
+
 # Never work on main
 
 Never write on the default branch. Before the first write, run `wt switch --create
