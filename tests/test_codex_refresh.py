@@ -285,13 +285,15 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(list(self.home.iterdir()), [])
 
     def test_removed_owned_skill_migration_preserves_edits_and_external_files(self):
-        self.run_refresh()
-        skill = self.home / "skills/example"
-        (skill / "references/detail.md").write_text("local edit")
-        (skill / "external.md").write_text("upstream installer file")
-        external = self.home / "skills/external/SKILL.md"
-        external.parent.mkdir(parents=True)
-        external.write_text("installed by npx skills")
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(self.repo, homes, list(homes))
+        for home in homes.values():
+            skill = home / "skills/example"
+            (skill / "references/detail.md").write_text("local edit")
+            (skill / "external.md").write_text("upstream installer file")
+            external = home / "skills/external/SKILL.md"
+            external.parent.mkdir(parents=True)
+            external.write_text("installed by npx skills")
         manifest_path = self.repo / "portable.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["assets"] = [
@@ -299,16 +301,25 @@ class RefreshTests(unittest.TestCase):
             if not asset["source"].startswith("skills/")
         ]
         manifest_path.write_text(json.dumps(manifest))
-        _, issues = self.run_refresh()
-        self.assertFalse((skill / "SKILL.md").exists())
-        self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
-        self.assertEqual((skill / "external.md").read_text(), "upstream installer file")
-        self.assertEqual(external.read_text(), "installed by npx skills")
+        _, issues = refresh(self.repo, homes, list(homes))
+        for home in homes.values():
+            skill = home / "skills/example"
+            self.assertFalse((skill / "SKILL.md").exists())
+            self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
+            self.assertEqual((skill / "external.md").read_text(), "upstream installer file")
+            self.assertEqual(
+                (home / "skills/external/SKILL.md").read_text(), "installed by npx skills"
+            )
+            (skill / "references/detail.md").write_text("nested")
+            (skill / "SKILL.md").write_text("skill")
         self.assertTrue(
             any("edited removed asset retained" in issue for issue in issues)
         )
-        changed, _ = self.run_refresh()
+        changed, _ = refresh(self.repo, homes, list(homes))
         self.assertEqual(changed, [])
+        for home in homes.values():
+            self.assertEqual((home / "skills/example/references/detail.md").read_text(), "nested")
+            self.assertEqual((home / "skills/example/SKILL.md").read_text(), "skill")
 
     def test_repository_only_manages_authored_skills_and_install_guide(self):
         manifest, _ = load(SOURCE)

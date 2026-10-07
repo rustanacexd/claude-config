@@ -241,7 +241,6 @@ def plan(repo, manifest, plugins, app, home, state):
             if current is not None and hashlib.sha256(current).hexdigest() == previous:
                 updates[dest] = None
             elif current is not None:
-                owned[dest] = previous
                 issues.append(f"{app}: edited removed asset retained: {dest}")
     if output != live_bytes or (home / name).is_symlink():
         updates[name] = output
