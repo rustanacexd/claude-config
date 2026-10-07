@@ -25,7 +25,7 @@ Codex uses `CODEX_HOME` when set, otherwise `~/.codex`. Claude uses `~/.claude`.
 | Repository file | Destination |
 | --- | --- |
 | `settings.json` | `~/.claude/settings.json` |
-| `CLAUDE.md` | `~/.claude/CLAUDE.md` |
+| `AGENTS.md` | `~/.claude/CLAUDE.md` |
 | `pstack-models.md` | `~/.claude/pstack-models.md` |
 | `statusline.sh` | `~/.claude/statusline.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |

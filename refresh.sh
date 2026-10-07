@@ -11,9 +11,9 @@ python3 "$REPO/codex/refresh.py"
 DEST=~/.claude
 mkdir -p "$DEST/output-styles" "$DEST/skills"
 
-link() { # $1 = path relative to repo root
+link() { # $1 = path relative to repo root, $2 = name in ~/.claude if different
   src="$REPO/$1"
-  dst="$DEST/$1"
+  dst="$DEST/${2:-$1}"
   [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ] && return
   if [ -e "$dst" ] && [ ! -L "$dst" ]; then
     mv "$dst" "$src"          # real file in ~/.claude wins: adopt it
@@ -38,7 +38,7 @@ for d in "$REPO"/skills/*/; do
 done
 
 link settings.json
-link CLAUDE.md
+link AGENTS.md CLAUDE.md
 link pstack-models.md
 link statusline.sh
 for f in "$REPO"/output-styles/*.md; do
