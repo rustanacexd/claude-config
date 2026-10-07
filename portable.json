@@ -1,0 +1,254 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "source": "CLAUDE.md",
+      "destination": "CLAUDE.md",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "codex/AGENTS.md",
+      "destination": "AGENTS.md",
+      "apps": [
+        "codex"
+      ]
+    },
+    {
+      "source": "pstack-models.md",
+      "destination": "pstack-models.md",
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    {
+      "source": "output-styles",
+      "destination": "output-styles",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "statusline.py",
+      "destination": "statusline.py",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "sentry_mcp.py",
+      "destination": "sentry_mcp.py",
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    {
+      "source": "skills/explain-diff-html",
+      "destination": "skills/explain-diff-html",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/show-me",
+      "destination": "skills/show-me",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/gcloud",
+      "destination": "skills/gcloud",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "gcloud"
+      ]
+    },
+    {
+      "source": "skills/vendor/sentry-create-alert",
+      "destination": "skills/sentry-create-alert",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/plannotator-review",
+      "destination": "skills/plannotator-review",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "plannotator"
+      ]
+    },
+    {
+      "source": "skills/vendor/gh",
+      "destination": "skills/gh",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "gh"
+      ]
+    },
+    {
+      "source": "skills/vendor/sentry-snapshots-cocoa",
+      "destination": "skills/sentry-snapshots-cocoa",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/plannotator",
+      "destination": "skills/plannotator",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "plannotator"
+      ]
+    },
+    {
+      "source": "skills/vendor/gh-stack",
+      "destination": "skills/gh-stack",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "gh"
+      ]
+    },
+    {
+      "source": "skills/vendor/find-skills",
+      "destination": "skills/find-skills",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/sentry-setup-releases",
+      "destination": "skills/sentry-setup-releases",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/sentry-debug-issue",
+      "destination": "skills/sentry-debug-issue",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/status",
+      "destination": "skills/status",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "git"
+      ]
+    },
+    {
+      "source": "skills/vendor/plannotator-last",
+      "destination": "skills/plannotator-last",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "plannotator"
+      ]
+    },
+    {
+      "source": "skills/vendor/sentry-otel-exporter-setup",
+      "destination": "skills/sentry-otel-exporter-setup",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/finding-google-skills",
+      "destination": "skills/finding-google-skills",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/sentry-instrument",
+      "destination": "skills/sentry-instrument",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/sentry-get-started",
+      "destination": "skills/sentry-get-started",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/improve",
+      "destination": "skills/improve",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/vendor/plannotator-annotate",
+      "destination": "skills/plannotator-annotate",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": [
+        "plannotator"
+      ]
+    },
+    {
+      "source": "skills/vendor/sentry-fix-stack-traces",
+      "destination": "skills/sentry-fix-stack-traces",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    }
+  ]
+}

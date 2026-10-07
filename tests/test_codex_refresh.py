@@ -1,276 +1,461 @@
-import contextlib
-import importlib.util
-import io
+"""Behavioral checks migrated from the former symlink installer."""
+
+import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
 from unittest.mock import patch
+from portable.config import equal, render, parse
+from portable.manage import refresh, load, plan
+from portable import install, apps
 
 SOURCE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('codex_refresh', SOURCE / 'codex/refresh.py')
-refresh = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(refresh)
 
 
 class RefreshTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        self.temp = tempfile.TemporaryDirectory(prefix="portable test ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.repo = self.root / 'repo/codex'
-        self.repo.mkdir(parents=True)
-        self.home = self.root / 'home/.codex'
-        self.home.mkdir(parents=True)
-        self.template('model = "shared"\n[features]\nhooks = true\n')
-        (self.repo / 'AGENTS.md').write_bytes(b'Shared instructions\n')
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        (self.repo / "codex").mkdir()
+        (self.repo / "skills/example/references").mkdir(parents=True)
+        (self.repo / "skills/example/SKILL.md").write_text("skill")
+        (self.repo / "skills/example/references/detail.md").write_text("nested")
+        (self.repo / "AGENTS.md").write_text("instructions")
+        (self.repo / "portable.json").write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "assets": [
+                        {
+                            "source": "AGENTS.md",
+                            "destination": "AGENTS.md",
+                            "apps": ["codex"],
+                        },
+                        {
+                            "source": "skills/example",
+                            "destination": "skills/example",
+                            "apps": ["codex", "claude"],
+                        },
+                    ],
+                }
+            )
+        )
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        (self.repo / "settings.json").write_text('{"model":"shared","feature":true}')
+        self.template('model="shared"\n[features]\nhooks=true\n')
+        self.home = self.root / "home with spaces"
+        self.home.mkdir()
 
     def template(self, text):
-        (self.repo / 'config.template.toml').write_text(text)
+        (self.repo / "codex/config.template.toml").write_text(text)
 
     def run_refresh(self):
-        with contextlib.redirect_stdout(io.StringIO()):
-            refresh.refresh(self.repo, self.home)
+        return refresh(self.repo, {"codex": self.home}, ["codex"])
 
     def config(self):
-        return tomllib.loads((self.home / 'config.toml').read_text())
+        return tomllib.loads((self.home / "config.toml").read_text())
 
-    def backup_files(self):
-        return sorted((self.home / 'backups').glob('*/*'))
+    def backups(self):
+        return sorted((self.home / ".claude-config/backups").rglob("*"))
 
-    def test_fresh_machine(self):
-        self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'shared', 'features': {'hooks': True}})
-        for name in ('config.toml', 'AGENTS.md'):
-            self.assertEqual((self.home / name).resolve(), (self.repo / name).resolve())
-        self.assertEqual((self.repo / 'config.toml').stat().st_mode & 0o777, 0o600)
-        self.assertFalse(self.backup_files())
-
-    def test_preserve_semantics_bytes_backups_and_rerun(self):
-        live = b'# retain formatting\nmodel="local"\n[features]\nhooks=true\n[projects."/private/project"]\ntrust_level="trusted"\n'
-        (self.home / 'config.toml').write_bytes(live)
-        (self.home / 'AGENTS.md').write_bytes(b'Local instructions\n')
-        self.run_refresh()
-        self.assertEqual((self.repo / 'config.toml').read_bytes(), live)
-        files = self.backup_files()
-        self.assertEqual(len(files), 2)
-        self.assertEqual(next(p for p in files if p.name == 'config.toml').read_bytes(), live)
-        self.assertEqual(next(p for p in files if p.name == 'AGENTS.md').read_bytes(), b'Local instructions\n')
-        for p in files:
-            self.assertEqual(p.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(p.parent.stat().st_mode & 0o777, 0o700)
-        times = {p.name: p.stat().st_mtime_ns for p in (self.repo / 'config.toml', self.repo / '.template.snapshot.toml')}
-        self.run_refresh()
-        self.assertEqual(self.backup_files(), files)
-        self.assertEqual({p.name: p.stat().st_mtime_ns for p in (self.repo / 'config.toml', self.repo / '.template.snapshot.toml')}, times)
+    def test_fresh_machine_and_identical_rerun(self):
+        with patch.object(Path, "symlink_to", side_effect=OSError("no privilege")):
+            self.run_refresh()
+        self.assertEqual(self.config()["model"], "shared")
+        self.assertFalse((self.home / "config.toml").is_symlink())
+        self.assertEqual(
+            (self.home / "skills/example/references/detail.md").read_text(), "nested"
+        )
+        times = {
+            p: p.stat().st_mtime_ns
+            for p in self.home.rglob("*")
+            if p.is_file() and p.name != "lock"
+        }
+        changed, _ = self.run_refresh()
+        self.assertEqual(changed, [])
+        self.assertEqual(times, {p: p.stat().st_mtime_ns for p in times})
+        self.assertEqual(self.backups(), [])
 
     def test_shared_defaults_update_remove_and_local_changes(self):
         self.run_refresh()
         self.template('model="new"\nother=1\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'new', 'other': 1})
-        (self.home / 'config.toml').write_text('model="local"\n')
+        self.assertEqual(self.config()["model"], "new")
+        self.assertEqual(self.config()["other"], 1)
+        (self.home / "config.toml").write_text('model="local"\n')
         self.template('model="newer"\nother=2\nadded=3\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'local', 'added': 3})
+        self.assertEqual(self.config()["model"], "local")
+        self.assertNotIn("other", self.config())
+        self.assertEqual(self.config()["added"], 3)
 
     def test_entire_table_deletion_and_array_override(self):
-        self.template('items=[1,2]\n[features]\nhooks=true\n')
+        self.template("items=[1,2]\n[features]\nhooks=true\n")
         self.run_refresh()
-        (self.home / 'config.toml').write_text('items=[9]\n')
-        self.template('items=[1,2,3]\n[features]\nhooks=false\nnew=true\n')
+        (self.home / "config.toml").write_text("items=[9]\n")
+        self.template("items=[1,2,3]\n[features]\nhooks=false\nnew=true\n")
         self.run_refresh()
-        self.assertEqual(self.config(), {'items': [9]})
+        self.assertEqual(self.config()["items"], [9])
+        self.assertNotIn("features", self.config())
 
     def test_removed_shared_table_keeps_unknown_local_keys(self):
         self.run_refresh()
-        (self.home / 'config.toml').write_text('model="shared"\n[features]\nhooks=true\nlocal=7\n')
+        (self.home / "config.toml").write_text(
+            'model="shared"\n[features]\nhooks=true\nlocal=7\n'
+        )
         self.template('model="shared"\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'shared', 'features': {'local': 7}})
+        self.assertEqual(self.config()["features"], {"local": 7})
 
-    def test_app_replaces_symlink_adopt_repair(self):
+    def test_existing_bytes_and_local_instruction_preserved(self):
+        self.template('model="shared"\n')
+        live = b'# formatting\nmodel="local"\n'
+        # Existing unrelated keys introduced by new defaults require rendering once.
+        (self.home / "config.toml").write_bytes(live)
+        (self.home / "AGENTS.md").write_text("local")
         self.run_refresh()
-        destination = self.home / 'config.toml'
-        destination.unlink()
-        destination.write_text('model="app"\n[features]\nhooks=true\n[hooks.state]\nhash="local"\n')
-        original = destination.read_bytes()
+        original = (self.home / "config.toml").read_bytes()
         self.run_refresh()
-        self.assertTrue(destination.is_symlink())
-        self.assertEqual(destination.read_bytes(), original)
-        self.assertEqual(next(p for p in self.backup_files() if p.name == 'config.toml').read_bytes(), original)
+        self.assertEqual((self.home / "config.toml").read_bytes(), original)
+        self.assertEqual((self.home / "AGENTS.md").read_text(), "local")
 
-    def test_foreign_symlink_content_and_metadata_backup(self):
-        foreign = self.root / 'foreign.toml'
-        foreign.write_text('model="foreign"\n[features]\nhooks=true\n')
-        original = foreign.read_bytes()
-        (self.home / 'config.toml').symlink_to(foreign)
-        foreign_agents = self.root / 'foreign.md'
-        foreign_agents.write_bytes(b'foreign instructions')
-        (self.home / 'AGENTS.md').symlink_to(foreign_agents)
+    def test_edited_removed_deleted_and_unmanaged_skills(self):
         self.run_refresh()
-        self.assertEqual(foreign.read_bytes(), original)
-        self.assertEqual(foreign_agents.read_bytes(), b'foreign instructions')
-        names = {p.name for p in self.backup_files()}
-        self.assertEqual(names, {'config.toml','config.toml.symlink.json','AGENTS.md','AGENTS.md.symlink.json'})
-        self.assertEqual(self.config()['model'], 'foreign')
+        skill = self.home / "skills/example"
+        (skill / "references/detail.md").write_text("local edit")
+        (skill / "unmanaged.md").write_text("unmanaged")
+        (skill / "SKILL.md").unlink()
+        (self.repo / "skills/example/references/detail.md").unlink()
+        self.run_refresh()
+        self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
+        self.assertEqual((skill / "unmanaged.md").read_text(), "unmanaged")
+        self.assertFalse((skill / "SKILL.md").exists())
 
-    def test_invalid_inputs_do_not_replace_links(self):
-        for which in ('template', 'live'):
-            with self.subTest(which=which):
-                self.template('model="shared"\n')
-                (self.home / 'config.toml').write_text('model="local"\n')
-                (self.home / 'AGENTS.md').write_bytes(b'local')
-                path = self.repo / 'config.template.toml' if which == 'template' else self.home / 'config.toml'
-                path.write_text('invalid=')
-                before = (self.home / 'config.toml').read_bytes()
-                with self.assertRaises(tomllib.TOMLDecodeError):
-                    self.run_refresh()
-                self.assertFalse((self.home / 'config.toml').is_symlink())
-                self.assertEqual((self.home / 'config.toml').read_bytes(), before)
-                self.assertEqual((self.home / 'AGENTS.md').read_bytes(), b'local')
-                self.assertFalse(self.backup_files())
+    def test_removed_unchanged_owned_file_deleted(self):
+        self.run_refresh()
+        (self.repo / "skills/example/references/detail.md").unlink()
+        self.run_refresh()
+        self.assertFalse((self.home / "skills/example/references/detail.md").exists())
+
+    def test_foreign_symlinks_migrate_without_target_write(self):
+        foreign = self.root / "foreign.toml"
+        foreign.write_text('model="foreign"\n')
+        target = self.root / "foreign.md"
+        target.write_text("foreign")
+        try:
+            (self.home / "config.toml").symlink_to(foreign)
+            (self.home / "AGENTS.md").symlink_to(target)
+        except OSError:
+            self.skipTest("Runner cannot create symlink fixture")
+        self.run_refresh()
+        self.assertEqual(foreign.read_text(), 'model="foreign"\n')
+        self.assertEqual(target.read_text(), "foreign")
+        self.assertFalse((self.home / "config.toml").is_symlink())
+        self.assertFalse((self.home / "AGENTS.md").is_symlink())
+        self.assertEqual((self.home / "AGENTS.md").read_text(), "foreign")
+        self.assertTrue(any(p.name.endswith(".symlink.json") for p in self.backups()))
+
+    def test_malformed_inputs_no_mutation(self):
+        (self.home / "config.toml").write_text("invalid=")
+        before = set(self.home.rglob("*"))
+        with self.assertRaises(ValueError):
+            self.run_refresh()
+        self.assertEqual(before, set(self.home.rglob("*")))
+
+    def test_malformed_second_app_no_first_app_mutation(self):
+        other = self.root / "claude"
+        other.mkdir()
+        (other / "settings.json").write_text("invalid")
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertFalse((self.home / "config.toml").exists())
 
     def test_crash_recovery_all_durable_boundaries(self):
-        for phase in ('journal', 'config', 'snapshot', 'config_link', 'agents_link'):
-            with self.subTest(phase=phase):
-                with tempfile.TemporaryDirectory(dir=self.root) as directory:
-                    repo, home = Path(directory)/'codex', Path(directory)/'home'
-                    repo.mkdir(); home.mkdir()
-                    (repo/'config.template.toml').write_text('model="shared"\n')
-                    (repo/'AGENTS.md').write_text('shared instructions')
-                    (home/'config.toml').write_text('model="local"\n')
-                    (home/'AGENTS.md').write_text('local instructions')
-                    atomic, install = refresh.atomic, refresh.install_link
-                    def interrupted_atomic(path, data):
-                        atomic(path, data)
-                        if path.parent == repo.resolve() and path.name == {'journal': '.refresh.journal.json', 'config': 'config.toml', 'snapshot': '.template.snapshot.toml'}.get(phase):
-                            raise RuntimeError('simulated crash')
-                    def interrupted_link(path, target):
-                        install(path, target)
-                        if path.name == {'config_link': 'config.toml', 'agents_link': 'AGENTS.md'}.get(phase):
-                            raise RuntimeError('simulated crash')
-                    with patch.object(refresh, 'atomic', interrupted_atomic), patch.object(refresh, 'install_link', interrupted_link):
-                        with self.assertRaises(RuntimeError), contextlib.redirect_stdout(io.StringIO()):
-                            refresh.refresh(repo,home)
-                    backups = sorted((home/'backups').glob('*/*'))
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        refresh.refresh(repo,home)
-                    self.assertEqual(tomllib.loads((home/'config.toml').read_text()), {'model':'local'})
-                    self.assertTrue((home/'AGENTS.md').is_symlink())
-                    self.assertFalse((repo/'.refresh.journal.json').exists())
-                    self.assertEqual(sorted((home/'backups').glob('*/*')), backups)
+        for name in ("journal.json", "AGENTS.md", "config.toml", "baseline.json"):
+            with self.subTest(name=name):
+                home = self.root / name
+                home.mkdir()
+                atomic = install.atomic
+                triggered = False
 
-    def test_crash_then_app_edit_stops_without_overwrite(self):
-        atomic = refresh.atomic
-        def interrupt(path, data):
-            atomic(path, data)
-            if path.name == 'config.toml': raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
-            with self.assertRaises(RuntimeError): self.run_refresh()
-        (self.home/'config.toml').write_text('model="app"\n')
-        with self.assertRaisesRegex(ValueError, 'changed during interrupted'):
-            self.run_refresh()
-        self.assertEqual((self.home/'config.toml').read_text(), 'model="app"\n')
-        self.assertTrue((self.repo/'.refresh.journal.json').exists())
+                def interrupted(path, data):
+                    nonlocal triggered
+                    atomic(path, data)
+                    if path.name == name and not triggered:
+                        triggered = True
+                        raise RuntimeError("crash")
 
-    def test_crash_then_instructions_edit_stops_without_overwrite(self):
-        agents = self.home / 'AGENTS.md'
-        agents.write_bytes(b'Original local instructions\n')
-        atomic = refresh.atomic
-        def interrupt(path, data):
+                with patch.object(install, "atomic", interrupted):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                backups = sorted((home / ".claude-config/backups").rglob("*"))
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertEqual(
+                    tomllib.loads((home / "config.toml").read_text())["model"], "shared"
+                )
+                self.assertFalse((home / ".claude-config/journal.json").exists())
+                self.assertEqual(
+                    backups, sorted((home / ".claude-config/backups").rglob("*"))
+                )
+
+    def test_crash_then_app_edit_refuses_overwrite(self):
+        atomic = install.atomic
+
+        def interrupted(path, data):
             atomic(path, data)
-            if path.name == '.refresh.journal.json':
-                raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
+            if path.name == "journal.json":
+                raise RuntimeError("crash")
+
+        with patch.object(install, "atomic", interrupted):
             with self.assertRaises(RuntimeError):
                 self.run_refresh()
-        agents.write_bytes(b'Post-crash local instructions\n')
-        with self.assertRaisesRegex(ValueError, 'Instructions changed during interrupted'):
+        (self.home / "config.toml").write_text('model="app"\n')
+        with self.assertRaisesRegex(ValueError, "interrupted"):
             self.run_refresh()
-        self.assertFalse(agents.is_symlink())
-        self.assertEqual(agents.read_bytes(), b'Post-crash local instructions\n')
-        self.assertTrue((self.repo / '.refresh.journal.json').exists())
-        self.assertEqual(next(p for p in self.backup_files() if p.name == 'AGENTS.md').read_bytes(), b'Original local instructions\n')
+        self.assertEqual((self.home / "config.toml").read_text(), 'model="app"\n')
+        self.assertTrue((self.home / ".claude-config/journal.json").exists())
 
-    def test_instructions_edit_before_publication_stops(self):
-        agents = self.home / 'AGENTS.md'
-        agents.write_bytes(b'Original instructions\n')
-        backup = refresh.backup
-        def edit_after_backup(home, replacements):
-            backup(home, replacements)
-            agents.write_bytes(b'Updated instructions\n')
-        with patch.object(refresh, 'backup', edit_after_backup):
-            with self.assertRaisesRegex(ValueError, 'Instructions changed during refresh'):
-                self.run_refresh()
-        self.assertEqual(agents.read_bytes(), b'Updated instructions\n')
-        self.assertFalse(agents.is_symlink())
-        self.assertFalse((self.repo / '.refresh.journal.json').exists())
+    def test_app_edit_between_plan_and_publish_refuses(self):
+        manifest, plugins = load(self.repo)
+        with install.locked(self.home) as state:
+            updates, baseline, _ = plan(
+                self.repo, manifest, plugins, "codex", self.home, state
+            )
+            (self.home / "config.toml").write_text('model="app"\n')
+            with self.assertRaisesRegex(ValueError, "before publication"):
+                install.publish(self.home, state, updates, baseline)
+        self.assertFalse((self.home / ".claude-config/journal.json").exists())
 
-    def test_crash_then_shared_instructions_edit_is_retained(self):
+    def test_cross_home_state_separation_and_source_unchanged(self):
+        before = {
+            p.relative_to(self.repo): p.read_bytes()
+            for p in self.repo.rglob("*")
+            if p.is_file()
+        }
         self.run_refresh()
-        atomic = refresh.atomic
-        def interrupt(path, data):
-            atomic(path, data)
-            if path.name == '.refresh.journal.json':
-                raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
-            with self.assertRaises(RuntimeError):
-                self.run_refresh()
-        (self.home / 'AGENTS.md').write_bytes(b'Updated shared instructions\n')
+        other = self.root / "other"
+        refresh(self.repo, {"codex": other}, ["codex"])
+        (self.home / "config.toml").write_text('model="local"\n')
         self.run_refresh()
-        self.assertTrue((self.home / 'AGENTS.md').is_symlink())
-        self.assertEqual((self.repo / 'AGENTS.md').read_bytes(), b'Updated shared instructions\n')
-        self.assertFalse((self.repo / '.refresh.journal.json').exists())
+        self.assertEqual(
+            tomllib.loads((other / "config.toml").read_text())["model"], "shared"
+        )
+        self.assertEqual(
+            before,
+            {
+                p.relative_to(self.repo): p.read_bytes()
+                for p in self.repo.rglob("*")
+                if p.is_file()
+            },
+        )
+
+    def test_legacy_journal_refused(self):
+        (self.repo / "codex/.refresh.journal.json").write_text("{}")
+        with self.assertRaisesRegex(ValueError, "Legacy"):
+            self.run_refresh()
+        self.assertFalse((self.home / "config.toml").exists())
+
+    def test_claude_auth_local_changes_retained(self):
+        (self.home / "settings.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"},"model":"local"}'
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        d = json.loads((self.home / "settings.json").read_text())
+        self.assertEqual(d["env"]["ANTHROPIC_AUTH_TOKEN"], "canary-secret")
+        self.assertEqual(d["model"], "local")
+        self.assertNotIn("canary-secret", (self.repo / "settings.json").read_text())
+
+    def test_shared_secret_is_rejected_before_home_mutation(self):
+        (self.repo / "settings.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
+        )
+        with self.assertRaisesRegex(ValueError, "machine authentication"):
+            refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_local_profile_retains_secret_outside_repo(self):
+        (self.home / "portable.local.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertEqual(
+            json.loads((self.home / "settings.json").read_text())["env"][
+                "ANTHROPIC_AUTH_TOKEN"
+            ],
+            "canary-secret",
+        )
+        self.assertNotIn("canary-secret", (self.repo / "settings.json").read_text())
+
+    def test_native_install_retains_local_disabled_flag(self):
+        plugin = {
+            "app": "claude",
+            "id": "x@y",
+            "enabled": True,
+            "kind": "native",
+            "source": "https://github.com/x/y.git",
+            "marketplace": "y",
+        }
+        (self.repo / "plugins.json").write_text(
+            json.dumps({"schema": 1, "plugins": [plugin]})
+        )
+        (self.home / "settings.json").write_text('{"enabledPlugins":{"x@y":false}}')
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+
+        def flip(app, home, plugins):
+            self.assertFalse(plugins[0]["enabled"])
+            path = home / "settings.json"
+            config = json.loads(path.read_text())
+            config["enabledPlugins"]["x@y"] = True
+            path.write_text(json.dumps(config))
+            return []
+
+        with patch.object(apps, "restore", flip):
+            apps.restore_preserving_flags("claude", self.home, [plugin])
+        self.assertFalse(
+            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
+                "x@y"
+            ]
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertFalse(
+            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
+                "x@y"
+            ]
+        )
+
+    def test_journal_escape_and_reparse_parent_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsafe"):
+            install.safe_path(self.home, "../escape")
+        with patch.object(install, "linked", return_value=True):
+            with self.assertRaisesRegex(ValueError, "symlink parent"):
+                install.safe_path(self.home, "skills/example/file")
 
     def test_serializer_complete_types(self):
-        data = tomllib.loads('''"quoted.key" = "Unicode 😀 and \\u007f"
-float=nan
-infinity=-inf
-when=1979-05-27T07:32:00Z
-local=1979-05-27T07:32:00
-date=1979-05-27
-time=07:32:00
-records=[{ path="x", enabled=true }, { path="y", numbers=[1,2.5] }]
-[empty]
-''')
-        self.assertTrue(refresh.equal(refresh.parse(refresh.render(data)), data))
+        data = tomllib.loads(
+            '"quoted.key"="Unicode 😀 and \\u007f"\nfloat=nan\ninfinity=-inf\nwhen=1979-05-27T07:32:00Z\nlocal=1979-05-27T07:32:00\ndate=1979-05-27\ntime=07:32:00\nrecords=[{path="x",enabled=true},{path="y",numbers=[1,2.5]}]\n[empty]\n'
+        )
+        self.assertTrue(equal(parse(render(data)), data))
 
-    def test_current_config_read_only_fixture(self):
-        path = Path.home()/'.codex/config.toml'
-        if not path.exists(): self.skipTest('No current config available')
-        original = path.read_bytes()
-        (self.repo/'config.template.toml').write_bytes((SOURCE/'codex/config.template.toml').read_bytes())
-        (self.home/'config.toml').write_bytes(original)
-        self.run_refresh()
-        self.assertEqual((self.home/'config.toml').read_bytes(), original)
-        self.assertEqual(path.read_bytes(), original)
+    def test_path_collision_and_escape_rejected(self):
+        for path in ("../escape", "C:/escape", "CON", "trailing."):
+            d = {
+                "schema": 1,
+                "assets": [
+                    {"source": "AGENTS.md", "destination": path, "apps": ["codex"]}
+                ],
+            }
+            (self.repo / "portable.json").write_text(json.dumps(d))
+            with self.assertRaises(ValueError):
+                self.run_refresh()
+        self.assertFalse((self.home / "config.toml").exists())
 
-    def test_shell_codex_only_and_default(self):
-        repo = self.root/'shell-repo'
-        shutil.copytree(SOURCE, repo, ignore=shutil.ignore_patterns('.git','__pycache__','config.toml','.template.snapshot.toml','.refresh.journal.json','.refresh.lock'))
-        home = self.root/'shell-home'
-        home.mkdir()
-        env = dict(os.environ, HOME=str(home), CODEX_HOME=str(home/'custom-codex'))
-        gitbin = self.root/'bin'; gitbin.mkdir()
-        git = gitbin/'git'; git.write_text('#!/bin/sh\nexit 0\n'); git.chmod(0o755)
-        env['PATH'] = str(gitbin)+os.pathsep+env['PATH']
-        subprocess.run([str(repo/'refresh.sh'),'--codex-only'], env=env, check=True, capture_output=True)
-        self.assertTrue((home/'custom-codex/config.toml').is_symlink())
-        self.assertFalse((home/'.claude').exists())
-        subprocess.run([str(repo/'refresh.sh')], env=env, check=True, capture_output=True)
-        self.assertTrue((home/'.claude/settings.json').is_symlink())
-        (repo/'codex/config.template.toml').write_text('invalid=')
-        (home/'.claude/settings.json').unlink()
-        (home/'.claude/settings.json').write_text('{"local":true}')
-        result = subprocess.run([str(repo/'refresh.sh')], env=env, capture_output=True)
-        self.assertNotEqual(result.returncode,0)
-        self.assertEqual((home/'.claude/settings.json').read_text(),'{"local":true}')
-        self.assertFalse((home/'.claude/settings.json').is_symlink())
+    def test_real_cli_fresh_home_and_canary_output(self):
+        home = self.root / "CLI home"
+        env = dict(os.environ, ANTHROPIC_AUTH_TOKEN="secret-canary")
+        result = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("secret-canary", result.stdout + result.stderr)
+        rerun = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(rerun.stdout, "Applied 0 file changes\n")
 
 
-if __name__ == '__main__':
+class NativeTests(unittest.TestCase):
+    def test_shapes_disabled_installs_and_idempotency(self):
+        plugin = {
+            "id": "example@market",
+            "app": "claude",
+            "marketplace": "market",
+            "source": "https://github.com/test/market.git",
+            "kind": "native",
+            "enabled": False,
+        }
+        found = {}
+        calls = []
+
+        def native(app, args, home, parse_json=True):
+            calls.append(args)
+            if args[1] == "list":
+                return list(found.values())
+            if args[1:3] == ["marketplace", "list"]:
+                return []
+            if args[1] == "install":
+                found[plugin["id"]] = {"id": plugin["id"], "enabled": True}
+            if args[1] == "disable":
+                self.assertFalse(parse_json)
+                found[plugin["id"]]["enabled"] = False
+            return {}
+
+        with patch.object(apps, "command", native):
+            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
+            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
+        self.assertEqual(sum(c[1] == "install" for c in calls), 1)
+        self.assertEqual(sum(c[1] == "disable" for c in calls), 1)
+
+    def test_sentry_existing_definition_never_replaced(self):
+        with patch.object(
+            apps, "command", return_value="existing private command"
+        ) as native:
+            apps.ensure_sentry(Path("/unused"), sys.executable)
+        self.assertEqual(native.call_count, 1)
+        self.assertFalse(native.call_args.kwargs["parse_json"])
+
+    def test_sentry_missing_created_then_observed(self):
+        with patch.object(
+            apps, "command", side_effect=[None, "Added", "Existing"]
+        ) as native:
+            apps.ensure_sentry(Path("/unused"), sys.executable)
+        self.assertEqual(native.call_count, 3)
+        self.assertEqual(native.call_args_list[1].args[1][1], "add-json")
+
+    def test_codex_object_shape_and_missing_capability(self):
+        with patch.object(
+            apps,
+            "command",
+            return_value={"installed": [{"pluginId": "x@y", "enabled": False}]},
+        ):
+            self.assertIn("x@y", apps.installed("codex", Path("/unused")))
+        with patch.object(apps, "command", side_effect=ValueError("CLI missing")):
+            self.assertEqual(
+                apps.restore("codex", Path("/unused"), []), ["CLI missing"]
+            )
+
+    def test_failed_native_command_redacts_output(self):
+        result = subprocess.CompletedProcess([], 1, "canary-secret", "canary-secret")
+        with (
+            patch.object(apps.shutil, "which", return_value="claude"),
+            patch.object(apps.subprocess, "run", return_value=result),
+        ):
+            with self.assertRaises(ValueError) as error:
+                apps.command("claude", ["plugin", "list", "--json"], Path("/unused"))
+        self.assertNotIn("canary-secret", str(error.exception))
+
+    def test_runtime_plugins_not_restored_as_native(self):
+        plugin = {"id": "x@runtime", "kind": "app-provided", "enabled": False}
+        with (
+            patch.object(apps, "installed", return_value={}),
+            patch.object(apps, "command", return_value=[]),
+        ):
+            issues = apps.restore("codex", Path("/unused"), [plugin])
+        self.assertTrue(any("app availability" in issue for issue in issues))
+
+
+if __name__ == "__main__":
     unittest.main()

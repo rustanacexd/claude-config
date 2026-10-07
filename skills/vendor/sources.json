@@ -1,0 +1,247 @@
+[
+  {
+    "name": "find-skills",
+    "source": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "76a98a285cb0434f3d39e1a873823556330e398b",
+      "installedAt": "2026-06-12T10:03:30.632Z",
+      "updatedAt": "2026-07-13T05:54:43.169Z"
+    },
+    "snapshot_sha256": "1c27b1774a4ec17ad4556a72e3c0168beab3af0183b2c1b8aa9e320af3ff41ce",
+    "files": 1,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "finding-google-skills",
+    "source": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/google/skills.git",
+      "skillPath": "skills/developers/finding-google-skills/SKILL.md",
+      "skillFolderHash": "0431b326490629a972bd9a242dba5334e3be786f",
+      "installedAt": "2026-09-01T08:37:24.220Z",
+      "updatedAt": "2026-10-02T04:30:21.736Z"
+    },
+    "snapshot_sha256": "30231eec4ea53084d2a69440b91974b0c28d1d695875a580933f5834363aa8bd",
+    "files": 1,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "gcloud",
+    "source": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/google/skills.git",
+      "skillPath": "skills/cloud/gcloud/SKILL.md",
+      "skillFolderHash": "e79ad07a482cd3a10e63d1225b6166a8a5a674ca",
+      "installedAt": "2026-08-05T12:43:18.396Z",
+      "updatedAt": "2026-09-23T14:06:21.820Z"
+    },
+    "snapshot_sha256": "36bbedcbba30c5c0cbf288231b1949e579e9ff65d5f9c17bf3d5475aebb3172e",
+    "files": 3,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "gh",
+    "source": {
+      "source": "cli/cli",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cli/cli.git",
+      "skillPath": "skills/gh/SKILL.md",
+      "skillFolderHash": "a4791f98e9351d4a76e6be7716371807b3fdb087",
+      "installedAt": "2026-08-09T04:42:38Z",
+      "updatedAt": "2026-09-28T05:07:20.205Z"
+    },
+    "snapshot_sha256": "f2c4b15043980ca7d31b52d694e589e44b0924ebcff3f9d35cb1825e79ff370f",
+    "files": 1,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "gh-stack",
+    "source": {
+      "source": "github/gh-stack",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/github/gh-stack.git",
+      "skillPath": "skills/gh-stack/SKILL.md",
+      "skillFolderHash": "bde7bcf5a96697d31aa55b33565fa0ff002167ca",
+      "installedAt": "2026-08-09T04:25:48Z",
+      "updatedAt": "2026-10-02T04:30:24.341Z"
+    },
+    "snapshot_sha256": "f19ade6462d441224249c4bd2c3f2139977e9b546c611b66652b60df526ec649",
+    "files": 4,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "improve",
+    "source": {
+      "source": "shadcn/improve",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/shadcn/improve.git",
+      "skillPath": "skills/improve/SKILL.md",
+      "skillFolderHash": "7d77d76815e6deb704427f17f6e393f55e3cb6da",
+      "installedAt": "2026-06-12T10:03:26.219Z",
+      "updatedAt": "2026-09-07T17:18:33.487Z"
+    },
+    "snapshot_sha256": "b4768ee5c11cd620dee9b8c5c29bae56ae625e44f061807863088d70a3afa621",
+    "files": 4,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "plannotator",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "cb7ecf6264eecfef4571da969185ad7358c4e4395082ce59572a21c120fa24ea",
+    "files": 2,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "plannotator-annotate",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "9fc2cf199c89462571164b5523ba6a668812e2b6fc5bcef5f044465adc306259",
+    "files": 2,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "plannotator-last",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "2f22274e82dd727474b2fd974c97721cedd05622ffaa5d68eb7fcf9aabb89b0c",
+    "files": 2,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "plannotator-review",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "51e265575de25eb99dce7689f81c01ee8f45dd2d253b054c1d42494298342248",
+    "files": 2,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-create-alert",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "c94c836eb7ad92225e64bcbdaa5610a7ed1a6115653584464ef46a1c12707e34",
+    "files": 1,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-debug-issue",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "f578c412ff44327e838a4790da5b709167e92e8c4770fe63525aead048b4b22b",
+    "files": 16,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-fix-stack-traces",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "c5bfda75163f492bedd718eee1ff88231f2fce27583200806236ca6be24a6445",
+    "files": 31,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-get-started",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "35223a0c70eb0e5bdaa65fbf5c42bc06ebdf0d97547e44ecbf60bf762f641018",
+    "files": 91,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-instrument",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "1ab99d0cfdd8c211ce915bf78c2f91487d7edb4a8c153d25170bf870873c0dd2",
+    "files": 237,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-otel-exporter-setup",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "ca8a9f20099a311199b3bb2b4bfadeba11ee60372714dc519d76b183270f73b5",
+    "files": 1,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-setup-releases",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "19a8125975ac26599216d6864bb674dc38e53c6e8f6d8805dd6dd108399bf3e3",
+    "files": 51,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "sentry-snapshots-cocoa",
+    "source": {
+      "sourceType": "installed-snapshot",
+      "sourceUrl": null
+    },
+    "snapshot_sha256": "4ecf02eb7df356482003959f527a34a5c63c32d1ab6cff9843881dc8d7c8df9c",
+    "files": 7,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  },
+  {
+    "name": "status",
+    "source": {
+      "source": "backnotprop/bro",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/backnotprop/bro.git",
+      "skillPath": "skills/status/SKILL.md",
+      "skillFolderHash": "140a9a58df13666179f4f9bac7ee6b0967b6f2c2",
+      "pluginName": "bro",
+      "installedAt": "2026-09-09T09:46:12.395Z",
+      "updatedAt": "2026-09-09T09:46:12.395Z"
+    },
+    "snapshot_sha256": "bf66e84810239fdb3a5f0f76975ed16ba64690d649c2a7c3d63f6cf38268a9aa",
+    "files": 2,
+    "revision": null,
+    "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
+  }
+]

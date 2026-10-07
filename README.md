@@ -1,62 +1,81 @@
-# claude-config
+# Portable Claude and Codex setup
 
-Shared Claude Code and Codex settings, kept in git and symlinked into each app's home directory.
+This repository owns shared settings, instructions, output styles, 21 standalone skills and intent for 8 Claude plugins and 26 Codex plugins. Installed files and reconciliation state live in each app home. Refresh uses Python 3.11 or newer and regular files on macOS, Linux and Windows. It needs no Bash, jq, Node or symlink privileges.
 
-## Set up a machine
+## Set up a fresh machine
 
-Install Python 3.11 or newer on macOS or Linux, then run:
+Install Git and Python 3.11 or newer, clone this repository and open its directory. Install Claude Code and Codex using their supported installers, or explicitly request tool installation.
 
 ```sh
-git clone https://github.com/rustanacexd/claude-config.git ~/code/claude-config
-cd ~/code/claude-config
-./refresh.sh
+python3 manage.py bootstrap --install-tools
+python3 manage.py doctor
 ```
 
-Restart both apps after setup. Use `./refresh.sh --codex-only` to configure only Codex. The repo can live anywhere.
+On Windows, use Python's launcher.
 
-Claude uses `~/.claude`. Codex uses `CODEX_HOME` when set, otherwise `~/.codex`. Use a separate clone for each machine or Codex home.
+```powershell
+py -3 manage.py bootstrap --install-tools
+py -3 manage.py doctor
+```
 
-| Repository file | Destination |
-| --- | --- |
-| `settings.json` | `~/.claude/settings.json` |
-| `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| `pstack-models.md` | `~/.claude/pstack-models.md` |
-| `statusline.sh` | `~/.claude/statusline.sh` |
-| `output-styles/*.md` | `~/.claude/output-styles/` |
-| `skills/*/` | `~/.claude/skills/` |
-| `codex/AGENTS.md` | `~/.codex/AGENTS.md` |
-| Generated `codex/config.toml` | `~/.codex/config.toml` |
+Tool installation uses Windows `winget` with `Anthropic.ClaudeCode` and `OpenAI.Codex`, or `npm install -g` with `@anthropic-ai/claude-code` and `@openai/codex`. Without a supported package manager it fails with setup guidance. Tool installation may require a new terminal before its commands appear on PATH. Node/npm is also required for the Sentry MCP. GitHub CLI, Google Cloud CLI, Plannotator and Bash are needed by some optional skills; inventory reports their declared runtime requirements. Vendoring a skill does not make every command it describes work on every OS.
 
-Install plugins, local hooks, and credentials separately. Exa expects `EXA_API_KEY` in your environment. Sessions, caches, authentication, and local-only skills stay untracked.
+Authenticate each app on the new machine through its native login flow. Set `EXA_API_KEY` and `SENTRY_ACCESS_TOKEN` in the local process environment for the declared MCP servers. Doctor reports presence only, never credential values or an authentication-success claim. The Sentry wrapper runs the pinned `@sentry/mcp-server@0.42.0` against `sentry-hosted.go2.io` for organization `go2`. Bootstrap creates a missing Claude user MCP definition through the native CLI and preserves an existing definition. Codex receives the equivalent default through its config merge.
 
-## Save shared changes
+Bootstrap restores missing native plugins after registering their marketplaces, then observes the installation again. Disabled plugins are still installed. It preserves undeclared plugins. Versions in `plugins.json` record the observed source-machine inventory; native managers may install newer versions. OpenAI app-provided plugins require a compatible Codex app. Remote connectors require their account connections. Bootstrap reports pending capabilities and exits nonzero when setup is incomplete. It never copies plugin caches, OAuth sessions or cloud credentials.
 
-For Claude, run `./refresh.sh`, review the diff, then commit. Refresh adopts real Claude files and new output styles into the repo, then restores their links. Local-only skills and plugin links stay untouched.
+## Refresh shared defaults
 
-For Codex, edit `codex/config.template.toml` for shared settings or `codex/AGENTS.md` for instructions. Run `./refresh.sh --codex-only`, review the diff, then commit.
+After pulling changes, run the offline refresh.
 
-Keep credentials, project trust, hook state, installation paths, and app-managed settings out of the template. Generated Codex settings and refresh state stay gitignored with owner-only permissions.
+```sh
+python3 manage.py refresh
+python3 manage.py refresh --app codex
+```
 
-## Keep Codex settings local
+On Windows use `py -3 manage.py refresh`, or `./refresh.ps1`. `./refresh.sh` is a compatibility launcher; `--codex-only` selects Codex.
 
-Change local settings through Codex or `~/.codex/config.toml`. Refresh preserves existing values on first setup and later local edits or deletions. It also repairs links replaced by the app.
+The default homes are `~/.claude` and `~/.codex`. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` override them. `--home PATH` uses that path directly when selecting one app. For both apps it creates `PATH/claude` and `PATH/codex`, which is useful for an isolated test.
 
-Unchanged defaults follow template updates. Local overrides win conflicts. To follow shared defaults again, set the local value to the current template value.
+Edit `settings.json` or `codex/config.template.toml` to share a setting. Local app settings never flow into this repository. The three-way merge updates unchanged defaults and keeps local values, unknown keys, deleted settings and arrays. Entire locally deleted tables remain deleted. Identical refreshes preserve config bytes and file mtimes and create no new backups.
 
-Unchanged settings retain their formatting. Updates may remove comments from the generated file. Run refresh while Codex is idle.
+For a local proxy or credential profile, create `portable.local.json` inside the relevant app home. It is a JSON object using that app's settings shape, including `env` for Claude when needed. Its values remain machine-local. Do not commit credentials or machine endpoints to shared templates. Fresh shared defaults use native app login.
 
-## Restore or recover
+## Inspect installation
 
-Codex backs up files before replacing them under `$CODEX_HOME/backups/`, or `~/.codex/backups/` when unset. Foreign symlink targets stay untouched.
+```sh
+python3 manage.py inventory
+python3 manage.py doctor
+```
 
-To restore a file, remove its home symlink and copy the backup there. Foreign links include a `.symlink.json` record of their original target.
+Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables and optional skill commands. Snapshot versions are provenance, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
 
-After an interrupted refresh, rerun the command. If recovery reports changed files, preserve the config, instructions, backups, and `codex/.refresh.journal.json` before reconciling. Once reconciled, remove the journal to start a new merge.
+## File ownership and recovery
 
-## Test
+Each app home owns `.claude-config/baseline.json`, `journal.json`, `lock` and `backups/`. Backups and journals can contain private local settings; keep the app home private. Python applies private file modes on POSIX. Windows inherits the app-home ACL; choose a private user directory. Runtime state is never stored beside the tracked templates.
+
+A managed skill owns its listed child files, not its entire directory. Unknown files and edited managed files remain local. Refresh retains local file deletions. When an upstream file disappears, refresh removes the installed file only if its recorded content still matches. Source directories include referenced scripts, examples and nested resources.
+
+Publication uses an OS-backed lock, same-directory temporary files, atomic replacements, durable file writes, backups and a versioned journal. POSIX also syncs directories. Windows uses native byte-range locking and inherits filesystem durability guarantees for directory entries. Interrupted work resumes only if every file still matches its prior observation or intended output. If an app edited a file after interruption, refresh refuses to overwrite it. Preserve the journal and backups, compare its proposed output with the edited files, and reconcile while the app is idle before retrying. There is no automatic rollback over new app edits.
+
+Old configuration and instruction symlinks become regular local files without changing their targets. An old Codex baseline is imported only when its config link proves ownership by this clone. A legacy repo-side `.refresh.journal.json` causes refusal. Recover it with the previous installer before upgrading. Linked parents and Windows reparse-point directories below the app home are rejected.
+
+## Review upstream skill updates
+
+`skills/vendor/sources.json` records source URLs when known, exact snapshot hashes and honest unknown commit provenance. Existing installed folder hashes are not Git revisions. Plugin-provided skills remain owned by native plugins and are not copied here.
+
+For a skill with known upstream provenance, choose and review a full commit SHA, then run:
+
+```sh
+python3 manage.py skills-update find-skills --ref FULL_40_CHARACTER_COMMIT_SHA
+```
+
+The updater checks out that commit with Git, copies the selected directory and available upstream license notices, computes its new snapshot hash and stages replacement with rollback on failure. Review the Git diff before committing; then refresh the app homes. Unknown-provenance snapshots require a reviewed source URL and skill path before updating. Vercel Skills 1.7.1 can help discover or stage skills, but its registry folder hash is not an exact restore lock and is not required for offline setup.
+
+## Run tests
 
 ```sh
 python3 -m unittest discover -s tests -v
 ```
 
-Tests use temporary repositories and app homes.
+Tests use synthetic configs and temporary homes, including paths with spaces. They exercise the actual CLI, repeated refresh, local edits and deletions, nested skill resources, native JSON variations, secret canaries, foreign links, interrupted publication and conflict refusal. GitHub Actions runs Python 3.11 and 3.13 on Ubuntu, macOS and Windows. Symlink fixture tests may skip when the runner cannot create a fixture; ordinary installation still runs without links.

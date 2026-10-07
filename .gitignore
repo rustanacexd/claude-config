@@ -9,3 +9,7 @@
 
 /tests/__pycache__/
 /codex/.tmp*
+/portable/__pycache__/
+/__pycache__/
+/todo.md
+/portable.local.json
