@@ -68,6 +68,35 @@ class RefreshTests(unittest.TestCase):
     def backups(self):
         return sorted((self.home / ".claude-config/backups").rglob("*"))
 
+    def test_real_cli_legacy_directory_links(self):
+        home = self.root / "legacy CLI"
+        snapshots = {p: (p.read_bytes(), p.stat().st_mtime_ns)
+                     for p in (SOURCE / "skills/show-me").rglob("*") if p.is_file()}
+        for app in ("claude", "codex"):
+            root = home / app / "skills"
+            root.mkdir(parents=True)
+            target = SOURCE / "skills/show-me"
+            (root / "show-me").symlink_to(
+                target if app == "claude" else os.path.relpath(target, root),
+                target_is_directory=True,
+            )
+        result = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for app in ("claude", "codex"):
+            self.assertFalse((home / app / "skills/show-me").is_symlink())
+            self.assertEqual((home / app / "skills/show-me/SKILL.md").read_bytes(),
+                             (SOURCE / "skills/show-me/SKILL.md").read_bytes())
+        self.assertEqual(snapshots, {p: (p.read_bytes(), p.stat().st_mtime_ns)
+                                     for p in snapshots})
+        result = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.stdout, "Applied 0 file changes\n")
+
     def test_fresh_machine_and_identical_rerun(self):
         with patch.object(Path, "symlink_to", side_effect=OSError("no privilege")):
             self.run_refresh()
