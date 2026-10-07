@@ -429,6 +429,56 @@ class RefreshTests(unittest.TestCase):
                 self.run_refresh()
         self.assertFalse((self.home / "config.toml").exists())
 
+    def test_real_repository_app_specific_pstack_models(self):
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(SOURCE, homes, list(homes))
+        claude = (homes["claude"] / "pstack-models.md").read_bytes()
+        codex = (homes["codex"] / "pstack-models.md").read_bytes()
+        self.assertIn(b"feature, refactoring: opus\n", claude)
+        self.assertIn(b"strongest judgment: fable\n", claude)
+        self.assertIn(b"feature, refactoring: gpt-6.1-sol\n", codex)
+        self.assertEqual(claude, (SOURCE / "pstack-models.md").read_bytes())
+        self.assertEqual(codex, (SOURCE / "codex/pstack-models.md").read_bytes())
+        self.assertNotEqual(claude, codex)
+        changed, _ = refresh(SOURCE, homes, list(homes))
+        self.assertEqual(changed, [])
+
+    def test_pstack_models_upgrade_preserves_local_edits(self):
+        repo = self.root / "upgrade repo"
+        shutil.copytree(SOURCE, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        manifest = json.loads((repo / "portable.json").read_text())
+        old_manifest = dict(manifest)
+        old_manifest["assets"] = [
+            asset for asset in manifest["assets"]
+            if asset["destination"] != "pstack-models.md"
+        ] + [{"source": "pstack-models.md", "destination": "pstack-models.md",
+              "apps": ["claude", "codex"]}]
+        old_sheet = (SOURCE / "codex/pstack-models.md").read_bytes()
+        for edited in (False, True):
+            with self.subTest(edited=edited):
+                homes = {app: self.root / str(edited) / app
+                         for app in ("claude", "codex")}
+                (repo / "portable.json").write_text(json.dumps(old_manifest))
+                (repo / "pstack-models.md").write_bytes(old_sheet)
+                refresh(repo, homes, list(homes))
+                local = old_sheet + b"\nfeature, refactoring: local-model\n"
+                if edited:
+                    for home in homes.values():
+                        (home / "pstack-models.md").write_bytes(local)
+                (repo / "portable.json").write_text(json.dumps(manifest))
+                (repo / "pstack-models.md").write_bytes(
+                    (SOURCE / "pstack-models.md").read_bytes()
+                )
+                refresh(repo, homes, list(homes))
+                for app, home in homes.items():
+                    expected = local if edited else (
+                        SOURCE / ("pstack-models.md" if app == "claude"
+                                  else "codex/pstack-models.md")
+                    ).read_bytes()
+                    self.assertEqual((home / "pstack-models.md").read_bytes(), expected)
+                changed, _ = refresh(repo, homes, list(homes))
+                self.assertEqual(changed, [])
+
     def test_real_cli_fresh_home_and_canary_output(self):
         home = self.root / "CLI home"
         env = dict(os.environ, ANTHROPIC_AUTH_TOKEN="secret-canary")
