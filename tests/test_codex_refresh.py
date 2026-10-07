@@ -69,22 +69,26 @@ class RefreshTests(unittest.TestCase):
         return sorted((self.home / ".claude-config/backups").rglob("*"))
 
     def test_real_cli_legacy_directory_links(self):
+        source = self.root / "CLI source"
+        shutil.copytree(
+            SOURCE, source, ignore=shutil.ignore_patterns(".git", "__pycache__")
+        )
         home = self.root / "legacy CLI"
         snapshots = {
             p: (p.read_bytes(), p.stat().st_mtime_ns)
-            for p in (SOURCE / "skills/show-me").rglob("*")
+            for p in (source / "skills/show-me").rglob("*")
             if p.is_file()
         }
         for app in ("claude", "codex"):
             root = home / app / "skills"
             root.mkdir(parents=True)
-            target = SOURCE / "skills/show-me"
+            target = source / "skills/show-me"
             (root / "show-me").symlink_to(
                 target if app == "claude" else os.path.relpath(target, root.resolve()),
                 target_is_directory=True,
             )
         result = subprocess.run(
-            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            [sys.executable, str(source / "manage.py"), "refresh", "--home", str(home)],
             capture_output=True,
             text=True,
         )
@@ -93,13 +97,13 @@ class RefreshTests(unittest.TestCase):
             self.assertFalse((home / app / "skills/show-me").is_symlink())
             self.assertEqual(
                 (home / app / "skills/show-me/SKILL.md").read_bytes(),
-                (SOURCE / "skills/show-me/SKILL.md").read_bytes(),
+                (source / "skills/show-me/SKILL.md").read_bytes(),
             )
         self.assertEqual(
             snapshots, {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in snapshots}
         )
         result = subprocess.run(
-            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            [sys.executable, str(source / "manage.py"), "refresh", "--home", str(home)],
             capture_output=True,
             text=True,
         )

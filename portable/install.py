@@ -185,7 +185,7 @@ def validate_transaction(home, transaction, repo=None, manifest=None, app=None):
             target = Path(root["link"])
             if not target.is_absolute():
                 target = path.parent / target
-            if target.resolve() != (repo / root["source"]).resolve():
+            if not target.is_dir() or not os.path.samefile(target, source):
                 raise ValueError("Directory conversion has foreign source")
         if any(
             name == n or name.startswith(n + "/") or n.startswith(name + "/")
