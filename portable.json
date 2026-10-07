@@ -19,7 +19,13 @@
       "source": "pstack-models.md",
       "destination": "pstack-models.md",
       "apps": [
-        "claude",
+        "claude"
+      ]
+    },
+    {
+      "source": "codex/pstack-models.md",
+      "destination": "pstack-models.md",
+      "apps": [
         "codex"
       ]
     },
