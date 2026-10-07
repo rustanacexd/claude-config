@@ -9,14 +9,9 @@ the evidence it ran is the todolist with the playbook steps copied in verbatim a
 followed, whatever files were read. The concise output style governs the reply, not the
 steps.
 
-# Todolists go in TodoWrite
+# Todolists
 
-Keep every todolist, including poteto-mode's playbook list, in the `TodoWrite` tool. T3
-Code's Tasks panel shows only `TodoWrite` calls from the main thread. It doesn't show
-`TaskCreate` or a `todo.md` file. If `TodoWrite` is missing from your tools, say so in
-your first reply instead of falling back to `todo.md`. `settings.json` turns it on with
-`CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `CLAUDE_CODE_ENABLE_TASKS=false`, and a session
-started before that setting needs a restart.
+Use the `TodoWrite` tool for every todolist.
 
 # Search routing
 
