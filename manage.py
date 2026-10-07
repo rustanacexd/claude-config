@@ -7,13 +7,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import shutil
 
 if sys.version_info < (3, 11):
     sys.exit("Python 3.11 or newer is required")
 
-from portable.manage import load, refresh, relative, snapshot_digest
+from portable.manage import load, refresh
 from portable.apps import (
     installed,
     restore_preserving_flags,
@@ -28,9 +27,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "operation",
-        choices=["bootstrap", "refresh", "doctor", "inventory", "skills-update"],
+        choices=["bootstrap", "refresh", "doctor", "inventory"],
     )
-    parser.add_argument("name", nargs="?")
     parser.add_argument("--app", choices=["claude", "codex", "all"], default="all")
     parser.add_argument(
         "--home",
@@ -38,9 +36,6 @@ def main():
         help="Isolated root containing claude and codex homes; selected single app uses this path directly",
     )
     parser.add_argument("--install-tools", action="store_true")
-    parser.add_argument(
-        "--ref", help="Full upstream commit SHA for reviewed skill update"
-    )
     args = parser.parse_args()
     apps = ["claude", "codex"] if args.app == "all" else [args.app]
     homes = {
@@ -62,77 +57,6 @@ def main():
             for app in apps
         }
     manifest, plugins = load(REPO)
-    if args.operation == "skills-update":
-        if (
-            not args.name
-            or not args.ref
-            or len(args.ref) != 40
-            or any(c not in "0123456789abcdef" for c in args.ref)
-        ):
-            raise ValueError(
-                "skills-update requires NAME and --ref full lowercase commit SHA"
-            )
-        sources_path = REPO / "skills/vendor/sources.json"
-        sources = json.loads(sources_path.read_text())
-        entry = next((x for x in sources if x["name"] == args.name), None)
-        if entry is None or not entry.get("source", {}).get("sourceUrl"):
-            raise ValueError(
-                "Skill lacks known upstream; supply reviewed provenance before updating"
-            )
-        source = entry["source"]
-        url = source["sourceUrl"]
-        path = relative(str(Path(source["skillPath"]).parent).replace("\\", "/"))
-        if not url.startswith("https://github.com/") or "@" in url:
-            raise ValueError("Unsupported skill source")
-        with tempfile.TemporaryDirectory() as temporary:
-            checkout = Path(temporary) / "checkout"
-            for argv in (
-                ["git", "clone", "--no-checkout", url, str(checkout)],
-                ["git", "-C", str(checkout), "checkout", "--detach", args.ref],
-            ):
-                result = subprocess.run(argv, capture_output=True)
-                if result.returncode:
-                    raise ValueError("Upstream checkout failed; no snapshot changed")
-            snapshot = checkout / path
-            if not (snapshot / "SKILL.md").is_file() or any(
-                p.is_symlink() for p in snapshot.rglob("*")
-            ):
-                raise ValueError("Invalid upstream snapshot")
-            target = REPO / "skills/vendor" / args.name
-            candidate = Path(temporary) / "candidate"
-            shutil.copytree(snapshot, candidate)
-            for notice in ("LICENSE", "LICENSE.md", "LICENSE.txt", "NOTICE"):
-                if (checkout / notice).is_file():
-                    shutil.copy2(checkout / notice, candidate / notice)
-            entry["revision"] = args.ref
-            entry["snapshot_sha256"], entry["files"] = snapshot_digest(candidate)
-            source.pop("skillFolderHash", None)
-            source.pop("updatedAt", None)
-            previous = target.with_name(target.name + ".previous")
-            if previous.exists():
-                raise ValueError(
-                    "Previous skill update backup exists; reconcile before retrying"
-                )
-            staged = target.with_name(target.name + ".staged")
-            if staged.exists():
-                raise ValueError(
-                    "Skill staging directory exists; reconcile before retrying"
-                )
-            shutil.copytree(candidate, staged)
-            target.rename(previous)
-            try:
-                staged.rename(target)
-                from portable.install import atomic
-
-                atomic(sources_path, (json.dumps(sources, indent=2) + "\n").encode())
-            except BaseException:
-                if target.exists():
-                    shutil.rmtree(target)
-                previous.rename(target)
-                raise
-            shutil.rmtree(previous)
-        print("Updated reviewed snapshot; inspect git diff before committing")
-        return 0
     issues = []
     if args.operation in ("bootstrap", "refresh"):
         if args.install_tools:
@@ -214,6 +138,10 @@ def main():
         if not shutil.which("npx"):
             issues.append("npx missing; Sentry MCP needs Node/npm")
     if args.operation in ("bootstrap", "doctor", "inventory"):
+        print(
+            "Third-party skills: follow SKILLS.md with npx skills; "
+            "configuration refresh does not install or verify them"
+        )
         for asset in manifest["assets"]:
             if not any(app in asset["apps"] for app in apps):
                 continue

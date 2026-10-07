@@ -1,4 +1,6 @@
 import json
+import io
+from contextlib import redirect_stdout, redirect_stderr
 import os
 from pathlib import Path
 import shutil
@@ -9,9 +11,10 @@ import tomllib
 import unittest
 from unittest.mock import patch
 from portable.config import equal, render, parse
-from portable.manage import refresh, load, plan, snapshot_digest, parse as parse_config
+from portable.manage import refresh, load, plan, parse as parse_config
 from portable import install, apps
 from native_command import argv_for
+import manage
 
 SOURCE = Path(__file__).resolve().parents[1]
 
@@ -281,22 +284,68 @@ class RefreshTests(unittest.TestCase):
             refresh(self.repo, {"claude": self.home}, ["claude"])
         self.assertEqual(list(self.home.iterdir()), [])
 
-    def test_snapshot_provenance_detects_changed_skill_before_writes(self):
-        directory = self.repo / "skills/vendor/example"
-        directory.mkdir(parents=True)
-        skill = directory / "SKILL.md"
-        skill.write_text("reviewed snapshot")
-        digest, count = snapshot_digest(directory)
-        (directory.parent / "sources.json").write_text(
-            json.dumps([{"name": "example", "snapshot_sha256": digest, "files": count}])
+    def test_removed_owned_skill_migration_preserves_edits_and_external_files(self):
+        self.run_refresh()
+        skill = self.home / "skills/example"
+        (skill / "references/detail.md").write_text("local edit")
+        (skill / "external.md").write_text("upstream installer file")
+        external = self.home / "skills/external/SKILL.md"
+        external.parent.mkdir(parents=True)
+        external.write_text("installed by npx skills")
+        manifest_path = self.repo / "portable.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["assets"] = [
+            asset for asset in manifest["assets"]
+            if not asset["source"].startswith("skills/")
+        ]
+        manifest_path.write_text(json.dumps(manifest))
+        _, issues = self.run_refresh()
+        self.assertFalse((skill / "SKILL.md").exists())
+        self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
+        self.assertEqual((skill / "external.md").read_text(), "upstream installer file")
+        self.assertEqual(external.read_text(), "installed by npx skills")
+        self.assertTrue(
+            any("edited removed asset retained" in issue for issue in issues)
         )
-        load(self.repo)
-        skill.write_text("unreviewed change")
-        with self.assertRaisesRegex(ValueError, "provenance"):
-            self.run_refresh()
-        self.assertFalse((self.home / "config.toml").exists())
+        changed, _ = self.run_refresh()
+        self.assertEqual(changed, [])
 
-    def test_repository_snapshot_hashes_and_sentry_environment(self):
+    def test_repository_only_manages_authored_skills_and_install_guide(self):
+        manifest, _ = load(SOURCE)
+        skills = [
+            asset["source"] for asset in manifest["assets"]
+            if asset["source"].startswith("skills/")
+        ]
+        self.assertEqual(
+            sorted(skills), ["skills/explain-diff-html", "skills/show-me"]
+        )
+        self.assertFalse((SOURCE / "skills/vendor").exists())
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(SOURCE, homes, list(homes))
+        for home in homes.values():
+            self.assertEqual(
+                (home / "SKILLS.md").read_bytes(), (SOURCE / "SKILLS.md").read_bytes()
+            )
+            self.assertEqual(
+                sorted(path.name for path in (home / "skills").iterdir()),
+                ["explain-diff-html", "show-me"],
+            )
+        changed, _ = refresh(SOURCE, homes, list(homes))
+        self.assertEqual(changed, [])
+
+    def test_inventory_routes_third_party_skills_to_upstream_guide(self):
+        output = io.StringIO()
+        with patch.object(manage, "REPO", self.repo), patch.object(
+            manage, "installed", return_value={}
+        ), patch.object(sys, "argv", ["manage.py", "inventory", "--app", "codex",
+                                      "--home", str(self.home)]), redirect_stdout(
+            output
+        ), redirect_stderr(io.StringIO()):
+            manage.main()
+        self.assertIn("follow SKILLS.md with npx skills", output.getvalue())
+        self.assertIn("does not install or verify them", output.getvalue())
+
+    def test_repository_manifest_and_sentry_environment(self):
         load(SOURCE)
         self.run_refresh()
         allowed = self.config()["mcp_servers"]["sentry"]["env_vars"]

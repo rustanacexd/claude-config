@@ -1,6 +1,6 @@
 # Portable Claude and Codex setup
 
-This repository owns shared settings, instructions, output styles, 21 standalone skills and intent for 8 Claude plugins and 26 Codex plugins. Installed files and reconciliation state live in each app home. Refresh uses Python 3.11 or newer and regular files on macOS, Linux and Windows. It needs no Bash, jq, Node or symlink privileges.
+This repository owns shared settings, instructions, output styles, two custom skills and intent for 8 Claude plugins and 26 Codex plugins. Installed files and reconciliation state live in each app home. Refresh uses Python 3.11 or newer and regular files on macOS, Linux and Windows. It needs no Bash, jq, Node or symlink privileges.
 
 ## Set up a fresh machine
 
@@ -18,7 +18,7 @@ py -3 manage.py bootstrap --install-tools
 py -3 manage.py doctor
 ```
 
-Tool installation uses Windows `winget` with `Anthropic.ClaudeCode` and `OpenAI.Codex`, or `npm install -g` with `@anthropic-ai/claude-code` and `@openai/codex`. Without a supported package manager it fails with setup guidance. Tool installation may require a new terminal before its commands appear on PATH. Node/npm is also required for the Sentry MCP. GitHub CLI, Google Cloud CLI, Plannotator and Bash are needed by some optional skills; inventory reports their declared runtime requirements. Vendoring a skill does not make every command it describes work on every OS.
+Tool installation uses Windows `winget` with `Anthropic.ClaudeCode` and `OpenAI.Codex`, or `npm install -g` with `@anthropic-ai/claude-code` and `@openai/codex`. Without a supported package manager it fails with setup guidance. Tool installation may require a new terminal before its commands appear on PATH. Install Node/npm to use the Sentry MCP and the third-party skills installer. After bootstrap, ask your agent to follow [SKILLS.md](SKILLS.md) and install its listed skills using `npx skills`. Those commands require network access. Some skills also need tools such as GitHub CLI, Google Cloud CLI, Plannotator, or Bash.
 
 Authenticate each app on the new machine through its native login flow. Set `EXA_API_KEY` and `SENTRY_ACCESS_TOKEN` in the local process environment for the declared MCP servers. Doctor reports presence only, never credential values or an authentication-success claim. The Sentry wrapper runs the pinned `@sentry/mcp-server@0.42.0` against `sentry-hosted.go2.io` for organization `go2`. Bootstrap creates a missing Claude user MCP definition through the native CLI and preserves an existing definition. Codex receives the equivalent default through its config merge.
 
@@ -28,7 +28,7 @@ On Windows, plugin commands enable Git's `core.longpaths` only in their child-pr
 
 ## Refresh shared defaults
 
-After pulling changes, run the offline refresh.
+After pulling changes, run the offline refresh. It updates configuration, global instructions, model sheets, and the two custom skills. Install third-party skills separately through [SKILLS.md](SKILLS.md).
 
 ```sh
 python3 manage.py refresh
@@ -52,29 +52,30 @@ python3 manage.py inventory
 python3 manage.py doctor
 ```
 
-Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables and optional skill commands. Snapshot versions are provenance, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
+Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables. They check the two custom skills and point you to `SKILLS.md` for third-party installation. They do not verify third-party skills. Plugin versions record prior observations, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
 
 ## File ownership and recovery
 
 Each app home owns `.claude-config/baseline.json`, `journal.json`, `lock` and `backups/`. Baselines, backups and journals can contain private local settings; keep the app home private. Python applies private file modes on POSIX. Windows inherits the app-home ACL; choose a private user directory. Runtime state is never stored beside the tracked templates.
 
-A managed skill owns its listed child files, not its entire directory. Unknown files and edited managed files remain local. Refresh retains local file deletions. When an upstream file disappears, refresh removes the installed file only if its recorded content still matches. Source directories include referenced scripts, examples and nested resources.
+Each custom skill owns its listed child files, not its entire directory. Unknown files and edited managed files remain local. Refresh retains local file deletions. When an upstream file disappears, refresh removes the installed file only if its recorded content still matches. Source directories include referenced scripts, examples and nested resources. Third-party skills installed by `npx skills` are outside this installer's ownership. If you installed an earlier version of this branch, refresh removes unchanged files from the former vendored skills and preserves edited or untracked files. Follow `SKILLS.md` after that refresh to restore those skills through the upstream CLI.
 
 Publication uses an OS-backed lock, same-directory temporary files, atomic replacements, durable file writes, backups and a versioned journal. POSIX also syncs directories. Windows uses native byte-range locking and inherits filesystem durability guarantees for directory entries. Interrupted work resumes only if every file still matches its prior observation or intended output. If an app edited a file after interruption, refresh refuses to overwrite it. Preserve the journal and backups, compare its proposed output with the edited files, and reconcile while the app is idle before retrying. There is no automatic rollback over new app edits.
 
 Old configuration and instruction symlinks become regular local files without changing their targets. An old Codex baseline is imported only when its config link proves ownership by this clone. A legacy repo-side `.refresh.journal.json` causes refusal. Recover it with the previous installer before upgrading. Linked parents and Windows reparse-point directories below the app home are rejected.
 
-## Review upstream skill updates
+## Install and update third-party skills
 
-`skills/vendor/sources.json` records source URLs when known, exact snapshot hashes and honest unknown commit provenance. Existing installed folder hashes are not Git revisions. Plugin-provided skills remain owned by native plugins and are not copied here.
+Ask your setup agent to follow [SKILLS.md](SKILLS.md). It lists upstream repositories and exact skill names with grouped `npx skills add` commands for Claude Code and Codex. The repository stores that list rather than upstream skill contents. Plugin-provided skills remain owned by their native plugins.
 
-For a skill with known upstream provenance, choose and review a full commit SHA, then run:
+Use the upstream CLI to inspect or update the installed third-party skills.
 
 ```sh
-python3 manage.py skills-update find-skills --ref FULL_40_CHARACTER_COMMIT_SHA
+npx skills list -g -a claude-code codex
+npx skills update -g
 ```
 
-The updater checks out that commit with Git, copies the selected directory and available upstream license notices, computes its new snapshot hash and stages replacement with rollback on failure. Review the Git diff before committing; then refresh the app homes. Unknown-provenance snapshots require a reviewed source URL and skill path before updating. Vercel Skills 1.7.1 can help discover or stage skills, but its registry folder hash is not an exact restore lock and is not required for offline setup.
+Review updates before using them. These commands use upstream versions and require Node/npm and network access. Configuration refresh stays offline.
 
 ## Run tests
 

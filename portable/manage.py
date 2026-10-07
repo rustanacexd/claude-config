@@ -22,38 +22,11 @@ def relative(value):
     return value
 
 
-def snapshot_digest(directory):
-    digest = hashlib.sha256()
-    files = sorted(
-        (p for p in directory.rglob("*") if p.is_file()),
-        key=lambda path: path.relative_to(directory).as_posix(),
-    )
-    for path in files:
-        digest.update(
-            path.relative_to(directory).as_posix().encode() + b"\0" + path.read_bytes()
-        )
-    return digest.hexdigest(), len(files)
-
-
 def load(repo):
     manifest = json.loads((repo / "portable.json").read_text())
     plugins = json.loads((repo / "plugins.json").read_text())
     if manifest.get("schema") != 1 or plugins.get("schema") != 1:
         raise ValueError("Unsupported manifest schema")
-    sources_path = repo / "skills/vendor/sources.json"
-    if sources_path.exists():
-        for entry in json.loads(sources_path.read_text()):
-            name = relative(entry["name"])
-            if len(PurePosixPath(name).parts) != 1:
-                raise ValueError("Invalid skill snapshot name")
-            directory = sources_path.parent / name
-            if not (directory / "SKILL.md").is_file() or snapshot_digest(directory) != (
-                entry["snapshot_sha256"],
-                entry["files"],
-            ):
-                raise ValueError(
-                    "Skill snapshot differs from provenance; review its source and update metadata"
-                )
     seen = set()
     for asset in manifest["assets"]:
         relative(asset["source"])
