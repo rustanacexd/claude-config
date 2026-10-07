@@ -24,6 +24,8 @@ Authenticate each app on the new machine through its native login flow. Set `EXA
 
 Bootstrap restores missing native plugins after registering their marketplaces, then observes the installation again. Disabled plugins are still installed. It preserves undeclared plugins. Versions in `plugins.json` record the observed source-machine inventory; native managers may install newer versions. OpenAI app-provided plugins require a compatible Codex app. Remote connectors require their account connections. Bootstrap reports pending capabilities and exits nonzero when setup is incomplete. It never copies plugin caches, OAuth sessions or cloud credentials.
 
+On Windows, plugin commands enable Git's `core.longpaths` only in their child-process environment, so deep plugin trees can clone without changing your Git configuration. Git documents [process-local configuration](https://git-scm.com/docs/git-config#Documentation/git-config.txt-GITCONFIGCOUNT), and Git for Windows documents [long path support](https://github.com/git-for-windows/git/blob/main/Documentation/config/core.adoc).
+
 ## Refresh shared defaults
 
 After pulling changes, run the offline refresh.
@@ -52,7 +54,7 @@ Both commands are read-only. They compare declared plugins with native inventory
 
 ## File ownership and recovery
 
-Each app home owns `.claude-config/baseline.json`, `journal.json`, `lock` and `backups/`. Backups and journals can contain private local settings; keep the app home private. Python applies private file modes on POSIX. Windows inherits the app-home ACL; choose a private user directory. Runtime state is never stored beside the tracked templates.
+Each app home owns `.claude-config/baseline.json`, `journal.json`, `lock` and `backups/`. Baselines, backups and journals can contain private local settings; keep the app home private. Python applies private file modes on POSIX. Windows inherits the app-home ACL; choose a private user directory. Runtime state is never stored beside the tracked templates.
 
 A managed skill owns its listed child files, not its entire directory. Unknown files and edited managed files remain local. Refresh retains local file deletions. When an upstream file disappears, refresh removes the installed file only if its recorded content still matches. Source directories include referenced scripts, examples and nested resources.
 

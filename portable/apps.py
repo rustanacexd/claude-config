@@ -1,10 +1,9 @@
-"""Native app plugin managers. Their caches and login stores stay native."""
-
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+from native_command import argv_for
 
 
 def command(app, arguments, home, parse_json=True, missing_message=None):
@@ -13,17 +12,20 @@ def command(app, arguments, home, parse_json=True, missing_message=None):
         raise ValueError(
             f"{app} CLI missing; install it, or use bootstrap --install-tools"
         )
-    argv = [executable, *arguments]
-    if os.name == "nt" and Path(executable).suffix.lower() in (".cmd", ".bat"):
-        argv = [
-            os.environ.get("COMSPEC", "cmd.exe"),
-            "/d",
-            "/s",
-            "/c",
-            subprocess.list2cmdline(argv),
-        ]
+    argv = argv_for(app, arguments)
     env = dict(os.environ)
-    env["CODEX_HOME" if app == "codex" else "CLAUDE_CONFIG_DIR"] = str(home)
+    if app == "codex":
+        env["CODEX_HOME"] = str(home)
+    elif (
+        "CLAUDE_CONFIG_DIR" in env
+        or home.resolve() != (Path.home() / ".claude").resolve()
+    ):
+        env["CLAUDE_CONFIG_DIR"] = str(home)
+    if os.name == "nt":
+        count = int(env.get("GIT_CONFIG_COUNT") or "0")
+        env[f"GIT_CONFIG_KEY_{count}"] = "core.longpaths"
+        env[f"GIT_CONFIG_VALUE_{count}"] = "true"
+        env["GIT_CONFIG_COUNT"] = str(count + 1)
     result = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=180)
     if result.returncode:
         if (
@@ -78,8 +80,11 @@ def restore(app, home, plugins):
         known = {
             x.get("name", x.get("marketplaceName")) for x in rows if isinstance(x, dict)
         }
-        for plugin in plugins:
-            identifier = plugin["id"]
+    except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+        return [str(error)]
+    for plugin in plugins:
+        identifier = plugin["id"]
+        try:
             if identifier not in found:
                 if plugin["kind"] != "native":
                     issues.append(
@@ -115,17 +120,8 @@ def restore(app, home, plugins):
                     home,
                     parse_json=False,
                 )
-        found = installed(app, home)
-        for plugin in plugins:
-            if (
-                plugin["id"] in found
-                and found[plugin["id"]].get("enabled") != plugin["enabled"]
-            ):
-                issues.append(
-                    f"{app}: plugin enablement differs for {plugin['id']}; local setting retained"
-                )
-    except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-        issues.append(str(error))
+        except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+            issues.append(f"{app}: {identifier}: {error}")
     return issues
 
 
@@ -145,12 +141,14 @@ def install_tools(apps):
                 "--accept-source-agreements",
             ]
         elif shutil.which("npm"):
-            args = [
+            args = argv_for(
                 "npm",
-                "install",
-                "-g",
-                "@anthropic-ai/claude-code" if app == "claude" else "@openai/codex",
-            ]
+                [
+                    "install",
+                    "-g",
+                    "@anthropic-ai/claude-code" if app == "claude" else "@openai/codex",
+                ],
+            )
         else:
             raise ValueError(
                 f"Cannot install {app}: install Node/npm or Windows winget, then retry --install-tools"
@@ -219,6 +217,8 @@ def restore_preserving_flags(app, home, plugins):
                 native_flags[identifier] = flags[identifier]
             else:
                 native_flags.pop(identifier, None)
+        if section not in before and not native_flags:
+            current.pop(section)
         output = (
             json.dumps(current, indent=2).encode() + b"\n"
             if app == "claude"
@@ -227,4 +227,14 @@ def restore_preserving_flags(app, home, plugins):
         if current != parse(app, current_bytes):
             baseline = json.loads((state / "baseline.json").read_text())
             publish(home, state, {name: (output, fingerprint(path))}, baseline)
+    try:
+        observed = installed(app, home)
+        for plugin in effective:
+            row = observed.get(plugin["id"])
+            if row is not None and row.get("enabled") != plugin["enabled"]:
+                issues.append(
+                    f"{app}: plugin enablement differs for {plugin['id']}; local setting retained"
+                )
+    except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+        issues.append(str(error))
     return issues

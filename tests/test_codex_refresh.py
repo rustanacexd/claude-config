@@ -1,8 +1,7 @@
-"""Behavioral checks migrated from the former symlink installer."""
-
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,8 +9,9 @@ import tomllib
 import unittest
 from unittest.mock import patch
 from portable.config import equal, render, parse
-from portable.manage import refresh, load, plan
+from portable.manage import refresh, load, plan, snapshot_digest, parse as parse_config
 from portable import install, apps
+from native_command import argv_for
 
 SOURCE = Path(__file__).resolve().parents[1]
 
@@ -117,7 +117,6 @@ class RefreshTests(unittest.TestCase):
     def test_existing_bytes_and_local_instruction_preserved(self):
         self.template('model="shared"\n')
         live = b'# formatting\nmodel="local"\n'
-        # Existing unrelated keys introduced by new defaults require rendering once.
         (self.home / "config.toml").write_bytes(live)
         (self.home / "AGENTS.md").write_text("local")
         self.run_refresh()
@@ -282,6 +281,28 @@ class RefreshTests(unittest.TestCase):
             refresh(self.repo, {"claude": self.home}, ["claude"])
         self.assertEqual(list(self.home.iterdir()), [])
 
+    def test_snapshot_provenance_detects_changed_skill_before_writes(self):
+        directory = self.repo / "skills/vendor/example"
+        directory.mkdir(parents=True)
+        skill = directory / "SKILL.md"
+        skill.write_text("reviewed snapshot")
+        digest, count = snapshot_digest(directory)
+        (directory.parent / "sources.json").write_text(
+            json.dumps([{"name": "example", "snapshot_sha256": digest, "files": count}])
+        )
+        load(self.repo)
+        skill.write_text("unreviewed change")
+        with self.assertRaisesRegex(ValueError, "provenance"):
+            self.run_refresh()
+        self.assertFalse((self.home / "config.toml").exists())
+
+    def test_repository_snapshot_hashes_and_sentry_environment(self):
+        load(SOURCE)
+        self.run_refresh()
+        allowed = self.config()["mcp_servers"]["sentry"]["env_vars"]
+        for name in ("SENTRY_ACCESS_TOKEN", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
+            self.assertIn(name, allowed)
+
     def test_local_profile_retains_secret_outside_repo(self):
         (self.home / "portable.local.json").write_text(
             '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
@@ -318,7 +339,10 @@ class RefreshTests(unittest.TestCase):
             path.write_text(json.dumps(config))
             return []
 
-        with patch.object(apps, "restore", flip):
+        with (
+            patch.object(apps, "restore", flip),
+            patch.object(apps, "installed", return_value={}),
+        ):
             apps.restore_preserving_flags("claude", self.home, [plugin])
         self.assertFalse(
             json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
@@ -338,6 +362,53 @@ class RefreshTests(unittest.TestCase):
         with patch.object(install, "linked", return_value=True):
             with self.assertRaisesRegex(ValueError, "symlink parent"):
                 install.safe_path(self.home, "skills/example/file")
+
+    def test_native_install_retains_deleted_plugin_table(self):
+        for app, section, filename in (
+            ("claude", "enabledPlugins", "settings.json"),
+            ("codex", "plugins", "config.toml"),
+        ):
+            with self.subTest(app=app):
+                home = self.root / app
+                plugin = {
+                    "app": app,
+                    "id": "x@y",
+                    "enabled": True,
+                    "kind": "native",
+                    "source": "https://github.com/x/y.git",
+                    "marketplace": "y",
+                }
+                (self.repo / "plugins.json").write_text(
+                    json.dumps({"schema": 1, "plugins": [plugin]})
+                )
+                refresh(self.repo, {app: home}, [app])
+                path = home / filename
+                config = parse_config(app, path.read_bytes())
+                config.pop(section)
+                path.write_bytes(
+                    json.dumps(config).encode() if app == "claude" else render(config)
+                )
+
+                def native_install(app, home, plugins):
+                    changed = dict(config)
+                    changed[section] = {
+                        "x@y": True if app == "claude" else {"enabled": True}
+                    }
+                    path.write_bytes(
+                        json.dumps(changed).encode()
+                        if app == "claude"
+                        else render(changed)
+                    )
+                    return []
+
+                with (
+                    patch.object(apps, "restore", native_install),
+                    patch.object(apps, "installed", return_value={}),
+                ):
+                    apps.restore_preserving_flags(app, home, [plugin])
+                refresh(self.repo, {app: home}, [app])
+                result = parse_config(app, path.read_bytes())
+                self.assertNotIn(section, result)
 
     def test_serializer_complete_types(self):
         data = tomllib.loads(
@@ -377,7 +448,151 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(rerun.stdout, "Applied 0 file changes\n")
 
 
+@unittest.skipUnless(os.name == "nt", "Windows PowerShell launcher")
+class WindowsLauncherTests(unittest.TestCase):
+    def test_npm_claude_native_entry_needs_no_node(self):
+        with tempfile.TemporaryDirectory(
+            prefix="native Claude with spaces "
+        ) as directory:
+            root = Path(directory)
+            executable = root / "node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b"fixture")
+            shim = root / "claude.cmd"
+            arguments = ["mcp", "get", "sentry"]
+            with patch.object(
+                shutil,
+                "which",
+                side_effect=lambda name: str(shim) if name == "claude" else None,
+            ):
+                self.assertEqual(
+                    argv_for("claude", arguments), [str(executable), *arguments]
+                )
+
+    def test_native_cmd_shim_and_scoped_longpaths(self):
+        with tempfile.TemporaryDirectory(
+            prefix="native shim with spaces "
+        ) as directory:
+            root = Path(directory)
+            script = root / "node_modules/@openai/codex/bin/codex.js"
+            script.parent.mkdir(parents=True)
+            script.write_text(
+                "import json, os, sys\n"
+                "print(json.dumps({'args': sys.argv[1:], 'count': os.environ['GIT_CONFIG_COUNT'], "
+                "'original': os.environ['GIT_CONFIG_VALUE_0'], 'key': os.environ['GIT_CONFIG_KEY_1'], "
+                "'value': os.environ['GIT_CONFIG_VALUE_1']}))\n"
+            )
+            shim = root / "codex.cmd"
+            shim.write_text("@exit /b 99\n")
+            arguments = [
+                "mcp",
+                "add-json",
+                json.dumps({"command": 'path with spaces & ^ %PATH% ! "quotes"'}),
+            ]
+            with (
+                patch.object(
+                    apps.shutil,
+                    "which",
+                    side_effect=lambda name: (
+                        sys.executable if name == "node" else str(shim)
+                    ),
+                ),
+                patch.dict(
+                    os.environ,
+                    GIT_CONFIG_COUNT="1",
+                    GIT_CONFIG_KEY_0="example.original",
+                    GIT_CONFIG_VALUE_0="retained",
+                ),
+            ):
+                result = apps.command("codex", arguments, root)
+                self.assertEqual(os.environ["GIT_CONFIG_COUNT"], "1")
+            self.assertEqual(result["args"], arguments)
+            self.assertEqual(result["count"], "2")
+            self.assertEqual(result["original"], "retained")
+            self.assertEqual(
+                (result["key"], result["value"]), ("core.longpaths", "true")
+            )
+
+    def test_missing_launcher_and_child_exit_code(self):
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if shell is None:
+            self.skipTest("PowerShell unavailable")
+        with tempfile.TemporaryDirectory(prefix="launcher with spaces ") as directory:
+            root = Path(directory)
+            env = dict(os.environ, PATH=str(root))
+            argv = [
+                shell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(SOURCE / "refresh.ps1"),
+            ]
+            missing = subprocess.run(argv, env=env, capture_output=True, text=True)
+            self.assertEqual(missing.returncode, 1, missing.stderr)
+            for name in ("python.cmd", "py.cmd"):
+                (root / name).write_text("@exit /b 7\n")
+                result = subprocess.run(argv, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 7, result.stderr)
+
+
 class NativeTests(unittest.TestCase):
+    def test_default_claude_home_retains_native_config_lookup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environments = []
+
+            def run(argv, **kwargs):
+                environments.append(kwargs["env"])
+                return subprocess.CompletedProcess(argv, 0, "[]", "")
+
+            with (
+                patch.object(Path, "home", return_value=root),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(apps.shutil, "which", return_value="claude.exe"),
+                patch.object(apps.subprocess, "run", run),
+            ):
+                apps.command("claude", ["plugin", "list", "--json"], root / ".claude")
+                self.assertNotIn("CLAUDE_CONFIG_DIR", environments[-1])
+                apps.command("claude", ["plugin", "list", "--json"], root / "custom")
+                self.assertEqual(
+                    environments[-1]["CLAUDE_CONFIG_DIR"], str(root / "custom")
+                )
+                os.environ["CLAUDE_CONFIG_DIR"] = str(root / ".claude")
+                apps.command("claude", ["plugin", "list", "--json"], root / ".claude")
+                self.assertEqual(
+                    environments[-1]["CLAUDE_CONFIG_DIR"], str(root / ".claude")
+                )
+
+    def test_failed_plugin_does_not_skip_later_restores(self):
+        plugins = [
+            {
+                "id": f"{name}@market",
+                "app": "claude",
+                "marketplace": "market",
+                "source": "https://github.com/test/market.git",
+                "kind": "native",
+                "enabled": True,
+            }
+            for name in ("broken", "working")
+        ]
+        found = []
+
+        def command(app, arguments, home, **kwargs):
+            if arguments[:3] == ["plugin", "list", "--json"]:
+                return found
+            if arguments[:3] == ["plugin", "marketplace", "list"]:
+                return [{"name": "market"}]
+            if arguments[1] == "install":
+                if arguments[2] == "broken@market":
+                    raise ValueError("native installation failed")
+                found.append({"id": arguments[2], "enabled": True})
+
+        with patch.object(apps, "command", command):
+            issues = apps.restore("claude", Path("unused"), plugins)
+        self.assertEqual([p["id"] for p in found], ["working@market"])
+        self.assertEqual(len(issues), 1)
+        self.assertIn("broken@market", issues[0])
+
     def test_shapes_disabled_installs_and_idempotency(self):
         plugin = {
             "id": "example@market",

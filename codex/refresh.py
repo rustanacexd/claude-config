@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Compatibility launcher; reconciliation lives in portable.manage."""
 
 import os
 from pathlib import Path
 import sys
+
+if sys.version_info < (3, 11):
+    sys.exit("Python 3.11 or newer is required")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from portable.manage import refresh as reconcile

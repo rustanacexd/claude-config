@@ -10,7 +10,7 @@
       "installedAt": "2026-06-12T10:03:30.632Z",
       "updatedAt": "2026-07-13T05:54:43.169Z"
     },
-    "snapshot_sha256": "1c27b1774a4ec17ad4556a72e3c0168beab3af0183b2c1b8aa9e320af3ff41ce",
+    "snapshot_sha256": "232e8be9783fbd3d956c67ff6cb119b76c5822f3248ae7488480795e614ce671",
     "files": 1,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -26,7 +26,7 @@
       "installedAt": "2026-09-01T08:37:24.220Z",
       "updatedAt": "2026-10-02T04:30:21.736Z"
     },
-    "snapshot_sha256": "30231eec4ea53084d2a69440b91974b0c28d1d695875a580933f5834363aa8bd",
+    "snapshot_sha256": "2e21f5b01125d27d69302980e726f249ae30a863071e1685c0bb8a808385a5fb",
     "files": 1,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -42,7 +42,7 @@
       "installedAt": "2026-08-05T12:43:18.396Z",
       "updatedAt": "2026-09-23T14:06:21.820Z"
     },
-    "snapshot_sha256": "36bbedcbba30c5c0cbf288231b1949e579e9ff65d5f9c17bf3d5475aebb3172e",
+    "snapshot_sha256": "a1b9435040aaca3c42da38c00a7a8af1cd9dfb9f101925e2e7cbb7ef0546761e",
     "files": 3,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -58,7 +58,7 @@
       "installedAt": "2026-08-09T04:42:38Z",
       "updatedAt": "2026-09-28T05:07:20.205Z"
     },
-    "snapshot_sha256": "f2c4b15043980ca7d31b52d694e589e44b0924ebcff3f9d35cb1825e79ff370f",
+    "snapshot_sha256": "90a4e0a8a9a64dbb4669955a1b0290ef602942a7c9a918e7e938d881b1d54c40",
     "files": 1,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -74,7 +74,7 @@
       "installedAt": "2026-08-09T04:25:48Z",
       "updatedAt": "2026-10-02T04:30:24.341Z"
     },
-    "snapshot_sha256": "f19ade6462d441224249c4bd2c3f2139977e9b546c611b66652b60df526ec649",
+    "snapshot_sha256": "0a02122e86f3020a634cb38bbab80becb15046a948c15fb5c0cfc7d25aaf9288",
     "files": 4,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -90,7 +90,7 @@
       "installedAt": "2026-06-12T10:03:26.219Z",
       "updatedAt": "2026-09-07T17:18:33.487Z"
     },
-    "snapshot_sha256": "b4768ee5c11cd620dee9b8c5c29bae56ae625e44f061807863088d70a3afa621",
+    "snapshot_sha256": "0dfb58b6915870640cf2b5657407dd3648673fb1dcecc808b011b80aa539d82c",
     "files": 4,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -101,7 +101,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "cb7ecf6264eecfef4571da969185ad7358c4e4395082ce59572a21c120fa24ea",
+    "snapshot_sha256": "827a36b823b7e785ce3bedc580c67cbffdaa4b6038038b46c8d5f74244c56a3f",
     "files": 2,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -112,7 +112,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "9fc2cf199c89462571164b5523ba6a668812e2b6fc5bcef5f044465adc306259",
+    "snapshot_sha256": "1a6aedb30756dbb583cf5091c95145fba0228a82ba3c71c628ea5f57a00db573",
     "files": 2,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -123,7 +123,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "2f22274e82dd727474b2fd974c97721cedd05622ffaa5d68eb7fcf9aabb89b0c",
+    "snapshot_sha256": "f8b3fb3377ebe66b683568b108192fdc733a119418a43fa2705651f1e0fe828d",
     "files": 2,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -134,7 +134,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "51e265575de25eb99dce7689f81c01ee8f45dd2d253b054c1d42494298342248",
+    "snapshot_sha256": "0e59f7d5e00c53000673c5fa2b136dcd69f52689faad259f6e15d7bc9901e72b",
     "files": 2,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -145,7 +145,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "c94c836eb7ad92225e64bcbdaa5610a7ed1a6115653584464ef46a1c12707e34",
+    "snapshot_sha256": "5da36d1f4cec7cae39d2654ba7c48cf333ffcdccd7526221a2ad0aa89e6ca8c7",
     "files": 1,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -156,7 +156,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "f578c412ff44327e838a4790da5b709167e92e8c4770fe63525aead048b4b22b",
+    "snapshot_sha256": "2ceb61505347ea0ad01f0e5eef987d919e13d77087d0708ef0f5bfaaad6beb13",
     "files": 16,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -167,7 +167,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "c5bfda75163f492bedd718eee1ff88231f2fce27583200806236ca6be24a6445",
+    "snapshot_sha256": "203c2b4154d43e95ebccb3b44b21d96a5853a0e9cc597252e09afacece563072",
     "files": 31,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -178,7 +178,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "35223a0c70eb0e5bdaa65fbf5c42bc06ebdf0d97547e44ecbf60bf762f641018",
+    "snapshot_sha256": "e686e76fa73296d4304242e9e64ebd29b5f93055bfc76611a99a3787894fb42b",
     "files": 91,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -189,7 +189,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "1ab99d0cfdd8c211ce915bf78c2f91487d7edb4a8c153d25170bf870873c0dd2",
+    "snapshot_sha256": "7a575e47402535ce446a41c711cce3c053d584f397c10f3b2a103ab409c96166",
     "files": 237,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -200,7 +200,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "ca8a9f20099a311199b3bb2b4bfadeba11ee60372714dc519d76b183270f73b5",
+    "snapshot_sha256": "3070a1d36a21e340d5eff82756a44377571d63d5b95f4e42fff3359050e453b2",
     "files": 1,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -211,7 +211,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "19a8125975ac26599216d6864bb674dc38e53c6e8f6d8805dd6dd108399bf3e3",
+    "snapshot_sha256": "95bfacc05d794b21073de8ac5d6abb5bf2becdc8256a010d950f1c763adc3a64",
     "files": 51,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -222,7 +222,7 @@
       "sourceType": "installed-snapshot",
       "sourceUrl": null
     },
-    "snapshot_sha256": "4ecf02eb7df356482003959f527a34a5c63c32d1ab6cff9843881dc8d7c8df9c",
+    "snapshot_sha256": "01874ea7929a98495869244cae8913141400479477501b8db0d09fefaf83c76d",
     "files": 7,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."
@@ -239,7 +239,7 @@
       "installedAt": "2026-09-09T09:46:12.395Z",
       "updatedAt": "2026-09-09T09:46:12.395Z"
     },
-    "snapshot_sha256": "bf66e84810239fdb3a5f0f76975ed16ba64690d649c2a7c3d63f6cf38268a9aa",
+    "snapshot_sha256": "9984911bcfc47667c24eda5586ecca5080a6bbdfdf644d7ba5f3093d8b691c01",
     "files": 2,
     "revision": null,
     "provenance_note": "Installed standalone skill snapshot; original commit unknown. Folder hash is not a Git commit."

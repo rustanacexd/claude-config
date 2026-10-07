@@ -1,5 +1,3 @@
-"""Validate declarations and reconcile only explicitly owned files."""
-
 import hashlib
 import json
 from pathlib import PurePosixPath
@@ -24,11 +22,38 @@ def relative(value):
     return value
 
 
+def snapshot_digest(directory):
+    digest = hashlib.sha256()
+    files = sorted(
+        (p for p in directory.rglob("*") if p.is_file()),
+        key=lambda path: path.relative_to(directory).as_posix(),
+    )
+    for path in files:
+        digest.update(
+            path.relative_to(directory).as_posix().encode() + b"\0" + path.read_bytes()
+        )
+    return digest.hexdigest(), len(files)
+
+
 def load(repo):
     manifest = json.loads((repo / "portable.json").read_text())
     plugins = json.loads((repo / "plugins.json").read_text())
     if manifest.get("schema") != 1 or plugins.get("schema") != 1:
         raise ValueError("Unsupported manifest schema")
+    sources_path = repo / "skills/vendor/sources.json"
+    if sources_path.exists():
+        for entry in json.loads(sources_path.read_text()):
+            name = relative(entry["name"])
+            if len(PurePosixPath(name).parts) != 1:
+                raise ValueError("Invalid skill snapshot name")
+            directory = sources_path.parent / name
+            if not (directory / "SKILL.md").is_file() or snapshot_digest(directory) != (
+                entry["snapshot_sha256"],
+                entry["files"],
+            ):
+                raise ValueError(
+                    "Skill snapshot differs from provenance; review its source and update metadata"
+                )
     seen = set()
     for asset in manifest["assets"]:
         relative(asset["source"])
@@ -139,7 +164,20 @@ def desired(repo, manifest, plugins, app, home):
             p["id"]: {"enabled": p["enabled"]} for p in plugins if p["app"] == app
         }
         shared.setdefault("mcp_servers", {}).setdefault(
-            "sentry", {"command": sys.executable, "args": [str(home / "sentry_mcp.py")]}
+            "sentry",
+            {
+                "command": sys.executable,
+                "args": [str(home / "sentry_mcp.py")],
+                "env_vars": [
+                    "SENTRY_ACCESS_TOKEN",
+                    "APPDATA",
+                    "LOCALAPPDATA",
+                    "USERPROFILE",
+                    "SYSTEMROOT",
+                    "TEMP",
+                    "TMP",
+                ],
+            },
         )
     profile = read(home / "portable.local.json")
     if profile is not None:
@@ -172,7 +210,6 @@ def plan(repo, manifest, plugins, app, home, state):
     old = baseline["config"]
     live_bytes = read(safe_path(home, name))
     live = {} if live_bytes is None else parse(app, live_bytes)
-    # Old shared baseline is trusted only for this clone's config symlink.
     if (
         baseline_bytes is None
         and app == "codex"
@@ -252,7 +289,6 @@ def refresh(repo, homes, apps):
         raise ValueError(
             "Legacy Codex journal must be recovered using the old refresh version before migration"
         )
-    # Validate all input/config plans before mutating any selected home.
     for app in apps:
         plan(repo, manifest, plugins, app, homes[app], homes[app] / ".claude-config")
     changed = []

@@ -249,6 +249,14 @@
         "codex"
       ],
       "requires": []
+    },
+    {
+      "source": "native_command.py",
+      "destination": "native_command.py",
+      "apps": [
+        "claude",
+        "codex"
+      ]
     }
   ]
 }

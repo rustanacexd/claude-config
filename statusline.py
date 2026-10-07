@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Claude status line using only Python and optional Git."""
 
 import json
 import os

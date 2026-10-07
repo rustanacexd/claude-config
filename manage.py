@@ -9,7 +9,11 @@ import subprocess
 import sys
 import tempfile
 import shutil
-from portable.manage import load, refresh, relative
+
+if sys.version_info < (3, 11):
+    sys.exit("Python 3.11 or newer is required")
+
+from portable.manage import load, refresh, relative, snapshot_digest
 from portable.apps import (
     installed,
     restore_preserving_flags,
@@ -101,18 +105,9 @@ def main():
                 if (checkout / notice).is_file():
                     shutil.copy2(checkout / notice, candidate / notice)
             entry["revision"] = args.ref
-            import hashlib
-
-            digest = hashlib.sha256()
-            for p in sorted(candidate.rglob("*")):
-                if p.is_file():
-                    digest.update(
-                        p.relative_to(candidate).as_posix().encode()
-                        + b"\0"
-                        + p.read_bytes()
-                    )
-            entry["snapshot_sha256"] = digest.hexdigest()
-            entry["files"] = sum(p.is_file() for p in candidate.rglob("*"))
+            entry["snapshot_sha256"], entry["files"] = snapshot_digest(candidate)
+            source.pop("skillFolderHash", None)
+            source.pop("updatedAt", None)
             previous = target.with_name(target.name + ".previous")
             if previous.exists():
                 raise ValueError(
@@ -201,16 +196,17 @@ def main():
                         )
             for asset in manifest["assets"]:
                 if app in asset["apps"] and asset["destination"].startswith("skills/"):
+                    available = (
+                        homes[app] / asset["destination"] / "SKILL.md"
+                    ).is_file()
                     print(
                         f"{app}: {asset['destination']} "
-                        + (
-                            "available"
-                            if (
-                                homes[app] / asset["destination"] / "SKILL.md"
-                            ).is_file()
-                            else "missing"
-                        )
+                        + ("available" if available else "missing")
                     )
+                    if not available:
+                        issues.append(
+                            f"{app}: {asset['destination']} missing; run refresh or reconcile a local deletion"
+                        )
         for name in ("EXA_API_KEY", "SENTRY_ACCESS_TOKEN"):
             print(f"{name}: " + ("present" if os.environ.get(name) else "missing"))
             if not os.environ.get(name):

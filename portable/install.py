@@ -1,5 +1,3 @@
-"""Owned files and recoverable app-home transactions."""
-
 import base64
 from contextlib import contextmanager
 import hashlib
@@ -123,7 +121,6 @@ def finish(home, state, transaction):
         transaction.get("updates"), list
     ):
         raise ValueError("Unknown journal schema")
-    # Verify every observation before any recovery write.
     for item in transaction["updates"]:
         path = safe_path(home, item["path"])
         data = (
