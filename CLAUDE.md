@@ -5,13 +5,25 @@ with that exact name. Reading the skill's SKILL.md or one of its playbook files 
 or Read is not an invocation and does not count. This holds after a context handoff,
 compaction, or new session, since whatever was loaded earlier is gone. For poteto-mode
 the evidence it ran is the todolist with the playbook steps copied in verbatim and a
-`skip: <reason>` on every step not done. No such list means the playbook was not
-followed, whatever files were read. The concise output style governs the reply, not the
-steps.
+`skip: <reason>` on every step not done, per # Todolists. No such list means the
+playbook was not followed, whatever files were read. The concise output style governs the
+reply, not the steps.
 
 # Todolists
 
-Use the `TodoWrite` tool for every todolist.
+Use the `TodoWrite` tool for every todolist. Never `TaskCreate`, never a todo.md file.
+
+When a skill or playbook defines steps, the first items of the list are those steps:
+
+- One item per step. Copy its text from the playbook file word for word, including its number.
+  Never merge steps ("1-7 ...") and never summarize or reword one.
+- A step you won't do stays in the list, marked `skip: <reason>`, in exactly that form.
+  Not `skip how:`, not `skip-candidate:`, not a deleted item.
+- Task-specific items come after the playbook steps, never in place of them.
+- Rewrite the list after a compaction or handoff. The rule still applies after either.
+
+This applies to subagents too. A coordinator that spawns one pastes this section into the
+brief, and checks the subagent's first TodoWrite before it accepts the subagent's report.
 
 # Search routing
 
