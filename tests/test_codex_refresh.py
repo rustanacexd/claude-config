@@ -1,276 +1,1025 @@
-import contextlib
-import importlib.util
+import json
 import io
+from contextlib import redirect_stdout, redirect_stderr
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
 from unittest.mock import patch
+from portable.config import equal, render, parse
+from portable.manage import refresh, load, plan, parse as parse_config
+from portable import install, apps
+from native_command import argv_for
+import manage
 
 SOURCE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('codex_refresh', SOURCE / 'codex/refresh.py')
-refresh = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(refresh)
 
 
 class RefreshTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        self.temp = tempfile.TemporaryDirectory(prefix="portable test ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.repo = self.root / 'repo/codex'
-        self.repo.mkdir(parents=True)
-        self.home = self.root / 'home/.codex'
-        self.home.mkdir(parents=True)
-        self.template('model = "shared"\n[features]\nhooks = true\n')
-        (self.repo / 'AGENTS.md').write_bytes(b'Shared instructions\n')
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        (self.repo / "codex").mkdir()
+        (self.repo / "skills/example/references").mkdir(parents=True)
+        (self.repo / "skills/example/SKILL.md").write_text("skill")
+        (self.repo / "skills/example/references/detail.md").write_text("nested")
+        (self.repo / "AGENTS.md").write_text("instructions")
+        (self.repo / "portable.json").write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "assets": [
+                        {
+                            "source": "AGENTS.md",
+                            "destination": "AGENTS.md",
+                            "apps": ["codex"],
+                        },
+                        {
+                            "source": "skills/example",
+                            "destination": "skills/example",
+                            "apps": ["codex", "claude"],
+                        },
+                    ],
+                }
+            )
+        )
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        (self.repo / "settings.json").write_text('{"model":"shared","feature":true}')
+        self.template('model="shared"\n[features]\nhooks=true\n')
+        self.home = self.root / "home with spaces"
+        self.home.mkdir()
 
     def template(self, text):
-        (self.repo / 'config.template.toml').write_text(text)
+        (self.repo / "codex/config.template.toml").write_text(text)
 
     def run_refresh(self):
-        with contextlib.redirect_stdout(io.StringIO()):
-            refresh.refresh(self.repo, self.home)
+        return refresh(self.repo, {"codex": self.home}, ["codex"])
 
     def config(self):
-        return tomllib.loads((self.home / 'config.toml').read_text())
+        return tomllib.loads((self.home / "config.toml").read_text())
 
-    def backup_files(self):
-        return sorted((self.home / 'backups').glob('*/*'))
+    def backups(self):
+        return sorted((self.home / ".claude-config/backups").rglob("*"))
 
-    def test_fresh_machine(self):
-        self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'shared', 'features': {'hooks': True}})
-        for name in ('config.toml', 'AGENTS.md'):
-            self.assertEqual((self.home / name).resolve(), (self.repo / name).resolve())
-        self.assertEqual((self.repo / 'config.toml').stat().st_mode & 0o777, 0o600)
-        self.assertFalse(self.backup_files())
+    def test_real_cli_legacy_directory_links(self):
+        source = self.root / "CLI source"
+        shutil.copytree(
+            SOURCE, source, ignore=shutil.ignore_patterns(".git", "__pycache__")
+        )
+        home = self.root / "legacy CLI"
+        snapshots = {
+            p: (p.read_bytes(), p.stat().st_mtime_ns)
+            for p in (source / "skills/show-me").rglob("*")
+            if p.is_file()
+        }
+        for app in ("claude", "codex"):
+            root = home / app / "skills"
+            root.mkdir(parents=True)
+            target = source / "skills/show-me"
+            (root / "show-me").symlink_to(
+                target if app == "claude" else os.path.relpath(target, root.resolve()),
+                target_is_directory=True,
+            )
+        result = subprocess.run(
+            [sys.executable, str(source / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for app in ("claude", "codex"):
+            self.assertFalse((home / app / "skills/show-me").is_symlink())
+            self.assertEqual(
+                (home / app / "skills/show-me/SKILL.md").read_bytes(),
+                (source / "skills/show-me/SKILL.md").read_bytes(),
+            )
+        self.assertEqual(
+            snapshots, {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in snapshots}
+        )
+        result = subprocess.run(
+            [sys.executable, str(source / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.stdout, "Applied 0 file changes\n")
 
-    def test_preserve_semantics_bytes_backups_and_rerun(self):
-        live = b'# retain formatting\nmodel="local"\n[features]\nhooks=true\n[projects."/private/project"]\ntrust_level="trusted"\n'
-        (self.home / 'config.toml').write_bytes(live)
-        (self.home / 'AGENTS.md').write_bytes(b'Local instructions\n')
+    def legacy_root(self, home=None, destination="skills/example"):
+        home = self.home if home is None else home
+        path = home / destination
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(self.repo / "skills/example", target_is_directory=True)
+        return path
+
+    def test_directory_link_remapped_nested_empty_and_foreign(self):
+        (self.repo / "skills/example/empty/deeper").mkdir(parents=True)
+        manifest = json.loads((self.repo / "portable.json").read_text())
+        manifest["assets"][1]["destination"] = "remapped/skill"
+        (self.repo / "portable.json").write_text(json.dumps(manifest))
+        root = self.legacy_root(destination="remapped/skill")
         self.run_refresh()
-        self.assertEqual((self.repo / 'config.toml').read_bytes(), live)
-        files = self.backup_files()
-        self.assertEqual(len(files), 2)
-        self.assertEqual(next(p for p in files if p.name == 'config.toml').read_bytes(), live)
-        self.assertEqual(next(p for p in files if p.name == 'AGENTS.md').read_bytes(), b'Local instructions\n')
-        for p in files:
-            self.assertEqual(p.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(p.parent.stat().st_mode & 0o777, 0o700)
-        times = {p.name: p.stat().st_mtime_ns for p in (self.repo / 'config.toml', self.repo / '.template.snapshot.toml')}
+        self.assertFalse(root.is_symlink())
+        self.assertTrue((root / "empty/deeper").is_dir())
+        self.assertEqual((root / "references/detail.md").read_text(), "nested")
+        self.assertEqual(self.run_refresh()[0], [])
+        shutil.rmtree(root)
+        foreign = self.root / "foreign"
+        foreign.mkdir()
+        root.symlink_to(foreign, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Foreign"):
+            self.run_refresh()
+        self.assertTrue(root.is_symlink())
+
+    def test_remapped_child_file_link_uses_manifest_source(self):
+        manifest = json.loads((self.repo / "portable.json").read_text())
+        manifest["assets"][1]["destination"] = "remapped/skill"
+        (self.repo / "portable.json").write_text(json.dumps(manifest))
+        root = self.home / "remapped/skill"
+        root.mkdir(parents=True)
+        (root / "SKILL.md").symlink_to(self.repo / "skills/example/SKILL.md")
         self.run_refresh()
-        self.assertEqual(self.backup_files(), files)
-        self.assertEqual({p.name: p.stat().st_mtime_ns for p in (self.repo / 'config.toml', self.repo / '.template.snapshot.toml')}, times)
+        self.assertFalse((root / "SKILL.md").is_symlink())
+        self.assertEqual((root / "SKILL.md").read_text(), "skill")
+
+    def test_invalid_second_app_journal_payload_no_first_app_write(self):
+        root = self.legacy_root()
+        other = self.root / "claude"
+        state = other / ".claude-config"
+        state.mkdir(parents=True)
+        transaction = {
+            "schema": 1,
+            "baseline": {"schema": 1, "files": {}, "config": {}},
+            "roots": [None],
+            "updates": [],
+        }
+        (state / "journal.json").write_text(json.dumps(transaction))
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertTrue(root.is_symlink())
+        self.assertFalse((self.home / ".claude-config").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows directory junction")
+    def test_windows_junction_is_rejected_without_target_write(self):
+        root = self.home / "skills/example"
+        root.parent.mkdir(parents=True)
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(root), str(self.repo / "skills/example")],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        before = (self.repo / "skills/example/SKILL.md").read_bytes()
+        with self.assertRaisesRegex(ValueError, "Foreign"):
+            self.run_refresh()
+        self.assertEqual((self.repo / "skills/example/SKILL.md").read_bytes(), before)
+        root.rmdir()
+
+    def test_directory_link_unsafe_ancestors_and_broken_roots(self):
+        for kind in ("ancestor", "broken", "reparse"):
+            with self.subTest(kind=kind):
+                home = self.root / kind
+                home.mkdir()
+                if kind == "ancestor":
+                    (home / "skills").symlink_to(self.repo / "skills", target_is_directory=True)
+                elif kind == "broken":
+                    (home / "skills").mkdir()
+                    (home / "skills/example").symlink_to(self.root / "missing", target_is_directory=True)
+                else:
+                    (home / "skills/example").mkdir(parents=True)
+                original = install.linked
+
+                def linked(path):
+                    return (kind == "reparse" and path == home / "skills/example") or original(path)
+
+                with patch("portable.manage.linked", linked):
+                    with self.assertRaises(ValueError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertFalse((home / ".claude-config").exists())
+
+    def test_directory_link_empty_asset(self):
+        shutil.rmtree(self.repo / "skills/example")
+        (self.repo / "skills/example").mkdir()
+        root = self.legacy_root()
+        self.run_refresh()
+        self.assertTrue(root.is_dir())
+        self.assertFalse(root.is_symlink())
+        self.assertEqual(self.run_refresh()[0], [])
+
+    def test_directory_link_second_app_failure_leaves_first_link(self):
+        root = self.legacy_root()
+        other = self.root / "claude"
+        other.mkdir()
+        (other / "settings.json").write_text("bad")
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertTrue(root.is_symlink())
+        self.assertFalse((self.home / ".claude-config").exists())
+
+    def test_directory_link_recovery_boundaries_and_app_edits(self):
+        for boundary in ("journal", "unlink", "mkdir", "detail", "baseline"):
+            with self.subTest(boundary=boundary):
+                home = self.root / boundary
+                root = self.legacy_root(home)
+                atomic, unlink, mkdir, rmdir = (
+                    install.atomic,
+                    Path.unlink,
+                    Path.mkdir,
+                    Path.rmdir,
+                )
+                crashed = False
+
+                def stop():
+                    nonlocal crashed
+                    if not crashed:
+                        crashed = True
+                        raise RuntimeError("crash")
+
+                def write(path, data):
+                    atomic(path, data)
+                    if (
+                        (boundary == "journal" and path.name == "journal.json")
+                        or (boundary == "detail" and path.name == "detail.md")
+                        or (boundary == "baseline" and path.name == "baseline.json")
+                    ):
+                        stop()
+
+                def remove(path, *args, **kwargs):
+                    unlink(path, *args, **kwargs)
+                    if boundary == "unlink" and path == root:
+                        stop()
+
+                def remove_directory(path, *args, **kwargs):
+                    rmdir(path, *args, **kwargs)
+                    if boundary == "unlink" and path == root:
+                        stop()
+
+                def create(path, *args, **kwargs):
+                    mkdir(path, *args, **kwargs)
+                    if boundary == "mkdir" and path == root:
+                        stop()
+
+                with (
+                    patch.object(install, "atomic", write),
+                    patch.object(Path, "unlink", remove),
+                    patch.object(Path, "mkdir", create),
+                    patch.object(Path, "rmdir", remove_directory),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertFalse(root.is_symlink())
+                self.assertEqual((root / "references/detail.md").read_text(), "nested")
+                self.assertFalse((home / ".claude-config/journal.json").exists())
+        for edit in ("retarget", "extra", "changed"):
+            with self.subTest(edit=edit):
+                home = self.root / edit
+                root = self.legacy_root(home)
+                atomic = install.atomic
+
+                def interrupt(path, data):
+                    atomic(path, data)
+                    if path.name == (
+                        "journal.json" if edit == "retarget" else "detail.md"
+                    ):
+                        raise RuntimeError("crash")
+
+                with patch.object(install, "atomic", interrupt):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                if edit == "retarget":
+                    root.unlink()
+                    root.symlink_to(self.repo / "codex", target_is_directory=True)
+                else:
+                    (
+                        root
+                        / ("extra.md" if edit == "extra" else "references/detail.md")
+                    ).write_text("user edit")
+                with self.assertRaisesRegex(ValueError, "interrupted"):
+                    refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertTrue((home / ".claude-config/journal.json").exists())
+
+    def test_fresh_machine_and_identical_rerun(self):
+        with patch.object(Path, "symlink_to", side_effect=OSError("no privilege")):
+            self.run_refresh()
+        self.assertEqual(self.config()["model"], "shared")
+        self.assertFalse((self.home / "config.toml").is_symlink())
+        self.assertEqual(
+            (self.home / "skills/example/references/detail.md").read_text(), "nested"
+        )
+        times = {
+            p: p.stat().st_mtime_ns
+            for p in self.home.rglob("*")
+            if p.is_file() and p.name != "lock"
+        }
+        changed, _ = self.run_refresh()
+        self.assertEqual(changed, [])
+        self.assertEqual(times, {p: p.stat().st_mtime_ns for p in times})
+        self.assertEqual(self.backups(), [])
 
     def test_shared_defaults_update_remove_and_local_changes(self):
         self.run_refresh()
         self.template('model="new"\nother=1\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'new', 'other': 1})
-        (self.home / 'config.toml').write_text('model="local"\n')
+        self.assertEqual(self.config()["model"], "new")
+        self.assertEqual(self.config()["other"], 1)
+        (self.home / "config.toml").write_text('model="local"\n')
         self.template('model="newer"\nother=2\nadded=3\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'local', 'added': 3})
+        self.assertEqual(self.config()["model"], "local")
+        self.assertNotIn("other", self.config())
+        self.assertEqual(self.config()["added"], 3)
 
     def test_entire_table_deletion_and_array_override(self):
-        self.template('items=[1,2]\n[features]\nhooks=true\n')
+        self.template("items=[1,2]\n[features]\nhooks=true\n")
         self.run_refresh()
-        (self.home / 'config.toml').write_text('items=[9]\n')
-        self.template('items=[1,2,3]\n[features]\nhooks=false\nnew=true\n')
+        (self.home / "config.toml").write_text("items=[9]\n")
+        self.template("items=[1,2,3]\n[features]\nhooks=false\nnew=true\n")
         self.run_refresh()
-        self.assertEqual(self.config(), {'items': [9]})
+        self.assertEqual(self.config()["items"], [9])
+        self.assertNotIn("features", self.config())
 
     def test_removed_shared_table_keeps_unknown_local_keys(self):
         self.run_refresh()
-        (self.home / 'config.toml').write_text('model="shared"\n[features]\nhooks=true\nlocal=7\n')
+        (self.home / "config.toml").write_text(
+            'model="shared"\n[features]\nhooks=true\nlocal=7\n'
+        )
         self.template('model="shared"\n')
         self.run_refresh()
-        self.assertEqual(self.config(), {'model': 'shared', 'features': {'local': 7}})
+        self.assertEqual(self.config()["features"], {"local": 7})
 
-    def test_app_replaces_symlink_adopt_repair(self):
+    def test_existing_bytes_and_local_instruction_preserved(self):
+        self.template('model="shared"\n')
+        live = b'# formatting\nmodel="local"\n'
+        (self.home / "config.toml").write_bytes(live)
+        (self.home / "AGENTS.md").write_text("local")
         self.run_refresh()
-        destination = self.home / 'config.toml'
-        destination.unlink()
-        destination.write_text('model="app"\n[features]\nhooks=true\n[hooks.state]\nhash="local"\n')
-        original = destination.read_bytes()
+        original = (self.home / "config.toml").read_bytes()
         self.run_refresh()
-        self.assertTrue(destination.is_symlink())
-        self.assertEqual(destination.read_bytes(), original)
-        self.assertEqual(next(p for p in self.backup_files() if p.name == 'config.toml').read_bytes(), original)
+        self.assertEqual((self.home / "config.toml").read_bytes(), original)
+        self.assertEqual((self.home / "AGENTS.md").read_text(), "local")
 
-    def test_foreign_symlink_content_and_metadata_backup(self):
-        foreign = self.root / 'foreign.toml'
-        foreign.write_text('model="foreign"\n[features]\nhooks=true\n')
-        original = foreign.read_bytes()
-        (self.home / 'config.toml').symlink_to(foreign)
-        foreign_agents = self.root / 'foreign.md'
-        foreign_agents.write_bytes(b'foreign instructions')
-        (self.home / 'AGENTS.md').symlink_to(foreign_agents)
+    def test_edited_removed_deleted_and_unmanaged_skills(self):
         self.run_refresh()
-        self.assertEqual(foreign.read_bytes(), original)
-        self.assertEqual(foreign_agents.read_bytes(), b'foreign instructions')
-        names = {p.name for p in self.backup_files()}
-        self.assertEqual(names, {'config.toml','config.toml.symlink.json','AGENTS.md','AGENTS.md.symlink.json'})
-        self.assertEqual(self.config()['model'], 'foreign')
+        skill = self.home / "skills/example"
+        (skill / "references/detail.md").write_text("local edit")
+        (skill / "unmanaged.md").write_text("unmanaged")
+        (skill / "SKILL.md").unlink()
+        (self.repo / "skills/example/references/detail.md").unlink()
+        self.run_refresh()
+        self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
+        self.assertEqual((skill / "unmanaged.md").read_text(), "unmanaged")
+        self.assertFalse((skill / "SKILL.md").exists())
 
-    def test_invalid_inputs_do_not_replace_links(self):
-        for which in ('template', 'live'):
-            with self.subTest(which=which):
-                self.template('model="shared"\n')
-                (self.home / 'config.toml').write_text('model="local"\n')
-                (self.home / 'AGENTS.md').write_bytes(b'local')
-                path = self.repo / 'config.template.toml' if which == 'template' else self.home / 'config.toml'
-                path.write_text('invalid=')
-                before = (self.home / 'config.toml').read_bytes()
-                with self.assertRaises(tomllib.TOMLDecodeError):
-                    self.run_refresh()
-                self.assertFalse((self.home / 'config.toml').is_symlink())
-                self.assertEqual((self.home / 'config.toml').read_bytes(), before)
-                self.assertEqual((self.home / 'AGENTS.md').read_bytes(), b'local')
-                self.assertFalse(self.backup_files())
+    def test_removed_unchanged_owned_file_deleted(self):
+        self.run_refresh()
+        (self.repo / "skills/example/references/detail.md").unlink()
+        self.run_refresh()
+        self.assertFalse((self.home / "skills/example/references/detail.md").exists())
+
+    def test_foreign_symlinks_migrate_without_target_write(self):
+        foreign = self.root / "foreign.toml"
+        foreign.write_text('model="foreign"\n')
+        target = self.root / "foreign.md"
+        target.write_text("foreign")
+        try:
+            (self.home / "config.toml").symlink_to(foreign)
+            (self.home / "AGENTS.md").symlink_to(target)
+        except OSError:
+            self.skipTest("Runner cannot create symlink fixture")
+        self.run_refresh()
+        self.assertEqual(foreign.read_text(), 'model="foreign"\n')
+        self.assertEqual(target.read_text(), "foreign")
+        self.assertFalse((self.home / "config.toml").is_symlink())
+        self.assertFalse((self.home / "AGENTS.md").is_symlink())
+        self.assertEqual((self.home / "AGENTS.md").read_text(), "foreign")
+        self.assertTrue(any(p.name.endswith(".symlink.json") for p in self.backups()))
+
+    def test_malformed_inputs_no_mutation(self):
+        (self.home / "config.toml").write_text("invalid=")
+        before = set(self.home.rglob("*"))
+        with self.assertRaises(ValueError):
+            self.run_refresh()
+        self.assertEqual(before, set(self.home.rglob("*")))
+
+    def test_malformed_second_app_no_first_app_mutation(self):
+        other = self.root / "claude"
+        other.mkdir()
+        (other / "settings.json").write_text("invalid")
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertFalse((self.home / "config.toml").exists())
 
     def test_crash_recovery_all_durable_boundaries(self):
-        for phase in ('journal', 'config', 'snapshot', 'config_link', 'agents_link'):
-            with self.subTest(phase=phase):
-                with tempfile.TemporaryDirectory(dir=self.root) as directory:
-                    repo, home = Path(directory)/'codex', Path(directory)/'home'
-                    repo.mkdir(); home.mkdir()
-                    (repo/'config.template.toml').write_text('model="shared"\n')
-                    (repo/'AGENTS.md').write_text('shared instructions')
-                    (home/'config.toml').write_text('model="local"\n')
-                    (home/'AGENTS.md').write_text('local instructions')
-                    atomic, install = refresh.atomic, refresh.install_link
-                    def interrupted_atomic(path, data):
-                        atomic(path, data)
-                        if path.parent == repo.resolve() and path.name == {'journal': '.refresh.journal.json', 'config': 'config.toml', 'snapshot': '.template.snapshot.toml'}.get(phase):
-                            raise RuntimeError('simulated crash')
-                    def interrupted_link(path, target):
-                        install(path, target)
-                        if path.name == {'config_link': 'config.toml', 'agents_link': 'AGENTS.md'}.get(phase):
-                            raise RuntimeError('simulated crash')
-                    with patch.object(refresh, 'atomic', interrupted_atomic), patch.object(refresh, 'install_link', interrupted_link):
-                        with self.assertRaises(RuntimeError), contextlib.redirect_stdout(io.StringIO()):
-                            refresh.refresh(repo,home)
-                    backups = sorted((home/'backups').glob('*/*'))
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        refresh.refresh(repo,home)
-                    self.assertEqual(tomllib.loads((home/'config.toml').read_text()), {'model':'local'})
-                    self.assertTrue((home/'AGENTS.md').is_symlink())
-                    self.assertFalse((repo/'.refresh.journal.json').exists())
-                    self.assertEqual(sorted((home/'backups').glob('*/*')), backups)
+        for name in ("journal.json", "AGENTS.md", "config.toml", "baseline.json"):
+            with self.subTest(name=name):
+                home = self.root / name
+                home.mkdir()
+                atomic = install.atomic
+                triggered = False
 
-    def test_crash_then_app_edit_stops_without_overwrite(self):
-        atomic = refresh.atomic
-        def interrupt(path, data):
-            atomic(path, data)
-            if path.name == 'config.toml': raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
-            with self.assertRaises(RuntimeError): self.run_refresh()
-        (self.home/'config.toml').write_text('model="app"\n')
-        with self.assertRaisesRegex(ValueError, 'changed during interrupted'):
-            self.run_refresh()
-        self.assertEqual((self.home/'config.toml').read_text(), 'model="app"\n')
-        self.assertTrue((self.repo/'.refresh.journal.json').exists())
+                def interrupted(path, data):
+                    nonlocal triggered
+                    atomic(path, data)
+                    if path.name == name and not triggered:
+                        triggered = True
+                        raise RuntimeError("crash")
 
-    def test_crash_then_instructions_edit_stops_without_overwrite(self):
-        agents = self.home / 'AGENTS.md'
-        agents.write_bytes(b'Original local instructions\n')
-        atomic = refresh.atomic
-        def interrupt(path, data):
+                with patch.object(install, "atomic", interrupted):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                backups = sorted((home / ".claude-config/backups").rglob("*"))
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertEqual(
+                    tomllib.loads((home / "config.toml").read_text())["model"], "shared"
+                )
+                self.assertFalse((home / ".claude-config/journal.json").exists())
+                self.assertEqual(
+                    backups, sorted((home / ".claude-config/backups").rglob("*"))
+                )
+
+    def test_crash_then_app_edit_refuses_overwrite(self):
+        atomic = install.atomic
+
+        def interrupted(path, data):
             atomic(path, data)
-            if path.name == '.refresh.journal.json':
-                raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
+            if path.name == "journal.json":
+                raise RuntimeError("crash")
+
+        with patch.object(install, "atomic", interrupted):
             with self.assertRaises(RuntimeError):
                 self.run_refresh()
-        agents.write_bytes(b'Post-crash local instructions\n')
-        with self.assertRaisesRegex(ValueError, 'Instructions changed during interrupted'):
+        (self.home / "config.toml").write_text('model="app"\n')
+        with self.assertRaisesRegex(ValueError, "interrupted"):
             self.run_refresh()
-        self.assertFalse(agents.is_symlink())
-        self.assertEqual(agents.read_bytes(), b'Post-crash local instructions\n')
-        self.assertTrue((self.repo / '.refresh.journal.json').exists())
-        self.assertEqual(next(p for p in self.backup_files() if p.name == 'AGENTS.md').read_bytes(), b'Original local instructions\n')
+        self.assertEqual((self.home / "config.toml").read_text(), 'model="app"\n')
+        self.assertTrue((self.home / ".claude-config/journal.json").exists())
 
-    def test_instructions_edit_before_publication_stops(self):
-        agents = self.home / 'AGENTS.md'
-        agents.write_bytes(b'Original instructions\n')
-        backup = refresh.backup
-        def edit_after_backup(home, replacements):
-            backup(home, replacements)
-            agents.write_bytes(b'Updated instructions\n')
-        with patch.object(refresh, 'backup', edit_after_backup):
-            with self.assertRaisesRegex(ValueError, 'Instructions changed during refresh'):
-                self.run_refresh()
-        self.assertEqual(agents.read_bytes(), b'Updated instructions\n')
-        self.assertFalse(agents.is_symlink())
-        self.assertFalse((self.repo / '.refresh.journal.json').exists())
+    def test_app_edit_between_plan_and_publish_refuses(self):
+        manifest, plugins = load(self.repo)
+        with install.locked(self.home) as state:
+            updates, baseline, _ = plan(
+                self.repo, manifest, plugins, "codex", self.home, state
+            )
+            (self.home / "config.toml").write_text('model="app"\n')
+            with self.assertRaisesRegex(ValueError, "before publication"):
+                install.publish(self.home, state, updates, baseline)
+        self.assertFalse((self.home / ".claude-config/journal.json").exists())
 
-    def test_crash_then_shared_instructions_edit_is_retained(self):
+    def test_cross_home_state_separation_and_source_unchanged(self):
+        before = {
+            p.relative_to(self.repo): p.read_bytes()
+            for p in self.repo.rglob("*")
+            if p.is_file()
+        }
         self.run_refresh()
-        atomic = refresh.atomic
-        def interrupt(path, data):
-            atomic(path, data)
-            if path.name == '.refresh.journal.json':
-                raise RuntimeError('simulated crash')
-        with patch.object(refresh, 'atomic', interrupt):
-            with self.assertRaises(RuntimeError):
-                self.run_refresh()
-        (self.home / 'AGENTS.md').write_bytes(b'Updated shared instructions\n')
+        other = self.root / "other"
+        refresh(self.repo, {"codex": other}, ["codex"])
+        (self.home / "config.toml").write_text('model="local"\n')
         self.run_refresh()
-        self.assertTrue((self.home / 'AGENTS.md').is_symlink())
-        self.assertEqual((self.repo / 'AGENTS.md').read_bytes(), b'Updated shared instructions\n')
-        self.assertFalse((self.repo / '.refresh.journal.json').exists())
+        self.assertEqual(
+            tomllib.loads((other / "config.toml").read_text())["model"], "shared"
+        )
+        self.assertEqual(
+            before,
+            {
+                p.relative_to(self.repo): p.read_bytes()
+                for p in self.repo.rglob("*")
+                if p.is_file()
+            },
+        )
+
+    def test_legacy_journal_refused(self):
+        (self.repo / "codex/.refresh.journal.json").write_text("{}")
+        with self.assertRaisesRegex(ValueError, "Legacy"):
+            self.run_refresh()
+        self.assertFalse((self.home / "config.toml").exists())
+
+    def test_claude_auth_local_changes_retained(self):
+        (self.home / "settings.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"},"model":"local"}'
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        d = json.loads((self.home / "settings.json").read_text())
+        self.assertEqual(d["env"]["ANTHROPIC_AUTH_TOKEN"], "canary-secret")
+        self.assertEqual(d["model"], "local")
+        self.assertNotIn("canary-secret", (self.repo / "settings.json").read_text())
+
+    def test_shared_secret_is_rejected_before_home_mutation(self):
+        (self.repo / "settings.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
+        )
+        with self.assertRaisesRegex(ValueError, "machine authentication"):
+            refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_removed_owned_skill_migration_preserves_edits_and_external_files(self):
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(self.repo, homes, list(homes))
+        for home in homes.values():
+            skill = home / "skills/example"
+            (skill / "references/detail.md").write_text("local edit")
+            (skill / "external.md").write_text("upstream installer file")
+            external = home / "skills/external/SKILL.md"
+            external.parent.mkdir(parents=True)
+            external.write_text("installed by npx skills")
+        manifest_path = self.repo / "portable.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["assets"] = [
+            asset for asset in manifest["assets"]
+            if not asset["source"].startswith("skills/")
+        ]
+        manifest_path.write_text(json.dumps(manifest))
+        _, issues = refresh(self.repo, homes, list(homes))
+        for home in homes.values():
+            skill = home / "skills/example"
+            self.assertFalse((skill / "SKILL.md").exists())
+            self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
+            self.assertEqual((skill / "external.md").read_text(), "upstream installer file")
+            self.assertEqual(
+                (home / "skills/external/SKILL.md").read_text(), "installed by npx skills"
+            )
+            (skill / "references/detail.md").write_text("nested")
+            (skill / "SKILL.md").write_text("skill")
+        self.assertTrue(
+            any("edited removed asset retained" in issue for issue in issues)
+        )
+        changed, _ = refresh(self.repo, homes, list(homes))
+        self.assertEqual(changed, [])
+        for home in homes.values():
+            self.assertEqual((home / "skills/example/references/detail.md").read_text(), "nested")
+            self.assertEqual((home / "skills/example/SKILL.md").read_text(), "skill")
+
+    def test_repository_only_manages_authored_skills_and_install_guide(self):
+        manifest, _ = load(SOURCE)
+        skills = [
+            asset["source"] for asset in manifest["assets"]
+            if asset["source"].startswith("skills/")
+        ]
+        self.assertEqual(
+            sorted(skills), ["skills/explain-diff-html", "skills/show-me"]
+        )
+        self.assertFalse((SOURCE / "skills/vendor").exists())
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(SOURCE, homes, list(homes))
+        for home in homes.values():
+            self.assertEqual(
+                (home / "SKILLS.md").read_bytes(), (SOURCE / "SKILLS.md").read_bytes()
+            )
+            self.assertEqual(
+                sorted(path.name for path in (home / "skills").iterdir()),
+                ["explain-diff-html", "show-me"],
+            )
+        changed, _ = refresh(SOURCE, homes, list(homes))
+        self.assertEqual(changed, [])
+
+    def test_inventory_routes_third_party_skills_to_upstream_guide(self):
+        output = io.StringIO()
+        with patch.object(manage, "REPO", self.repo), patch.object(
+            manage, "installed", return_value={}
+        ), patch.object(sys, "argv", ["manage.py", "inventory", "--app", "codex",
+                                      "--home", str(self.home)]), redirect_stdout(
+            output
+        ), redirect_stderr(io.StringIO()):
+            manage.main()
+        self.assertIn("follow SKILLS.md with npx skills", output.getvalue())
+        self.assertIn("does not install or verify them", output.getvalue())
+
+    def test_repository_manifest_and_sentry_environment(self):
+        load(SOURCE)
+        self.run_refresh()
+        allowed = self.config()["mcp_servers"]["sentry"]["env_vars"]
+        for name in ("SENTRY_ACCESS_TOKEN", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
+            self.assertIn(name, allowed)
+
+    def test_local_profile_retains_secret_outside_repo(self):
+        (self.home / "portable.local.json").write_text(
+            '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertEqual(
+            json.loads((self.home / "settings.json").read_text())["env"][
+                "ANTHROPIC_AUTH_TOKEN"
+            ],
+            "canary-secret",
+        )
+        self.assertNotIn("canary-secret", (self.repo / "settings.json").read_text())
+
+    def test_native_install_retains_local_disabled_flag(self):
+        plugin = {
+            "app": "claude",
+            "id": "x@y",
+            "enabled": True,
+            "kind": "native",
+            "source": "https://github.com/x/y.git",
+            "marketplace": "y",
+        }
+        (self.repo / "plugins.json").write_text(
+            json.dumps({"schema": 1, "plugins": [plugin]})
+        )
+        (self.home / "settings.json").write_text('{"enabledPlugins":{"x@y":false}}')
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+
+        def flip(app, home, plugins):
+            self.assertFalse(plugins[0]["enabled"])
+            path = home / "settings.json"
+            config = json.loads(path.read_text())
+            config["enabledPlugins"]["x@y"] = True
+            path.write_text(json.dumps(config))
+            return []
+
+        with (
+            patch.object(apps, "restore", flip),
+            patch.object(apps, "installed", return_value={}),
+        ):
+            apps.restore_preserving_flags("claude", self.home, [plugin])
+        self.assertFalse(
+            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
+                "x@y"
+            ]
+        )
+        refresh(self.repo, {"claude": self.home}, ["claude"])
+        self.assertFalse(
+            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
+                "x@y"
+            ]
+        )
+
+    def test_journal_escape_and_reparse_parent_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsafe"):
+            install.safe_path(self.home, "../escape")
+        with patch.object(install, "linked", return_value=True):
+            with self.assertRaisesRegex(ValueError, "symlink parent"):
+                install.safe_path(self.home, "skills/example/file")
+
+    def test_native_install_retains_deleted_plugin_table(self):
+        for app, section, filename in (
+            ("claude", "enabledPlugins", "settings.json"),
+            ("codex", "plugins", "config.toml"),
+        ):
+            with self.subTest(app=app):
+                home = self.root / app
+                plugin = {
+                    "app": app,
+                    "id": "x@y",
+                    "enabled": True,
+                    "kind": "native",
+                    "source": "https://github.com/x/y.git",
+                    "marketplace": "y",
+                }
+                (self.repo / "plugins.json").write_text(
+                    json.dumps({"schema": 1, "plugins": [plugin]})
+                )
+                refresh(self.repo, {app: home}, [app])
+                path = home / filename
+                config = parse_config(app, path.read_bytes())
+                config.pop(section)
+                path.write_bytes(
+                    json.dumps(config).encode() if app == "claude" else render(config)
+                )
+
+                def native_install(app, home, plugins):
+                    changed = dict(config)
+                    changed[section] = {
+                        "x@y": True if app == "claude" else {"enabled": True}
+                    }
+                    path.write_bytes(
+                        json.dumps(changed).encode()
+                        if app == "claude"
+                        else render(changed)
+                    )
+                    return []
+
+                with (
+                    patch.object(apps, "restore", native_install),
+                    patch.object(apps, "installed", return_value={}),
+                ):
+                    apps.restore_preserving_flags(app, home, [plugin])
+                refresh(self.repo, {app: home}, [app])
+                result = parse_config(app, path.read_bytes())
+                self.assertNotIn(section, result)
 
     def test_serializer_complete_types(self):
-        data = tomllib.loads('''"quoted.key" = "Unicode 😀 and \\u007f"
-float=nan
-infinity=-inf
-when=1979-05-27T07:32:00Z
-local=1979-05-27T07:32:00
-date=1979-05-27
-time=07:32:00
-records=[{ path="x", enabled=true }, { path="y", numbers=[1,2.5] }]
-[empty]
-''')
-        self.assertTrue(refresh.equal(refresh.parse(refresh.render(data)), data))
+        data = tomllib.loads(
+            '"quoted.key"="Unicode 😀 and \\u007f"\nfloat=nan\ninfinity=-inf\nwhen=1979-05-27T07:32:00Z\nlocal=1979-05-27T07:32:00\ndate=1979-05-27\ntime=07:32:00\nrecords=[{path="x",enabled=true},{path="y",numbers=[1,2.5]}]\n[empty]\n'
+        )
+        self.assertTrue(equal(parse(render(data)), data))
 
-    def test_current_config_read_only_fixture(self):
-        path = Path.home()/'.codex/config.toml'
-        if not path.exists(): self.skipTest('No current config available')
-        original = path.read_bytes()
-        (self.repo/'config.template.toml').write_bytes((SOURCE/'codex/config.template.toml').read_bytes())
-        (self.home/'config.toml').write_bytes(original)
-        self.run_refresh()
-        self.assertEqual((self.home/'config.toml').read_bytes(), original)
-        self.assertEqual(path.read_bytes(), original)
+    def test_path_collision_and_escape_rejected(self):
+        for path in ("../escape", "C:/escape", "CON", "trailing."):
+            d = {
+                "schema": 1,
+                "assets": [
+                    {"source": "AGENTS.md", "destination": path, "apps": ["codex"]}
+                ],
+            }
+            (self.repo / "portable.json").write_text(json.dumps(d))
+            with self.assertRaises(ValueError):
+                self.run_refresh()
+        self.assertFalse((self.home / "config.toml").exists())
 
-    def test_shell_codex_only_and_default(self):
-        repo = self.root/'shell-repo'
-        shutil.copytree(SOURCE, repo, ignore=shutil.ignore_patterns('.git','__pycache__','config.toml','.template.snapshot.toml','.refresh.journal.json','.refresh.lock'))
-        home = self.root/'shell-home'
-        home.mkdir()
-        env = dict(os.environ, HOME=str(home), CODEX_HOME=str(home/'custom-codex'))
-        gitbin = self.root/'bin'; gitbin.mkdir()
-        git = gitbin/'git'; git.write_text('#!/bin/sh\nexit 0\n'); git.chmod(0o755)
-        env['PATH'] = str(gitbin)+os.pathsep+env['PATH']
-        subprocess.run([str(repo/'refresh.sh'),'--codex-only'], env=env, check=True, capture_output=True)
-        self.assertTrue((home/'custom-codex/config.toml').is_symlink())
-        self.assertFalse((home/'.claude').exists())
-        subprocess.run([str(repo/'refresh.sh')], env=env, check=True, capture_output=True)
-        self.assertTrue((home/'.claude/settings.json').is_symlink())
-        (repo/'codex/config.template.toml').write_text('invalid=')
-        (home/'.claude/settings.json').unlink()
-        (home/'.claude/settings.json').write_text('{"local":true}')
-        result = subprocess.run([str(repo/'refresh.sh')], env=env, capture_output=True)
-        self.assertNotEqual(result.returncode,0)
-        self.assertEqual((home/'.claude/settings.json').read_text(),'{"local":true}')
-        self.assertFalse((home/'.claude/settings.json').is_symlink())
+    def test_real_repository_app_specific_pstack_models(self):
+        homes = {app: self.root / app for app in ("claude", "codex")}
+        refresh(SOURCE, homes, list(homes))
+        claude = (homes["claude"] / "pstack-models.md").read_bytes()
+        codex = (homes["codex"] / "pstack-models.md").read_bytes()
+        self.assertIn(b"feature, refactoring: opus", claude.splitlines())
+        self.assertIn(b"strongest judgment: fable", claude.splitlines())
+        self.assertIn(b"feature, refactoring: gpt-6.1-sol", codex.splitlines())
+        self.assertEqual(claude, (SOURCE / "pstack-models.md").read_bytes())
+        self.assertEqual(codex, (SOURCE / "codex/pstack-models.md").read_bytes())
+        self.assertNotEqual(claude, codex)
+        changed, _ = refresh(SOURCE, homes, list(homes))
+        self.assertEqual(changed, [])
+
+    def test_pstack_models_upgrade_preserves_local_edits(self):
+        repo = self.root / "upgrade repo"
+        shutil.copytree(SOURCE, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        manifest = json.loads((repo / "portable.json").read_text())
+        old_manifest = dict(manifest)
+        old_manifest["assets"] = [
+            asset for asset in manifest["assets"]
+            if asset["destination"] != "pstack-models.md"
+        ] + [{"source": "pstack-models.md", "destination": "pstack-models.md",
+              "apps": ["claude", "codex"]}]
+        old_sheet = (SOURCE / "codex/pstack-models.md").read_bytes()
+        for edited in (False, True):
+            with self.subTest(edited=edited):
+                homes = {app: self.root / str(edited) / app
+                         for app in ("claude", "codex")}
+                (repo / "portable.json").write_text(json.dumps(old_manifest))
+                (repo / "pstack-models.md").write_bytes(old_sheet)
+                refresh(repo, homes, list(homes))
+                local = old_sheet + b"\nfeature, refactoring: local-model\n"
+                if edited:
+                    for home in homes.values():
+                        (home / "pstack-models.md").write_bytes(local)
+                (repo / "portable.json").write_text(json.dumps(manifest))
+                (repo / "pstack-models.md").write_bytes(
+                    (SOURCE / "pstack-models.md").read_bytes()
+                )
+                refresh(repo, homes, list(homes))
+                for app, home in homes.items():
+                    expected = local if edited else (
+                        SOURCE / ("pstack-models.md" if app == "claude"
+                                  else "codex/pstack-models.md")
+                    ).read_bytes()
+                    self.assertEqual((home / "pstack-models.md").read_bytes(), expected)
+                changed, _ = refresh(repo, homes, list(homes))
+                self.assertEqual(changed, [])
+
+    def test_real_cli_fresh_home_and_canary_output(self):
+        home = self.root / "CLI home"
+        env = dict(os.environ, ANTHROPIC_AUTH_TOKEN="secret-canary")
+        result = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("secret-canary", result.stdout + result.stderr)
+        rerun = subprocess.run(
+            [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(rerun.stdout, "Applied 0 file changes\n")
 
 
-if __name__ == '__main__':
+@unittest.skipUnless(os.name == "nt", "Windows PowerShell launcher")
+class WindowsLauncherTests(unittest.TestCase):
+    def test_npm_claude_native_entry_needs_no_node(self):
+        with tempfile.TemporaryDirectory(
+            prefix="native Claude with spaces "
+        ) as directory:
+            root = Path(directory)
+            executable = root / "node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b"fixture")
+            shim = root / "claude.cmd"
+            arguments = ["mcp", "get", "sentry"]
+            with patch.object(
+                shutil,
+                "which",
+                side_effect=lambda name: str(shim) if name == "claude" else None,
+            ):
+                self.assertEqual(
+                    argv_for("claude", arguments), [str(executable), *arguments]
+                )
+
+    def test_native_cmd_shim_and_scoped_longpaths(self):
+        with tempfile.TemporaryDirectory(
+            prefix="native shim with spaces "
+        ) as directory:
+            root = Path(directory)
+            script = root / "node_modules/@openai/codex/bin/codex.js"
+            script.parent.mkdir(parents=True)
+            script.write_text(
+                "import json, os, sys\n"
+                "print(json.dumps({'args': sys.argv[1:], 'count': os.environ['GIT_CONFIG_COUNT'], "
+                "'original': os.environ['GIT_CONFIG_VALUE_0'], 'key': os.environ['GIT_CONFIG_KEY_1'], "
+                "'value': os.environ['GIT_CONFIG_VALUE_1']}))\n"
+            )
+            shim = root / "codex.cmd"
+            shim.write_text("@exit /b 99\n")
+            arguments = [
+                "mcp",
+                "add-json",
+                json.dumps({"command": 'path with spaces & ^ %PATH% ! "quotes"'}),
+            ]
+            with (
+                patch.object(
+                    apps.shutil,
+                    "which",
+                    side_effect=lambda name: (
+                        sys.executable if name == "node" else str(shim)
+                    ),
+                ),
+                patch.dict(
+                    os.environ,
+                    GIT_CONFIG_COUNT="1",
+                    GIT_CONFIG_KEY_0="example.original",
+                    GIT_CONFIG_VALUE_0="retained",
+                ),
+            ):
+                result = apps.command("codex", arguments, root)
+                self.assertEqual(os.environ["GIT_CONFIG_COUNT"], "1")
+            self.assertEqual(result["args"], arguments)
+            self.assertEqual(result["count"], "2")
+            self.assertEqual(result["original"], "retained")
+            self.assertEqual(
+                (result["key"], result["value"]), ("core.longpaths", "true")
+            )
+
+    def test_missing_launcher_and_child_exit_code(self):
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if shell is None:
+            self.skipTest("PowerShell unavailable")
+        with tempfile.TemporaryDirectory(prefix="launcher with spaces ") as directory:
+            root = Path(directory)
+            env = dict(os.environ, PATH=str(root))
+            argv = [
+                shell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(SOURCE / "refresh.ps1"),
+            ]
+            missing = subprocess.run(argv, env=env, capture_output=True, text=True)
+            self.assertEqual(missing.returncode, 1, missing.stderr)
+            for name in ("python.cmd", "py.cmd"):
+                (root / name).write_text("@exit /b 7\n")
+                result = subprocess.run(argv, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 7, result.stderr)
+
+
+class NativeTests(unittest.TestCase):
+    def test_default_claude_home_retains_native_config_lookup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environments = []
+
+            def run(argv, **kwargs):
+                environments.append(kwargs["env"])
+                return subprocess.CompletedProcess(argv, 0, "[]", "")
+
+            with (
+                patch.object(Path, "home", return_value=root),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(apps.shutil, "which", return_value="claude.exe"),
+                patch.object(apps.subprocess, "run", run),
+            ):
+                apps.command("claude", ["plugin", "list", "--json"], root / ".claude")
+                self.assertNotIn("CLAUDE_CONFIG_DIR", environments[-1])
+                apps.command("claude", ["plugin", "list", "--json"], root / "custom")
+                self.assertEqual(
+                    environments[-1]["CLAUDE_CONFIG_DIR"], str(root / "custom")
+                )
+                os.environ["CLAUDE_CONFIG_DIR"] = str(root / ".claude")
+                apps.command("claude", ["plugin", "list", "--json"], root / ".claude")
+                self.assertEqual(
+                    environments[-1]["CLAUDE_CONFIG_DIR"], str(root / ".claude")
+                )
+
+    def test_failed_plugin_does_not_skip_later_restores(self):
+        plugins = [
+            {
+                "id": f"{name}@market",
+                "app": "claude",
+                "marketplace": "market",
+                "source": "https://github.com/test/market.git",
+                "kind": "native",
+                "enabled": True,
+            }
+            for name in ("broken", "working")
+        ]
+        found = []
+
+        def command(app, arguments, home, **kwargs):
+            if arguments[:3] == ["plugin", "list", "--json"]:
+                return found
+            if arguments[:3] == ["plugin", "marketplace", "list"]:
+                return [{"name": "market"}]
+            if arguments[1] == "install":
+                if arguments[2] == "broken@market":
+                    raise ValueError("native installation failed")
+                found.append({"id": arguments[2], "enabled": True})
+
+        with patch.object(apps, "command", command):
+            issues = apps.restore("claude", Path("unused"), plugins)
+        self.assertEqual([p["id"] for p in found], ["working@market"])
+        self.assertEqual(len(issues), 1)
+        self.assertIn("broken@market", issues[0])
+
+    def test_shapes_disabled_installs_and_idempotency(self):
+        plugin = {
+            "id": "example@market",
+            "app": "claude",
+            "marketplace": "market",
+            "source": "https://github.com/test/market.git",
+            "kind": "native",
+            "enabled": False,
+        }
+        found = {}
+        calls = []
+
+        def native(app, args, home, parse_json=True):
+            calls.append(args)
+            if args[1] == "list":
+                return list(found.values())
+            if args[1:3] == ["marketplace", "list"]:
+                return []
+            if args[1] == "install":
+                found[plugin["id"]] = {"id": plugin["id"], "enabled": True}
+            if args[1] == "disable":
+                self.assertFalse(parse_json)
+                found[plugin["id"]]["enabled"] = False
+            return {}
+
+        with patch.object(apps, "command", native):
+            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
+            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
+        self.assertEqual(sum(c[1] == "install" for c in calls), 1)
+        self.assertEqual(sum(c[1] == "disable" for c in calls), 1)
+
+    def test_sentry_existing_definition_never_replaced(self):
+        with patch.object(
+            apps, "command", return_value="existing private command"
+        ) as native:
+            apps.ensure_sentry(Path("/unused"), sys.executable)
+        self.assertEqual(native.call_count, 1)
+        self.assertFalse(native.call_args.kwargs["parse_json"])
+
+    def test_sentry_missing_created_then_observed(self):
+        with patch.object(
+            apps, "command", side_effect=[None, "Added", "Existing"]
+        ) as native:
+            apps.ensure_sentry(Path("/unused"), sys.executable)
+        self.assertEqual(native.call_count, 3)
+        self.assertEqual(native.call_args_list[1].args[1][1], "add-json")
+
+    def test_codex_object_shape_and_missing_capability(self):
+        with patch.object(
+            apps,
+            "command",
+            return_value={"installed": [{"pluginId": "x@y", "enabled": False}]},
+        ):
+            self.assertIn("x@y", apps.installed("codex", Path("/unused")))
+        with patch.object(apps, "command", side_effect=ValueError("CLI missing")):
+            self.assertEqual(
+                apps.restore("codex", Path("/unused"), []), ["CLI missing"]
+            )
+
+    def test_failed_native_command_redacts_output(self):
+        result = subprocess.CompletedProcess([], 1, "canary-secret", "canary-secret")
+        with (
+            patch.object(apps.shutil, "which", return_value="claude"),
+            patch.object(apps.subprocess, "run", return_value=result),
+        ):
+            with self.assertRaises(ValueError) as error:
+                apps.command("claude", ["plugin", "list", "--json"], Path("/unused"))
+        self.assertNotIn("canary-secret", str(error.exception))
+
+    def test_runtime_plugins_not_restored_as_native(self):
+        plugin = {"id": "x@runtime", "kind": "app-provided", "enabled": False}
+        with (
+            patch.object(apps, "installed", return_value={}),
+            patch.object(apps, "command", return_value=[]),
+        ):
+            issues = apps.restore("codex", Path("/unused"), [plugin])
+        self.assertTrue(any("app availability" in issue for issue in issues))
+
+
+if __name__ == "__main__":
     unittest.main()

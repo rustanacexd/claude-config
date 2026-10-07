@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "source": "CLAUDE.md",
+      "destination": "CLAUDE.md",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "codex/AGENTS.md",
+      "destination": "AGENTS.md",
+      "apps": [
+        "codex"
+      ]
+    },
+    {
+      "source": "pstack-models.md",
+      "destination": "pstack-models.md",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "codex/pstack-models.md",
+      "destination": "pstack-models.md",
+      "apps": [
+        "codex"
+      ]
+    },
+    {
+      "source": "output-styles",
+      "destination": "output-styles",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "statusline.py",
+      "destination": "statusline.py",
+      "apps": [
+        "claude"
+      ]
+    },
+    {
+      "source": "sentry_mcp.py",
+      "destination": "sentry_mcp.py",
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    {
+      "source": "skills/explain-diff-html",
+      "destination": "skills/explain-diff-html",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "skills/show-me",
+      "destination": "skills/show-me",
+      "apps": [
+        "claude",
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "native_command.py",
+      "destination": "native_command.py",
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    {
+      "source": "SKILLS.md",
+      "destination": "SKILLS.md",
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    }
+  ]
+}
