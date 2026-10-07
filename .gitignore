@@ -1,0 +1,11 @@
+/codex/config.toml
+/codex/.template.snapshot.toml
+/codex/.refresh.journal.json
+/codex/.refresh.lock
+/codex/config.toml.tmp
+/codex/.template.snapshot.toml.tmp
+/codex/.refresh.journal.json.tmp
+/codex/__pycache__/
+
+/tests/__pycache__/
+/codex/.tmp*

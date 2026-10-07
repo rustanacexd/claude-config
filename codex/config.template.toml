@@ -1,0 +1,95 @@
+"service_tier" = "default"
+"model" = "gpt-6.1-sol"
+"model_reasoning_effort" = "medium"
+"model_verbosity" = "low"
+"model_reasoning_summary" = "concise"
+"web_search" = "cached"
+"approvals_reviewer" = "guardian_subagent"
+"approval_policy" = "on-request"
+"sandbox_mode" = "workspace-write"
+
+["features"]
+"fast_mode" = true
+"hooks" = true
+"js_repl" = false
+"multi_agent" = true
+
+["plugins"]
+
+["plugins"."visualize@openai-bundled"]
+"enabled" = false
+
+["plugins"."documents@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."pdf@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."spreadsheets@openai-primary-runtime"]
+"enabled" = true
+
+["plugins"."presentations@openai-primary-runtime"]
+"enabled" = true
+
+["plugins"."template-creator@openai-primary-runtime"]
+"enabled" = true
+
+["plugins"."codex-app-tools@openai-bundled"]
+"enabled" = true
+
+["plugins"."pstack@pstack-claude"]
+"enabled" = true
+
+["plugins"."browser@openai-bundled"]
+"enabled" = true
+
+["plugins"."unified-computer-use@openai-bundled"]
+"enabled" = true
+
+["plugins"."chrome@openai-bundled"]
+"enabled" = true
+
+["plugins"."computer-use@openai-bundled"]
+"enabled" = true
+
+["plugins"."code-review@openai-bundled"]
+"enabled" = true
+
+["desktop"]
+"followUpQueueMode" = "steer"
+"conversationDetailMode" = "STEPS_COMMANDS"
+"ambient-suggestions-enabled" = false
+"enabled-reasoning-efforts" = ["low", "medium", "high", "xhigh", "persistent"]
+"appearanceDarkCodeThemeId" = "codex"
+"keepRemoteControlAwakeWhilePluggedIn" = true
+
+["desktop"."appearanceDarkChromeTheme"]
+"accent" = "#0169cc"
+"accentSource" = "custom"
+"contrast" = 60
+"ink" = "#fcfcfc"
+"opaqueWindows" = false
+"surface" = "#111111"
+
+["desktop"."appearanceDarkChromeTheme"."fonts"]
+
+["desktop"."appearanceDarkChromeTheme"."semanticColors"]
+"diffAdded" = "#00a240"
+"diffRemoved" = "#e02e2a"
+"skill" = "#b06dff"
+
+["marketplaces"]
+
+["marketplaces"."pstack-claude"]
+"source_type" = "git"
+"source" = "https://github.com/michael-denyer/pstack-claude.git"
+
+["mcp_servers"]
+
+["mcp_servers"."exa"]
+"url" = "https://mcp.exa.ai/mcp?tools=web_search_exa,web_fetch_exa,agent_run,web_search_advanced_exa"
+"bearer_token_env_var" = "EXA_API_KEY"
+
+["tui"]
+"status_line" = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number", "context-remaining"]
+"status_line_use_colors" = true

@@ -1,7 +1,13 @@
 #!/bin/sh
-# Sync ~/.claude with this repo. Run from anywhere. Safe to run twice.
 set -e
 REPO=$(cd "$(dirname "$0")" && pwd)
+case "${1-}" in
+  ""|--codex-only) ;;
+  *) echo "Usage: $0 [--codex-only]" >&2; exit 2 ;;
+esac
+[ "$#" -le 1 ] || { echo "Usage: $0 [--codex-only]" >&2; exit 2; }
+python3 "$REPO/codex/refresh.py"
+[ "${1-}" != --codex-only ] || exit 0
 DEST=~/.claude
 mkdir -p "$DEST/output-styles" "$DEST/skills"
 
