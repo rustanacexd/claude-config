@@ -70,32 +70,238 @@ class RefreshTests(unittest.TestCase):
 
     def test_real_cli_legacy_directory_links(self):
         home = self.root / "legacy CLI"
-        snapshots = {p: (p.read_bytes(), p.stat().st_mtime_ns)
-                     for p in (SOURCE / "skills/show-me").rglob("*") if p.is_file()}
+        snapshots = {
+            p: (p.read_bytes(), p.stat().st_mtime_ns)
+            for p in (SOURCE / "skills/show-me").rglob("*")
+            if p.is_file()
+        }
         for app in ("claude", "codex"):
             root = home / app / "skills"
             root.mkdir(parents=True)
             target = SOURCE / "skills/show-me"
             (root / "show-me").symlink_to(
-                target if app == "claude" else os.path.relpath(target, root),
+                target if app == "claude" else os.path.relpath(target, root.resolve()),
                 target_is_directory=True,
             )
         result = subprocess.run(
             [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         for app in ("claude", "codex"):
             self.assertFalse((home / app / "skills/show-me").is_symlink())
-            self.assertEqual((home / app / "skills/show-me/SKILL.md").read_bytes(),
-                             (SOURCE / "skills/show-me/SKILL.md").read_bytes())
-        self.assertEqual(snapshots, {p: (p.read_bytes(), p.stat().st_mtime_ns)
-                                     for p in snapshots})
+            self.assertEqual(
+                (home / app / "skills/show-me/SKILL.md").read_bytes(),
+                (SOURCE / "skills/show-me/SKILL.md").read_bytes(),
+            )
+        self.assertEqual(
+            snapshots, {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in snapshots}
+        )
         result = subprocess.run(
             [sys.executable, str(SOURCE / "manage.py"), "refresh", "--home", str(home)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.stdout, "Applied 0 file changes\n")
+
+    def legacy_root(self, home=None, destination="skills/example"):
+        home = self.home if home is None else home
+        path = home / destination
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(self.repo / "skills/example", target_is_directory=True)
+        return path
+
+    def test_directory_link_remapped_nested_empty_and_foreign(self):
+        (self.repo / "skills/example/empty/deeper").mkdir(parents=True)
+        manifest = json.loads((self.repo / "portable.json").read_text())
+        manifest["assets"][1]["destination"] = "remapped/skill"
+        (self.repo / "portable.json").write_text(json.dumps(manifest))
+        root = self.legacy_root(destination="remapped/skill")
+        self.run_refresh()
+        self.assertFalse(root.is_symlink())
+        self.assertTrue((root / "empty/deeper").is_dir())
+        self.assertEqual((root / "references/detail.md").read_text(), "nested")
+        self.assertEqual(self.run_refresh()[0], [])
+        shutil.rmtree(root)
+        foreign = self.root / "foreign"
+        foreign.mkdir()
+        root.symlink_to(foreign, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Foreign"):
+            self.run_refresh()
+        self.assertTrue(root.is_symlink())
+
+    def test_remapped_child_file_link_uses_manifest_source(self):
+        manifest = json.loads((self.repo / "portable.json").read_text())
+        manifest["assets"][1]["destination"] = "remapped/skill"
+        (self.repo / "portable.json").write_text(json.dumps(manifest))
+        root = self.home / "remapped/skill"
+        root.mkdir(parents=True)
+        (root / "SKILL.md").symlink_to(self.repo / "skills/example/SKILL.md")
+        self.run_refresh()
+        self.assertFalse((root / "SKILL.md").is_symlink())
+        self.assertEqual((root / "SKILL.md").read_text(), "skill")
+
+    def test_invalid_second_app_journal_payload_no_first_app_write(self):
+        root = self.legacy_root()
+        other = self.root / "claude"
+        state = other / ".claude-config"
+        state.mkdir(parents=True)
+        transaction = {
+            "schema": 1,
+            "baseline": {"schema": 1, "files": {}, "config": {}},
+            "roots": [None],
+            "updates": [],
+        }
+        (state / "journal.json").write_text(json.dumps(transaction))
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertTrue(root.is_symlink())
+        self.assertFalse((self.home / ".claude-config").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows directory junction")
+    def test_windows_junction_is_rejected_without_target_write(self):
+        root = self.home / "skills/example"
+        root.parent.mkdir(parents=True)
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(root), str(self.repo / "skills/example")],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        before = (self.repo / "skills/example/SKILL.md").read_bytes()
+        with self.assertRaisesRegex(ValueError, "Foreign"):
+            self.run_refresh()
+        self.assertEqual((self.repo / "skills/example/SKILL.md").read_bytes(), before)
+        root.rmdir()
+
+    def test_directory_link_unsafe_ancestors_and_broken_roots(self):
+        for kind in ("ancestor", "broken", "reparse"):
+            with self.subTest(kind=kind):
+                home = self.root / kind
+                home.mkdir()
+                if kind == "ancestor":
+                    (home / "skills").symlink_to(self.repo / "skills", target_is_directory=True)
+                elif kind == "broken":
+                    (home / "skills").mkdir()
+                    (home / "skills/example").symlink_to(self.root / "missing", target_is_directory=True)
+                else:
+                    (home / "skills/example").mkdir(parents=True)
+                original = install.linked
+
+                def linked(path):
+                    return (kind == "reparse" and path == home / "skills/example") or original(path)
+
+                with patch("portable.manage.linked", linked):
+                    with self.assertRaises(ValueError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertFalse((home / ".claude-config").exists())
+
+    def test_directory_link_empty_asset(self):
+        shutil.rmtree(self.repo / "skills/example")
+        (self.repo / "skills/example").mkdir()
+        root = self.legacy_root()
+        self.run_refresh()
+        self.assertTrue(root.is_dir())
+        self.assertFalse(root.is_symlink())
+        self.assertEqual(self.run_refresh()[0], [])
+
+    def test_directory_link_second_app_failure_leaves_first_link(self):
+        root = self.legacy_root()
+        other = self.root / "claude"
+        other.mkdir()
+        (other / "settings.json").write_text("bad")
+        with self.assertRaises(ValueError):
+            refresh(
+                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
+            )
+        self.assertTrue(root.is_symlink())
+        self.assertFalse((self.home / ".claude-config").exists())
+
+    def test_directory_link_recovery_boundaries_and_app_edits(self):
+        for boundary in ("journal", "unlink", "mkdir", "detail", "baseline"):
+            with self.subTest(boundary=boundary):
+                home = self.root / boundary
+                root = self.legacy_root(home)
+                atomic, unlink, mkdir, rmdir = (
+                    install.atomic,
+                    Path.unlink,
+                    Path.mkdir,
+                    Path.rmdir,
+                )
+                crashed = False
+
+                def stop():
+                    nonlocal crashed
+                    if not crashed:
+                        crashed = True
+                        raise RuntimeError("crash")
+
+                def write(path, data):
+                    atomic(path, data)
+                    if (
+                        (boundary == "journal" and path.name == "journal.json")
+                        or (boundary == "detail" and path.name == "detail.md")
+                        or (boundary == "baseline" and path.name == "baseline.json")
+                    ):
+                        stop()
+
+                def remove(path, *args, **kwargs):
+                    unlink(path, *args, **kwargs)
+                    if boundary == "unlink" and path == root:
+                        stop()
+
+                def remove_directory(path, *args, **kwargs):
+                    rmdir(path, *args, **kwargs)
+                    if boundary == "unlink" and path == root:
+                        stop()
+
+                def create(path, *args, **kwargs):
+                    mkdir(path, *args, **kwargs)
+                    if boundary == "mkdir" and path == root:
+                        stop()
+
+                with (
+                    patch.object(install, "atomic", write),
+                    patch.object(Path, "unlink", remove),
+                    patch.object(Path, "mkdir", create),
+                    patch.object(Path, "rmdir", remove_directory),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertFalse(root.is_symlink())
+                self.assertEqual((root / "references/detail.md").read_text(), "nested")
+                self.assertFalse((home / ".claude-config/journal.json").exists())
+        for edit in ("retarget", "extra", "changed"):
+            with self.subTest(edit=edit):
+                home = self.root / edit
+                root = self.legacy_root(home)
+                atomic = install.atomic
+
+                def interrupt(path, data):
+                    atomic(path, data)
+                    if path.name == (
+                        "journal.json" if edit == "retarget" else "detail.md"
+                    ):
+                        raise RuntimeError("crash")
+
+                with patch.object(install, "atomic", interrupt):
+                    with self.assertRaises(RuntimeError):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                if edit == "retarget":
+                    root.unlink()
+                    root.symlink_to(self.repo / "codex", target_is_directory=True)
+                else:
+                    (
+                        root
+                        / ("extra.md" if edit == "extra" else "references/detail.md")
+                    ).write_text("user edit")
+                with self.assertRaisesRegex(ValueError, "interrupted"):
+                    refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertTrue((home / ".claude-config/journal.json").exists())
 
     def test_fresh_machine_and_identical_rerun(self):
         with patch.object(Path, "symlink_to", side_effect=OSError("no privilege")):

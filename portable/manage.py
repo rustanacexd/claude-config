@@ -5,7 +5,16 @@ import re
 import sys
 import tomllib
 from .config import merge, equal, render
-from .install import read, safe_path, locked, recover, publish, fingerprint
+from .install import (
+    read,
+    safe_path,
+    locked,
+    recover,
+    publish,
+    fingerprint,
+    linked,
+    validate_journal,
+)
 
 
 def relative(value):
@@ -168,7 +177,53 @@ def parse(app, data):
     return result
 
 
-def plan(repo, manifest, plugins, app, home, state):
+def directory_roots(repo, manifest, app, home):
+    roots = []
+    for asset in manifest["assets"]:
+        if app not in asset["apps"] or not (repo / asset["source"]).is_dir():
+            continue
+        path = safe_path(home, asset["destination"])
+        if linked(path):
+            if (
+                not path.is_symlink()
+                or path.resolve() != (repo / asset["source"]).resolve()
+            ):
+                raise ValueError("Foreign or broken managed directory link")
+            roots.append(
+                {
+                    "path": asset["destination"],
+                    "source": asset["source"],
+                    "link": str(path.readlink()),
+                    "directories": [
+                        asset["destination"]
+                        + "/"
+                        + d.relative_to(repo / asset["source"]).as_posix()
+                        for d in (repo / asset["source"]).rglob("*")
+                        if d.is_dir()
+                    ],
+                }
+            )
+    return roots
+
+
+def asset_source(repo, manifest, app, dest):
+    for asset in manifest["assets"]:
+        if app not in asset["apps"]:
+            continue
+        source = repo / asset["source"]
+        if dest == asset["destination"]:
+            return source
+        if source.is_dir() and dest.startswith(asset["destination"] + "/"):
+            return source / dest[len(asset["destination"]) + 1 :]
+    raise ValueError("Destination has no manifest source")
+
+
+def under_root(dest, roots):
+    return any(dest.startswith(root["path"] + "/") for root in roots)
+
+
+def plan(repo, manifest, plugins, app, home, state, roots=None):
+    roots = directory_roots(repo, manifest, app, home) if roots is None else roots
     files, name, shared = desired(repo, manifest, plugins, app, home)
     if (state / "baseline.json").is_symlink():
         raise ValueError("Baseline must not be a symlink")
@@ -206,12 +261,16 @@ def plan(repo, manifest, plugins, app, home, state):
     owned = {}
     issues = []
     for dest, data in files.items():
-        path = safe_path(home, dest)
-        current = read(path)
+        converting = under_root(dest, roots)
+        path = home / dest if converting else safe_path(home, dest)
+        current = None if converting else read(path)
         current_hash = None if current is None else hashlib.sha256(current).hexdigest()
         new_hash = hashlib.sha256(data).hexdigest()
         previous = baseline["files"].get(dest)
-        if current == data:
+        if converting:
+            updates[dest] = data
+            owned[dest] = new_hash
+        elif current == data:
             owned[dest] = new_hash
             if path.is_symlink():
                 updates[dest] = data
@@ -224,7 +283,7 @@ def plan(repo, manifest, plugins, app, home, state):
             or (
                 previous is None
                 and path.is_symlink()
-                and path.resolve() == (repo / dest).resolve()
+                and path.resolve() == asset_source(repo, manifest, app, dest).resolve()
             )
         ):
             updates[dest] = data
@@ -235,7 +294,7 @@ def plan(repo, manifest, plugins, app, home, state):
             issues.append(f"{app}: local file retained: {dest}")
     for dest, previous in baseline["files"].items():
         relative(dest)
-        if dest not in files:
+        if dest not in files and not under_root(dest, roots):
             path = safe_path(home, dest)
             current = read(path)
             if current is not None and hashlib.sha256(current).hexdigest() == previous:
@@ -245,11 +304,18 @@ def plan(repo, manifest, plugins, app, home, state):
     if output != live_bytes or (home / name).is_symlink():
         updates[name] = output
     for dest in files:
+        if under_root(dest, roots):
+            continue
         path = safe_path(home, dest)
         if path.is_symlink() and dest not in updates:
             updates[dest] = read(path)
     updates = {
-        dest: (data, fingerprint(safe_path(home, dest)))
+        dest: (
+            data,
+            {"hash": None, "link": None}
+            if under_root(dest, roots)
+            else fingerprint(safe_path(home, dest)),
+        )
         for dest, data in updates.items()
     }
     return updates, {"schema": 1, "files": owned, "config": shared}, issues
@@ -262,17 +328,21 @@ def refresh(repo, homes, apps):
             "Legacy Codex journal must be recovered using the old refresh version before migration"
         )
     for app in apps:
-        plan(repo, manifest, plugins, app, homes[app], homes[app] / ".claude-config")
+        home = homes[app]
+        state = home / ".claude-config"
+        if not validate_journal(home, state, repo, manifest, app):
+            plan(repo, manifest, plugins, app, home, state)
     changed = []
     issues = []
     for app in apps:
         home = homes[app]
         with locked(home) as state:
-            recover(home, state)
+            recover(home, state, repo, manifest, app)
+            roots = directory_roots(repo, manifest, app, home)
             updates, baseline, retained = plan(
-                repo, manifest, plugins, app, home, state
+                repo, manifest, plugins, app, home, state, roots
             )
-            publish(home, state, updates, baseline)
+            publish(home, state, updates, baseline, roots, repo, manifest, app)
             changed.extend(f"{app}: {p}" for p in updates)
             issues.extend(retained)
     return changed, issues
