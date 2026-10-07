@@ -3,13 +3,13 @@
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.
 
 1. Route by question.
-   - Programming documentation, APIs, SDK examples, configuration, and debugging: use the `code-search-exa` skill.
-   - Other web research: use Codex's `web.run` tool first; use the `web-search-exa` skill when built-in search fails or returns too little.
+   - Programming documentation, APIs, SDK examples, configuration, and debugging: use the installed Exa plugin and its bundled Search skill.
+   - Other web research: follow the installed Exa plugin's bundled Search skill when external research is needed.
    - Connected-service data: use the matching connector when one is available.
    - Codebase questions: use repository search and project documentation before internet search.
 2. Increase depth only when the question requires it.
    - Start with 1-2 focused searches and open or fetch the strongest results.
-   - Use the Exa Agent through `mcp__exa__agent_run` for unresolved multi-hop research, following the selected Exa skill's instructions.
+   - For unresolved multi-hop research, follow the installed Exa plugin's research workflow and available tools.
 3. For programming questions, rely on primary sources such as official documentation, specifications, and upstream repositories. For other topics, prefer authoritative sources and corroborate material claims when practical.
 4. Stop when authoritative sources support the answer or when the available evidence clearly shows that the information cannot be found. Cite the supporting page URLs in the response.
 

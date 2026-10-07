@@ -1,74 +1,62 @@
 # claude-config
 
-Shared Claude Code and Codex settings, kept in git and linked into each app's home directory.
+Shared Claude Code and Codex settings, kept in git and symlinked into each app's home directory.
 
 ## Set up a machine
 
-Install Python 3.11 or newer on macOS or Linux, then clone this repository and run:
+Install Python 3.11 or newer on macOS or Linux, then run:
 
 ```sh
-git clone <repository-url> ~/code/claude-config
+git clone https://github.com/rustanacexd/claude-config.git ~/code/claude-config
 cd ~/code/claude-config
 ./refresh.sh
 ```
 
-Restart Claude Code and Codex after the first setup. The script uses its own location, so you can put the repository anywhere.
+Restart both apps after setup. Use `./refresh.sh --codex-only` to configure only Codex. The repo can live anywhere.
 
-To set up only Codex, run:
-
-```sh
-./refresh.sh --codex-only
-```
-
-Codex uses `CODEX_HOME` when set, otherwise `~/.codex`. Claude uses `~/.claude`. Codex validation runs first, so an invalid Codex template or live config stops setup before Claude adoption.
+Claude uses `~/.claude`. Codex uses `CODEX_HOME` when set, otherwise `~/.codex`. Use a separate clone for each machine or Codex home.
 
 | Repository file | Destination |
 | --- | --- |
 | `settings.json` | `~/.claude/settings.json` |
-| `AGENTS.md` | `~/.claude/CLAUDE.md` |
+| `CLAUDE.md` | `~/.claude/CLAUDE.md` |
 | `pstack-models.md` | `~/.claude/pstack-models.md` |
 | `statusline.sh` | `~/.claude/statusline.sh` |
 | `output-styles/*.md` | `~/.claude/output-styles/` |
 | `skills/*/` | `~/.claude/skills/` |
-| `codex/AGENTS.md` | `$CODEX_HOME/AGENTS.md` |
-| Generated `codex/config.toml` | `$CODEX_HOME/config.toml` |
+| `codex/AGENTS.md` | `~/.codex/AGENTS.md` |
+| Generated `codex/config.toml` | `~/.codex/config.toml` |
 
-Sessions, history, caches, authentication, plugin installations, and local-only skills stay outside the tracked configuration. Provision local hook commands, their trust state, plugin marketplaces with local paths, and credentials on each machine. The Exa default expects `EXA_API_KEY` in your environment. Enable preferences do not install plugins or authenticate services.
+Install plugins, local hooks, and credentials separately. Exa expects `EXA_API_KEY` in your environment. Sessions, caches, authentication, and local-only skills stay untracked.
 
 ## Save shared changes
 
-For Claude, run `./refresh.sh`, review the diff, then commit. Refresh adopts real Claude files into the repository and restores their links. It also adopts new output styles. It never sweeps local Claude skills for adoption. Broken Claude links are removed only when their target belongs to this repository.
+For Claude, run `./refresh.sh`, review the diff, then commit. Refresh adopts real Claude files and new output styles into the repo, then restores their links. Local-only skills and plugin links stay untouched.
 
-For Codex, edit `codex/config.template.toml` for shared defaults or `codex/AGENTS.md` for shared instructions. Run `./refresh.sh --codex-only`, review the diff, then commit. Existing Codex instructions are backed up before the shared instructions replace them.
+For Codex, edit `codex/config.template.toml` for shared settings or `codex/AGENTS.md` for instructions. Run `./refresh.sh --codex-only`, review the diff, then commit.
 
-The template contains portable preferences. Keep project trust, hook state, absolute installation paths, app-managed MCP commands, credentials, skill lists, version records, and onboarding state out of it.
+Keep credentials, project trust, hook state, installation paths, and app-managed settings out of the template. Generated Codex settings and refresh state stay gitignored with owner-only permissions.
 
-## Keep Codex changes local
+## Keep Codex settings local
 
-Change local settings through Codex or its live `config.toml`. Refresh reads that live file, including a regular file that the app wrote over its symlink, and preserves unknown local sections.
+Change local settings through Codex or `~/.codex/config.toml`. Refresh preserves existing values on first setup and later local edits or deletions. It also repairs links replaced by the app.
 
-Refresh compares the live config with the last applied template. A value that still equals the previous default follows the new default, including its removal. A local edit or deletion wins a shared change. Deleting a whole table keeps that table absent. Arrays are compared as complete values. Newly introduced defaults fill missing keys, except inside a locally deleted table. The first setup preserves existing values and fills missing defaults.
+Unchanged defaults follow template updates. Local overrides win conflicts. To follow shared defaults again, set the local value to the current template value.
 
-Refresh reports conflicting key paths without printing values. To return a locally overridden key to shared defaults, set it to the current template value. The next shared change then applies. If a shared key is absent from the template, remove its local value to drop it.
+Unchanged settings retain their formatting. Updates may remove comments from the generated file. Run refresh while Codex is idle.
 
-If a refresh changes no settings, it preserves the live config's bytes and comments. A semantic change rewrites the generated file as valid TOML and may remove its comments. Template comments remain tracked.
+## Restore or recover
 
-Generated config, the previous-template snapshot, the recovery journal, temporary files, and the lock stay ignored and have owner-only permissions. They belong to one machine. Use separate clones on different machines or for different `CODEX_HOME` installations.
+Codex backs up files before replacing them under `$CODEX_HOME/backups/`, or `~/.codex/backups/` when unset. Foreign symlink targets stay untouched.
 
-## Restore backups and interrupted refreshes
+To restore a file, remove its home symlink and copy the backup there. Foreign links include a `.symlink.json` record of their original target.
 
-Before replacing a regular file or foreign symlink, Codex refresh saves its content under `$CODEX_HOME/backups/<date-and-time>-<unique-suffix>/`. A foreign symlink also gets a `.symlink.json` file recording its original target. Refresh replaces the link itself and leaves the foreign target unchanged. Correct links create no new backups. Backup directories have mode `0700`; backup files have mode `0600`.
+After an interrupted refresh, rerun the command. If recovery reports changed files, preserve the config, instructions, backups, and `codex/.refresh.journal.json` before reconciling. Once reconciled, remove the journal to start a new merge.
 
-To restore an original file, remove its home symlink and copy the matching backup to that home path. For a foreign symlink, recreate the recorded target instead. Run refresh again only when you want to reapply the shared setup.
-
-Refresh journals config, template, and instructions publication. After an interruption, rerun the same command. It finishes the prepared update when the observed files match the recorded before or after versions. If Codex changed config or local instructions changed before their link was installed during that interruption, refresh stops and retains the journal. Edits through an already correct instructions link remain in the shared target. Preserve the live config and instructions, generated file, journal, and backups before reconciling the versions. The journal contains base64 copies of the proposed config and template. After reconciliation, remove the journal to start a new merge, or restore a recorded version and rerun to finish the transaction.
-
-Run refresh while Codex is idle. The refresh lock serializes refresh processes, but Codex does not share that lock. An app write during the short replacement window can race with refresh.
-
-## Test without changing app homes
+## Test
 
 ```sh
 python3 -m unittest discover -s tests -v
 ```
 
-Tests use temporary repositories and app homes. One test reads the current config as a fixture and verifies byte preservation without writing it. The suite covers local edits and deletions, shared updates, backups, foreign symlinks, app link replacement, invalid TOML, interrupted publication, and both shell setup paths.
+Tests use temporary repositories and app homes.

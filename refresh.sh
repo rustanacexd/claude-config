@@ -38,7 +38,7 @@ for d in "$REPO"/skills/*/; do
 done
 
 link settings.json
-link AGENTS.md CLAUDE.md
+link CLAUDE.md
 link pstack-models.md
 link statusline.sh
 for f in "$REPO"/output-styles/*.md; do

@@ -15,11 +15,12 @@ Use the `TodoWrite` tool for every todolist.
 
 # Search routing
 
-Answer from the repo, conversation, or installed skills before searching. Programming
-questions go to the `code-search-exa` skill; everything else to `WebSearch`/`WebFetch`,
-falling back to `web-search-exa` when those return too little. Use `mcp__exa__agent_run`
-in a subagent only after ordinary searching fails, and resume it with `runId`. Stop once
-results corroborate an answer or show it is unavailable, and cite URLs.
+Answer from the repo, conversation, or installed skills before searching. For external
+research, programming or otherwise, use the Exa plugin: start with 1-2 focused searches
+with its search tool and fetch the strongest sources with its fetch tool. Invoke the
+plugin's `search` skill only when the question needs multi-source research. For
+programming, prefer primary sources: official docs, specs, and upstream repos. Stop once
+sources support an answer or show it is unavailable, and cite the supporting URLs.
 
 # Stacked PRs
 
