@@ -59,6 +59,23 @@ search itself answers. To work while a delegate holds a worktree, use a second o
 reset another agent's database, rebase, `git checkout --`, or commit work you did not
 write in its worktree.
 
+# Attack the premise on the second failed round
+
+When a review or verify gate returns findings on the same PR, file, or behaviour for a
+second round, invoke `pstack:principle-attack-the-premise` with the Skill tool before
+writing the next fix or brief. A verifier saying "another round would close it" counts.
+Name the assumption the earlier fixes shared and the observation that could falsify it.
+No further fix may rest on that assumption until the observation runs.
+
+A coordinator writes this rule into every owner brief from round 2 onward. An owner
+applies it on its own when its trail shows an earlier fix in the same area that failed
+the same gate.
+
+# Citing principles
+
+Name a principle as applied only if you loaded its SKILL.md with the Skill tool in this
+session. Briefs ask for the Skill tool, not `cat`.
+
 # Cross-model work
 
 Claude models are one family and Codex models are another. When a pstack skill asks for a
