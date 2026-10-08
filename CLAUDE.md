@@ -76,6 +76,35 @@ the same gate.
 Name a principle as applied only if you loaded its SKILL.md with the Skill tool in this
 session. Briefs ask for the Skill tool, not `cat`.
 
+# Long pstack runs
+
+Extend the playbook's existing checkpoint and child ledger rather than making parallel
+records. Keep user approvals with their original message references. Before asking again,
+check that scope and authorization are still the same. Run observable comparisons before
+asking for a preference or approval, while preserving explicit user gates.
+
+Before fan-out, record required reviews, the project driver, coverage gaps, and the final
+integrated-stack check. If merges auto-deploy, verify each intermediate deployment state.
+Record recurring operator work in the acceptance criteria. Before declaring ready,
+reconcile external review threads with their current-head dispositions. Treat a new
+user requirement as a scope change, not evidence that an earlier review covered it.
+
+When the installed pstack version changes, refresh the active playbook and the workflows
+it delegates to before the next dispatch. Record the version in the checkpoint and pass
+changed requirements to owners. Do not keep an old autopilot-full policy merely because
+the current autopilot-stack file was read.
+
+When a nested result reaches the coordinator, use the child ledger to deliver it to its
+owner before waiting again. Record whether the child uses native agents or T3 delegation
+and use that runtime's status and delivery tools. A missing owner ID is a ledger failure
+to repair, not a reason to abandon the result. A completion notice or an empty process
+search alone does not establish that the task and its children have stopped.
+
+Assign one owner to each shared live-test environment and one CI observer per PR.
+Parallelize isolated work. When T3's watch_pull_request is available, the root arms it
+and relays check changes to owners. Otherwise use the selected playbook's watcher.
+Do not run duplicate pollers or competing live sessions on the same shared environment.
+
 # Cross-model work
 
 Claude models are one family and Codex models are another. When a pstack skill asks for a
