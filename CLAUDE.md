@@ -53,11 +53,11 @@ did not make, leave them alone and report them in your first sentence.
 
 # Delegated worktrees
 
-A delegated worktree is the subagent's until you prove it idle. A task-notification is not
-proof. Run `pgrep -f <worktree path>` before writing there and stop if anything but the
-search itself answers. To work while a delegate holds a worktree, use a second one. Never
-reset another agent's database, rebase, `git checkout --`, or commit work you did not
-write in its worktree.
+A delegated worktree remains its owner's until the runtime confirms the owner and
+its children have stopped or explicitly handed it off. Check for remaining processes
+before mutating the checkout; an empty process search alone is not a handoff.
+Use another worktree while ownership is active. Never reset another agent's database,
+rebase its branch, discard its files, or commit its unfinished work.
 
 # Attack the premise on the second failed round
 
@@ -78,32 +78,57 @@ session. Briefs ask for the Skill tool, not `cat`.
 
 # Long pstack runs
 
-Extend the playbook's existing checkpoint and child ledger rather than making parallel
-records. Keep user approvals with their original message references. Before asking again,
-check that scope and authorization are still the same. Run observable comparisons before
-asking for a preference or approval, while preserving explicit user gates.
+Keep one current execution contract in the playbook's checkpoint and owner brief,
+not another policy file. Record scope, approval message references, required review
+lanes, driver scenarios, repeat counts and their reasons, and the final integrated
+check and coverage gaps. Include known run costs and label estimates. Replace
+superseded rules and exceptions rather than appending overrides.
+An agent proposal is not user approval. A deadline does not drop required scope
+or grant merge authority. Reuse approvals while their scope remains the same.
 
-Before fan-out, record required reviews, the project driver, coverage gaps, and the final
-integrated-stack check. If merges auto-deploy, verify each intermediate deployment state.
-Record recurring operator work in the acceptance criteria. Before declaring ready,
-reconcile external review threads with their current-head dispositions. Treat a new
-user requirement as a scope change, not evidence that an earlier review covered it.
+Use the selected playbook's required review lanes; do not accumulate duplicate
+gates from every routed skill. Resolve conflicting requirements before dispatch.
+Interrogate is for a contested design or an explicit user requirement, not an
+extra routine gate. Schedule required design review before dependent work where
+possible; preserve any user-specified final review. Later rounds check the fix,
+its affected behavior and required gates, not the entire original review panel.
+Classify findings against the base and acceptance criteria before reopening.
+Track unrelated pre-existing defects separately; inherited defects that defeat
+acceptance still block. At the playbook's round limit, escalate the surviving
+defect with evidence. A round limit never makes a failing result acceptable.
 
-When the installed pstack version changes, refresh the active playbook and the workflows
-it delegates to before the next dispatch. Record the version in the checkpoint and pass
-changed requirements to owners. Do not keep an old autopilot-full policy merely because
-the current autopilot-stack file was read.
+Default to one successful run per required verification lane at the applicable head.
+Repeat for changed behavior, dependencies or acceptance requirements, an invalid
+receipt, observed instability, required independent proof, or performance sampling.
+Record the reason before repeating. New scope needs its own review and coverage. Do not rerun a historical mutation suite for an unrelated fix.
+Keep head, base, patch identity, scenario and environment with each receipt.
+After a rewrite, check the new base and dependencies before retaining evidence;
+an unchanged patch alone is insufficient. Required fresh CI and merge checks stay.
 
-When a nested result reaches the coordinator, use the child ledger to deliver it to its
-owner before waiting again. Record whether the child uses native agents or T3 delegation
-and use that runtime's status and delivery tools. A missing owner ID is a ledger failure
-to repair, not a reason to abandon the result. A completion notice or an empty process
-search alone does not establish that the task and its children have stopped.
+Review shared contracts early. Batch ready fixes before a coordinated restack,
+unless a conflict or dependent task needs the new base sooner. Avoid restacking
+the descendants after each review note. Final integrated driver evidence remains
+required. Verify each intermediate deployment when merges auto-deploy, and include
+recurring operator work in acceptance criteria. Reconcile external review threads
+at the current head before declaring ready.
 
-Assign one owner to each shared live-test environment and one CI observer per PR.
-Parallelize isolated work. When T3's watch_pull_request is available, the root arms it
-and relays check changes to owners. Otherwise use the selected playbook's watcher.
-Do not run duplicate pollers or competing live sessions on the same shared environment.
+Refresh the active playbook and its delegated workflows when pstack changes.
+Record the version and propagate changed requirements into the current owner brief.
+
+Keep child runtime, task ID, owner ID, result location and delivery state in the
+existing child ledger. When a result reaches the coordinator, read it and deliver
+it to the owner through that runtime before waiting again. Record delivery and
+owner acknowledgement or resumed activity. Repair missing owner IDs. Use native
+status for native agents and T3 task tools for T3 tasks. A completion notice,
+empty process search or quiet parent thread does not prove children stopped.
+Use task or process handles for waits; do not poll with a command that matches itself.
+
+Assign one owner and queue to each shared live-test environment and one CI observer
+per PR. Record slot acquisition and release. Parallelize isolated work and release
+owned resources when their run ends. Treat host contention as runtime evidence,
+not permission to stop another task's resources or omit proof. When available,
+the root uses T3 watch_pull_request and relays updates; otherwise use the playbook's
+watcher. Do not add competing pollers or live sessions.
 
 # Cross-model work
 
