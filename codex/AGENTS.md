@@ -4,6 +4,16 @@ Follow a named skill's supplied instructions or read its SKILL.md and runtime ma
 Use the current runtime's task tracker. For a selected playbook, keep its numbered steps
 verbatim and explicit `skip: <reason>` entries; rebuild the list after compaction or handoff.
 
+# T3 Code only
+
+Apply this section only when running in T3 Code.
+
+When pstack requests a multi-reviewer or model-diverse panel, use T3's
+`delegate_task` to include one Claude Opus participant alongside Codex.
+Select the provider and model from `orchestrator_capabilities`. Replace an existing
+panel slot; do not add reviewers or rounds. If the tool or target model is
+unavailable, report that cross-family review could not run.
+
 # Search routing
 
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.
