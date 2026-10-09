@@ -1,11 +1,22 @@
 # Skills and todolists
 
 For a message starting with `/<skill>`, the first tool call is `Skill` with that name.
-Use `TodoWrite` for todolists so T3's Tasks panel can display them. If unavailable,
-report the missing tool rather than silently switching to another tracker.
 For a selected playbook, copy its numbered steps verbatim before task-specific items.
 Keep omitted steps with `skip: <reason>` and rebuild the list after compaction or
 handoff. A concise reply does not waive the steps.
+
+# T3 Code only
+
+Apply this section only when running in T3 Code.
+
+Use `TodoWrite` for todolists so T3's Tasks panel can display them. If unavailable,
+report the missing tool rather than silently switching to another tracker.
+
+When pstack requests a multi-reviewer or model-diverse panel, use T3's
+`delegate_task` to include one Codex `gpt-6.1-sol` participant alongside Claude.
+Select the provider and model from `orchestrator_capabilities`. Replace an existing
+panel slot; do not add reviewers or rounds. If the tool or target model is
+unavailable, report that cross-family review could not run.
 
 # Search routing
 
