@@ -13,6 +13,7 @@ if sys.version_info < (3, 11):
     sys.exit("Python 3.11 or newer is required")
 
 from portable.manage import load, refresh
+from portable.links import link_codex_config
 from portable.apps import (
     installed,
     restore_preserving_flags,
@@ -27,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "operation",
-        choices=["bootstrap", "refresh", "doctor", "inventory"],
+        choices=["bootstrap", "refresh", "doctor", "inventory", "link"],
     )
     parser.add_argument("--app", choices=["claude", "codex", "all"], default="all")
     parser.add_argument(
@@ -57,6 +58,12 @@ def main():
             for app in apps
         }
     manifest, plugins = load(REPO)
+    if args.operation == "link":
+        if args.app != "codex" or args.install_tools:
+            raise ValueError("Use link --app codex to link an existing Codex config")
+        target = link_codex_config(REPO, homes["codex"])
+        print(f"Linked {homes['codex'] / 'config.toml'} -> {target}")
+        return 0
     issues = []
     if args.operation in ("bootstrap", "refresh"):
         if args.install_tools:

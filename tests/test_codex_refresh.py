@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 from portable.config import equal, render, parse
 from portable.manage import refresh, load, plan, parse as parse_config
+from portable.links import link_codex_config
 from portable import install, apps
 from native_command import argv_for
 import manage
@@ -67,6 +68,163 @@ class RefreshTests(unittest.TestCase):
 
     def backups(self):
         return sorted((self.home / ".claude-config/backups").rglob("*"))
+
+    def require_symlinks(self):
+        probe = self.root / "link-probe"
+        try:
+            probe.symlink_to(self.repo)
+        except OSError:
+            self.skipTest("Runner cannot create symlink fixture")
+        finally:
+            probe.unlink(missing_ok=True)
+
+    def test_opt_in_config_link_preserves_live_bytes_and_refreshes(self):
+        self.require_symlinks()
+        self.run_refresh()
+        path = self.home / "config.toml"
+        live = path.read_bytes() + b'\nservice_note = "local"\n'
+        path.write_bytes(live)
+        target = self.repo / "codex/config.toml"
+        target.write_text('model="stale checkout copy"\n')
+        link_codex_config(self.repo, self.home)
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(path.resolve(), target.resolve())
+        self.assertEqual(target.read_bytes(), live)
+        self.assertTrue(any(p.name == "checkout-config.toml" for p in self.backups()))
+        before = target.stat().st_mtime_ns
+        self.assertEqual(self.run_refresh()[0], [])
+        link_codex_config(self.repo, self.home)
+        self.assertEqual(target.stat().st_mtime_ns, before)
+        self.template('model="updated"\n[features]\nhooks=true\n')
+        self.run_refresh()
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(self.config()["model"], "updated")
+        self.assertIn(b'service_note', target.read_bytes())
+
+    def test_config_link_recovers_after_target_was_written(self):
+        self.require_symlinks()
+        self.run_refresh()
+        target = link_codex_config(self.repo, self.home)
+        self.template('model="updated"\n')
+        original = install.atomic
+
+        def crash_after_write(path, data):
+            original(path, data)
+            if path == target:
+                raise OSError("interrupted after config write")
+
+        with patch.object(install, "atomic", side_effect=crash_after_write):
+            with self.assertRaises(OSError):
+                self.run_refresh()
+        self.assertTrue((self.home / "config.toml").is_symlink())
+        self.run_refresh()
+        self.assertEqual(self.config()["model"], "updated")
+        self.assertFalse((self.home / ".claude-config/journal.json").exists())
+
+    def test_new_config_link_does_not_import_an_unrelated_legacy_baseline(self):
+        self.require_symlinks()
+        legacy = 'model="local"\n[marketplaces.keep]\nsource="keep-local-plugin-source"\n'
+        (self.repo / "codex/.template.snapshot.toml").write_text(legacy)
+        (self.home / "config.toml").write_text(legacy)
+        link_codex_config(self.repo, self.home)
+        self.run_refresh()
+        self.assertTrue((self.home / "config.toml").is_symlink())
+        self.assertEqual(self.config()["marketplaces"]["keep"]["source"], "keep-local-plugin-source")
+
+    def test_config_link_rejects_retargeting_without_writing_foreign_file(self):
+        self.require_symlinks()
+        self.run_refresh()
+        target = link_codex_config(self.repo, self.home)
+        foreign = self.root / "foreign.toml"
+        foreign.write_text('model="foreign"\n')
+        path = self.home / "config.toml"
+        path.unlink()
+        path.symlink_to(foreign)
+        with self.assertRaisesRegex(ValueError, "config link changed"):
+            self.run_refresh()
+        self.assertEqual(foreign.read_text(), 'model="foreign"\n')
+        self.assertEqual(tomllib.loads(target.read_text())["model"], "shared")
+
+    def test_config_link_can_be_restored_after_app_replaces_link(self):
+        self.require_symlinks()
+        self.run_refresh()
+        target = link_codex_config(self.repo, self.home)
+        path = self.home / "config.toml"
+        path.unlink()
+        path.write_text('model="app edit"\n')
+        link_codex_config(self.repo, self.home)
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(target.read_text(), 'model="app edit"\n')
+
+    def test_config_link_failure_preserves_existing_files(self):
+        self.run_refresh()
+        target = self.repo / "codex/config.toml"
+        target.write_text('model="checkout"\n')
+        original = (self.home / "config.toml").read_bytes()
+        with patch.object(Path, "symlink_to", side_effect=OSError("not permitted")):
+            with self.assertRaises(OSError):
+                link_codex_config(self.repo, self.home)
+        self.assertEqual((self.home / "config.toml").read_bytes(), original)
+        self.assertEqual(target.read_text(), 'model="checkout"\n')
+
+    def test_config_link_interruption_preserves_config_and_can_retry(self):
+        self.require_symlinks()
+        from portable import links
+
+        for boundary in ("target", "marker", "before_replace", "after_replace"):
+            with self.subTest(boundary=boundary):
+                home = self.root / boundary
+                self.run_refresh()
+                home.mkdir()
+                path = home / "config.toml"
+                original = b'model="local"\n# Keep my settings\n'
+                path.write_bytes(original)
+                target = self.repo.resolve() / "codex/config.toml"
+                original_atomic = links.atomic
+                original_replace = links.os.replace
+
+                def interrupt_atomic(destination, data):
+                    original_atomic(destination, data)
+                    if (boundary == "target" and destination == target) or (
+                        boundary == "marker" and destination.name == "config-link.json"
+                    ):
+                        raise OSError("simulated interruption")
+
+                def interrupt_replace(source, destination):
+                    if destination == path and boundary == "before_replace":
+                        raise OSError("simulated interruption")
+                    original_replace(source, destination)
+                    if destination == path and boundary == "after_replace":
+                        raise OSError("simulated interruption")
+
+                with patch.object(links, "atomic", side_effect=interrupt_atomic), patch.object(
+                    links.os, "replace", side_effect=interrupt_replace
+                ):
+                    with self.assertRaises(OSError):
+                        link_codex_config(self.repo, home)
+                self.assertEqual(path.read_bytes(), original)
+                if (home / ".claude-config/config-link.json").exists() and not path.is_symlink():
+                    with self.assertRaisesRegex(ValueError, "config link changed"):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                link_codex_config(self.repo, home)
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertTrue(path.is_symlink())
+                self.assertEqual(tomllib.loads(path.read_text())["model"], "local")
+
+    def test_real_cli_config_link(self):
+        self.require_symlinks()
+        source = self.root / "link CLI source"
+        shutil.copytree(SOURCE, source, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        command = [sys.executable, str(source / "manage.py")]
+        home = self.root / "link CLI home"
+        for operation in ("refresh", "link", "refresh"):
+            result = subprocess.run(
+                command + [operation, "--app", "codex", "--home", str(home)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((home / "config.toml").is_symlink())
+        self.assertEqual((home / "config.toml").resolve(), (source / "codex/config.toml").resolve())
 
     def test_real_cli_legacy_directory_links(self):
         source = self.root / "CLI source"
