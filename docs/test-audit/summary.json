@@ -1,0 +1,73 @@
+{
+  "base_revision": "c0d40ef35a4d9765d9d4fa0b3c811b5a6af7b3a6",
+  "environment": {
+    "python": "3.14.4",
+    "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+    "coverage": "7.16.2"
+  },
+  "source_scope": "Repository Python production files; tests omitted. Subprocess capture enabled; temporary copies of the checkout excluded in both runs.",
+  "before": {
+    "covered_lines": 723,
+    "num_statements": 952,
+    "percent_covered": 72.53711201079622,
+    "percent_covered_display": "72.54",
+    "missing_lines": 229,
+    "excluded_lines": 0,
+    "percent_statements_covered": 75.9453781512605,
+    "percent_statements_covered_display": "75.95",
+    "num_branches": 530,
+    "num_partial_branches": 100,
+    "covered_branches": 352,
+    "missing_branches": 178,
+    "percent_branches_covered": 66.41509433962264,
+    "percent_branches_covered_display": "66.42"
+  },
+  "after": {
+    "covered_lines": 593,
+    "num_statements": 950,
+    "percent_covered": 58.78378378378378,
+    "percent_covered_display": "58.78",
+    "missing_lines": 357,
+    "excluded_lines": 0,
+    "percent_statements_covered": 62.421052631578945,
+    "percent_statements_covered_display": "62.42",
+    "num_branches": 530,
+    "num_partial_branches": 101,
+    "covered_branches": 277,
+    "missing_branches": 253,
+    "percent_branches_covered": 52.264150943396224,
+    "percent_branches_covered_display": "52.26"
+  },
+  "removed_tests": [
+    "test_app_edit_between_plan_and_publish_refuses",
+    "test_codex_object_shape_and_missing_capability",
+    "test_config_link_failure_preserves_existing_files",
+    "test_config_link_interruption_preserves_config_and_can_retry",
+    "test_config_link_recovers_after_target_was_written",
+    "test_crash_recovery_all_durable_boundaries",
+    "test_crash_then_app_edit_refuses_overwrite",
+    "test_directory_link_recovery_boundaries_and_app_edits",
+    "test_directory_link_second_app_failure_leaves_first_link",
+    "test_existing_bytes_and_local_instruction_preserved",
+    "test_failed_plugin_does_not_skip_later_restores",
+    "test_inventory_routes_third_party_skills_to_upstream_guide",
+    "test_journal_escape_and_reparse_parent_rejected",
+    "test_native_install_retains_deleted_plugin_table",
+    "test_native_install_retains_local_disabled_flag",
+    "test_real_repository_app_specific_pstack_models",
+    "test_removed_unchanged_owned_file_deleted",
+    "test_repository_manifest_and_sentry_environment",
+    "test_repository_only_manages_authored_skills_and_install_guide",
+    "test_runtime_plugins_not_restored_as_native",
+    "test_sentry_existing_definition_never_replaced",
+    "test_sentry_missing_created_then_observed",
+    "test_serializer_complete_types",
+    "test_shapes_disabled_installs_and_idempotency"
+  ],
+  "final_artifact_sha256": {
+    "tests/test_codex_refresh.py": "d0172fe520ae73bc7d43a6df1cbd299ead1d173f62d8ff74d64672b9e77689a8",
+    "portable/config.py": "7f07532c1a9585420d9d7295ef86ae16f78e3acee7a06366d32b7f319469217d",
+    "AGENTS.md": "7dec5762e4ae712ac7104470aa2f5f13b53a673fcd4082461df9a74af629afaa",
+    "codex/AGENTS.md": "34707008a40147bf7d4e1540175eaea919de508aecea14a924848a0e6c541884"
+  }
+}

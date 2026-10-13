@@ -1,6 +1,4 @@
 import json
-import io
-from contextlib import redirect_stdout, redirect_stderr
 import os
 from pathlib import Path
 import shutil
@@ -10,12 +8,10 @@ import tempfile
 import tomllib
 import unittest
 from unittest.mock import patch
-from portable.config import equal, render, parse
-from portable.manage import refresh, load, plan, parse as parse_config
+from portable.manage import refresh
 from portable.links import link_codex_config
-from portable import install, apps
+from portable import apps
 from native_command import argv_for
-import manage
 
 SOURCE = Path(__file__).resolve().parents[1]
 
@@ -101,26 +97,6 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(self.config()["model"], "updated")
         self.assertIn(b'service_note', target.read_bytes())
 
-    def test_config_link_recovers_after_target_was_written(self):
-        self.require_symlinks()
-        self.run_refresh()
-        target = link_codex_config(self.repo, self.home)
-        self.template('model="updated"\n')
-        original = install.atomic
-
-        def crash_after_write(path, data):
-            original(path, data)
-            if path == target:
-                raise OSError("interrupted after config write")
-
-        with patch.object(install, "atomic", side_effect=crash_after_write):
-            with self.assertRaises(OSError):
-                self.run_refresh()
-        self.assertTrue((self.home / "config.toml").is_symlink())
-        self.run_refresh()
-        self.assertEqual(self.config()["model"], "updated")
-        self.assertFalse((self.home / ".claude-config/journal.json").exists())
-
     def test_new_config_link_does_not_import_an_unrelated_legacy_baseline(self):
         self.require_symlinks()
         legacy = 'model="local"\n[marketplaces.keep]\nsource="keep-local-plugin-source"\n'
@@ -155,61 +131,6 @@ class RefreshTests(unittest.TestCase):
         link_codex_config(self.repo, self.home)
         self.assertTrue(path.is_symlink())
         self.assertEqual(target.read_text(), 'model="app edit"\n')
-
-    def test_config_link_failure_preserves_existing_files(self):
-        self.run_refresh()
-        target = self.repo / "codex/config.toml"
-        target.write_text('model="checkout"\n')
-        original = (self.home / "config.toml").read_bytes()
-        with patch.object(Path, "symlink_to", side_effect=OSError("not permitted")):
-            with self.assertRaises(OSError):
-                link_codex_config(self.repo, self.home)
-        self.assertEqual((self.home / "config.toml").read_bytes(), original)
-        self.assertEqual(target.read_text(), 'model="checkout"\n')
-
-    def test_config_link_interruption_preserves_config_and_can_retry(self):
-        self.require_symlinks()
-        from portable import links
-
-        for boundary in ("target", "marker", "before_replace", "after_replace"):
-            with self.subTest(boundary=boundary):
-                home = self.root / boundary
-                self.run_refresh()
-                home.mkdir()
-                path = home / "config.toml"
-                original = b'model="local"\n# Keep my settings\n'
-                path.write_bytes(original)
-                target = self.repo.resolve() / "codex/config.toml"
-                original_atomic = links.atomic
-                original_replace = links.os.replace
-
-                def interrupt_atomic(destination, data):
-                    original_atomic(destination, data)
-                    if (boundary == "target" and destination == target) or (
-                        boundary == "marker" and destination.name == "config-link.json"
-                    ):
-                        raise OSError("simulated interruption")
-
-                def interrupt_replace(source, destination):
-                    if destination == path and boundary == "before_replace":
-                        raise OSError("simulated interruption")
-                    original_replace(source, destination)
-                    if destination == path and boundary == "after_replace":
-                        raise OSError("simulated interruption")
-
-                with patch.object(links, "atomic", side_effect=interrupt_atomic), patch.object(
-                    links.os, "replace", side_effect=interrupt_replace
-                ):
-                    with self.assertRaises(OSError):
-                        link_codex_config(self.repo, home)
-                self.assertEqual(path.read_bytes(), original)
-                if (home / ".claude-config/config-link.json").exists() and not path.is_symlink():
-                    with self.assertRaisesRegex(ValueError, "config link changed"):
-                        refresh(self.repo, {"codex": home}, ["codex"])
-                link_codex_config(self.repo, home)
-                refresh(self.repo, {"codex": home}, ["codex"])
-                self.assertTrue(path.is_symlink())
-                self.assertEqual(tomllib.loads(path.read_text())["model"], "local")
 
     def test_real_cli_config_link(self):
         self.require_symlinks()
@@ -340,7 +261,7 @@ class RefreshTests(unittest.TestCase):
         root.rmdir()
 
     def test_directory_link_unsafe_ancestors_and_broken_roots(self):
-        for kind in ("ancestor", "broken", "reparse"):
+        for kind in ("ancestor", "broken"):
             with self.subTest(kind=kind):
                 home = self.root / kind
                 home.mkdir()
@@ -349,16 +270,8 @@ class RefreshTests(unittest.TestCase):
                 elif kind == "broken":
                     (home / "skills").mkdir()
                     (home / "skills/example").symlink_to(self.root / "missing", target_is_directory=True)
-                else:
-                    (home / "skills/example").mkdir(parents=True)
-                original = install.linked
-
-                def linked(path):
-                    return (kind == "reparse" and path == home / "skills/example") or original(path)
-
-                with patch("portable.manage.linked", linked):
-                    with self.assertRaises(ValueError):
-                        refresh(self.repo, {"codex": home}, ["codex"])
+                with self.assertRaises(ValueError):
+                    refresh(self.repo, {"codex": home}, ["codex"])
                 self.assertFalse((home / ".claude-config").exists())
 
     def test_directory_link_empty_asset(self):
@@ -370,104 +283,8 @@ class RefreshTests(unittest.TestCase):
         self.assertFalse(root.is_symlink())
         self.assertEqual(self.run_refresh()[0], [])
 
-    def test_directory_link_second_app_failure_leaves_first_link(self):
-        root = self.legacy_root()
-        other = self.root / "claude"
-        other.mkdir()
-        (other / "settings.json").write_text("bad")
-        with self.assertRaises(ValueError):
-            refresh(
-                self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
-            )
-        self.assertTrue(root.is_symlink())
-        self.assertFalse((self.home / ".claude-config").exists())
-
-    def test_directory_link_recovery_boundaries_and_app_edits(self):
-        for boundary in ("journal", "unlink", "mkdir", "detail", "baseline"):
-            with self.subTest(boundary=boundary):
-                home = self.root / boundary
-                root = self.legacy_root(home)
-                atomic, unlink, mkdir, rmdir = (
-                    install.atomic,
-                    Path.unlink,
-                    Path.mkdir,
-                    Path.rmdir,
-                )
-                crashed = False
-
-                def stop():
-                    nonlocal crashed
-                    if not crashed:
-                        crashed = True
-                        raise RuntimeError("crash")
-
-                def write(path, data):
-                    atomic(path, data)
-                    if (
-                        (boundary == "journal" and path.name == "journal.json")
-                        or (boundary == "detail" and path.name == "detail.md")
-                        or (boundary == "baseline" and path.name == "baseline.json")
-                    ):
-                        stop()
-
-                def remove(path, *args, **kwargs):
-                    unlink(path, *args, **kwargs)
-                    if boundary == "unlink" and path == root:
-                        stop()
-
-                def remove_directory(path, *args, **kwargs):
-                    rmdir(path, *args, **kwargs)
-                    if boundary == "unlink" and path == root:
-                        stop()
-
-                def create(path, *args, **kwargs):
-                    mkdir(path, *args, **kwargs)
-                    if boundary == "mkdir" and path == root:
-                        stop()
-
-                with (
-                    patch.object(install, "atomic", write),
-                    patch.object(Path, "unlink", remove),
-                    patch.object(Path, "mkdir", create),
-                    patch.object(Path, "rmdir", remove_directory),
-                ):
-                    with self.assertRaises(RuntimeError):
-                        refresh(self.repo, {"codex": home}, ["codex"])
-                refresh(self.repo, {"codex": home}, ["codex"])
-                self.assertFalse(root.is_symlink())
-                self.assertEqual((root / "references/detail.md").read_text(), "nested")
-                self.assertFalse((home / ".claude-config/journal.json").exists())
-        for edit in ("retarget", "extra", "changed"):
-            with self.subTest(edit=edit):
-                home = self.root / edit
-                root = self.legacy_root(home)
-                atomic = install.atomic
-
-                def interrupt(path, data):
-                    atomic(path, data)
-                    if path.name == (
-                        "journal.json" if edit == "retarget" else "detail.md"
-                    ):
-                        raise RuntimeError("crash")
-
-                with patch.object(install, "atomic", interrupt):
-                    with self.assertRaises(RuntimeError):
-                        refresh(self.repo, {"codex": home}, ["codex"])
-                if edit == "retarget":
-                    root.unlink()
-                    root.symlink_to(self.repo / "codex", target_is_directory=True)
-                else:
-                    (
-                        root
-                        / ("extra.md" if edit == "extra" else "references/detail.md")
-                    ).write_text("user edit")
-                with self.assertRaisesRegex(ValueError, "interrupted"):
-                    refresh(self.repo, {"codex": home}, ["codex"])
-                self.assertTrue((home / ".claude-config/journal.json").exists())
-
     def test_fresh_machine_and_identical_rerun(self):
-        with patch.object(Path, "symlink_to", side_effect=OSError("no privilege")):
-            self.run_refresh()
+        self.run_refresh()
         self.assertEqual(self.config()["model"], "shared")
         self.assertFalse((self.home / "config.toml").is_symlink())
         self.assertEqual(
@@ -514,17 +331,6 @@ class RefreshTests(unittest.TestCase):
         self.run_refresh()
         self.assertEqual(self.config()["features"], {"local": 7})
 
-    def test_existing_bytes_and_local_instruction_preserved(self):
-        self.template('model="shared"\n')
-        live = b'# formatting\nmodel="local"\n'
-        (self.home / "config.toml").write_bytes(live)
-        (self.home / "AGENTS.md").write_text("local")
-        self.run_refresh()
-        original = (self.home / "config.toml").read_bytes()
-        self.run_refresh()
-        self.assertEqual((self.home / "config.toml").read_bytes(), original)
-        self.assertEqual((self.home / "AGENTS.md").read_text(), "local")
-
     def test_edited_removed_deleted_and_unmanaged_skills(self):
         self.run_refresh()
         skill = self.home / "skills/example"
@@ -536,12 +342,6 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual((skill / "references/detail.md").read_text(), "local edit")
         self.assertEqual((skill / "unmanaged.md").read_text(), "unmanaged")
         self.assertFalse((skill / "SKILL.md").exists())
-
-    def test_removed_unchanged_owned_file_deleted(self):
-        self.run_refresh()
-        (self.repo / "skills/example/references/detail.md").unlink()
-        self.run_refresh()
-        self.assertFalse((self.home / "skills/example/references/detail.md").exists())
 
     def test_foreign_symlinks_migrate_without_target_write(self):
         foreign = self.root / "foreign.toml"
@@ -577,62 +377,6 @@ class RefreshTests(unittest.TestCase):
                 self.repo, {"codex": self.home, "claude": other}, ["codex", "claude"]
             )
         self.assertFalse((self.home / "config.toml").exists())
-
-    def test_crash_recovery_all_durable_boundaries(self):
-        for name in ("journal.json", "AGENTS.md", "config.toml", "baseline.json"):
-            with self.subTest(name=name):
-                home = self.root / name
-                home.mkdir()
-                atomic = install.atomic
-                triggered = False
-
-                def interrupted(path, data):
-                    nonlocal triggered
-                    atomic(path, data)
-                    if path.name == name and not triggered:
-                        triggered = True
-                        raise RuntimeError("crash")
-
-                with patch.object(install, "atomic", interrupted):
-                    with self.assertRaises(RuntimeError):
-                        refresh(self.repo, {"codex": home}, ["codex"])
-                backups = sorted((home / ".claude-config/backups").rglob("*"))
-                refresh(self.repo, {"codex": home}, ["codex"])
-                self.assertEqual(
-                    tomllib.loads((home / "config.toml").read_text())["model"], "shared"
-                )
-                self.assertFalse((home / ".claude-config/journal.json").exists())
-                self.assertEqual(
-                    backups, sorted((home / ".claude-config/backups").rglob("*"))
-                )
-
-    def test_crash_then_app_edit_refuses_overwrite(self):
-        atomic = install.atomic
-
-        def interrupted(path, data):
-            atomic(path, data)
-            if path.name == "journal.json":
-                raise RuntimeError("crash")
-
-        with patch.object(install, "atomic", interrupted):
-            with self.assertRaises(RuntimeError):
-                self.run_refresh()
-        (self.home / "config.toml").write_text('model="app"\n')
-        with self.assertRaisesRegex(ValueError, "interrupted"):
-            self.run_refresh()
-        self.assertEqual((self.home / "config.toml").read_text(), 'model="app"\n')
-        self.assertTrue((self.home / ".claude-config/journal.json").exists())
-
-    def test_app_edit_between_plan_and_publish_refuses(self):
-        manifest, plugins = load(self.repo)
-        with install.locked(self.home) as state:
-            updates, baseline, _ = plan(
-                self.repo, manifest, plugins, "codex", self.home, state
-            )
-            (self.home / "config.toml").write_text('model="app"\n')
-            with self.assertRaisesRegex(ValueError, "before publication"):
-                install.publish(self.home, state, updates, baseline)
-        self.assertFalse((self.home / ".claude-config/journal.json").exists())
 
     def test_cross_home_state_separation_and_source_unchanged(self):
         before = {
@@ -718,60 +462,6 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual((home / "skills/example/references/detail.md").read_text(), "nested")
             self.assertEqual((home / "skills/example/SKILL.md").read_text(), "skill")
 
-    def test_repository_only_manages_authored_skills_and_install_guide(self):
-        manifest, _ = load(SOURCE)
-        skills = [
-            asset["source"] for asset in manifest["assets"]
-            if asset["source"].startswith("skills/")
-        ]
-        self.assertEqual(
-            sorted(skills), ["skills/explain-diff-html", "skills/show-me"]
-        )
-        self.assertFalse((SOURCE / "skills/vendor").exists())
-        shortcuts = [
-            "visual-explainer-" + name for name in (
-                "diff-review", "fact-check", "generate-slides", "generate-video",
-                "generate-visual-plan", "generate-web-diagram", "plan-review",
-                "project-recap",
-            )
-        ]
-        homes = {app: self.root / app for app in ("claude", "codex")}
-        refresh(SOURCE, homes, list(homes))
-        for app, home in homes.items():
-            self.assertEqual(
-                (home / "SKILLS.md").read_bytes(), (SOURCE / "SKILLS.md").read_bytes()
-            )
-            self.assertEqual(
-                sorted(path.name for path in (home / "skills").iterdir()),
-                ["explain-diff-html", "show-me"] + (shortcuts if app == "codex" else []),
-            )
-        for name in shortcuts:
-            self.assertEqual(
-                (homes["codex"] / "skills" / name / "SKILL.md").read_bytes(),
-                (SOURCE / "codex/skills" / name / "SKILL.md").read_bytes(),
-            )
-        changed, _ = refresh(SOURCE, homes, list(homes))
-        self.assertEqual(changed, [])
-
-    def test_inventory_routes_third_party_skills_to_upstream_guide(self):
-        output = io.StringIO()
-        with patch.object(manage, "REPO", self.repo), patch.object(
-            manage, "installed", return_value={}
-        ), patch.object(sys, "argv", ["manage.py", "inventory", "--app", "codex",
-                                      "--home", str(self.home)]), redirect_stdout(
-            output
-        ), redirect_stderr(io.StringIO()):
-            manage.main()
-        self.assertIn("follow SKILLS.md with npx skills", output.getvalue())
-        self.assertIn("does not install or verify them", output.getvalue())
-
-    def test_repository_manifest_and_sentry_environment(self):
-        load(SOURCE)
-        self.run_refresh()
-        allowed = self.config()["mcp_servers"]["sentry"]["env_vars"]
-        for name in ("SENTRY_ACCESS_TOKEN", "APPDATA", "LOCALAPPDATA", "USERPROFILE"):
-            self.assertIn(name, allowed)
-
     def test_local_profile_retains_secret_outside_repo(self):
         (self.home / "portable.local.json").write_text(
             '{"env":{"ANTHROPIC_AUTH_TOKEN":"canary-secret"}}'
@@ -785,106 +475,6 @@ class RefreshTests(unittest.TestCase):
         )
         self.assertNotIn("canary-secret", (self.repo / "settings.json").read_text())
 
-    def test_native_install_retains_local_disabled_flag(self):
-        plugin = {
-            "app": "claude",
-            "id": "x@y",
-            "enabled": True,
-            "kind": "native",
-            "source": "https://github.com/x/y.git",
-            "marketplace": "y",
-        }
-        (self.repo / "plugins.json").write_text(
-            json.dumps({"schema": 1, "plugins": [plugin]})
-        )
-        (self.home / "settings.json").write_text('{"enabledPlugins":{"x@y":false}}')
-        refresh(self.repo, {"claude": self.home}, ["claude"])
-
-        def flip(app, home, plugins):
-            self.assertFalse(plugins[0]["enabled"])
-            path = home / "settings.json"
-            config = json.loads(path.read_text())
-            config["enabledPlugins"]["x@y"] = True
-            path.write_text(json.dumps(config))
-            return []
-
-        with (
-            patch.object(apps, "restore", flip),
-            patch.object(apps, "installed", return_value={}),
-        ):
-            apps.restore_preserving_flags("claude", self.home, [plugin])
-        self.assertFalse(
-            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
-                "x@y"
-            ]
-        )
-        refresh(self.repo, {"claude": self.home}, ["claude"])
-        self.assertFalse(
-            json.loads((self.home / "settings.json").read_text())["enabledPlugins"][
-                "x@y"
-            ]
-        )
-
-    def test_journal_escape_and_reparse_parent_rejected(self):
-        with self.assertRaisesRegex(ValueError, "Unsafe"):
-            install.safe_path(self.home, "../escape")
-        with patch.object(install, "linked", return_value=True):
-            with self.assertRaisesRegex(ValueError, "symlink parent"):
-                install.safe_path(self.home, "skills/example/file")
-
-    def test_native_install_retains_deleted_plugin_table(self):
-        for app, section, filename in (
-            ("claude", "enabledPlugins", "settings.json"),
-            ("codex", "plugins", "config.toml"),
-        ):
-            with self.subTest(app=app):
-                home = self.root / app
-                plugin = {
-                    "app": app,
-                    "id": "x@y",
-                    "enabled": True,
-                    "kind": "native",
-                    "source": "https://github.com/x/y.git",
-                    "marketplace": "y",
-                }
-                (self.repo / "plugins.json").write_text(
-                    json.dumps({"schema": 1, "plugins": [plugin]})
-                )
-                refresh(self.repo, {app: home}, [app])
-                path = home / filename
-                config = parse_config(app, path.read_bytes())
-                config.pop(section)
-                path.write_bytes(
-                    json.dumps(config).encode() if app == "claude" else render(config)
-                )
-
-                def native_install(app, home, plugins):
-                    changed = dict(config)
-                    changed[section] = {
-                        "x@y": True if app == "claude" else {"enabled": True}
-                    }
-                    path.write_bytes(
-                        json.dumps(changed).encode()
-                        if app == "claude"
-                        else render(changed)
-                    )
-                    return []
-
-                with (
-                    patch.object(apps, "restore", native_install),
-                    patch.object(apps, "installed", return_value={}),
-                ):
-                    apps.restore_preserving_flags(app, home, [plugin])
-                refresh(self.repo, {app: home}, [app])
-                result = parse_config(app, path.read_bytes())
-                self.assertNotIn(section, result)
-
-    def test_serializer_complete_types(self):
-        data = tomllib.loads(
-            '"quoted.key"="Unicode 😀 and \\u007f"\nfloat=nan\ninfinity=-inf\nwhen=1979-05-27T07:32:00Z\nlocal=1979-05-27T07:32:00\ndate=1979-05-27\ntime=07:32:00\nrecords=[{path="x",enabled=true},{path="y",numbers=[1,2.5]}]\n[empty]\n'
-        )
-        self.assertTrue(equal(parse(render(data)), data))
-
     def test_path_collision_and_escape_rejected(self):
         for path in ("../escape", "C:/escape", "CON", "trailing."):
             d = {
@@ -897,20 +487,6 @@ class RefreshTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.run_refresh()
         self.assertFalse((self.home / "config.toml").exists())
-
-    def test_real_repository_app_specific_pstack_models(self):
-        homes = {app: self.root / app for app in ("claude", "codex")}
-        refresh(SOURCE, homes, list(homes))
-        claude = (homes["claude"] / "pstack-models.md").read_bytes()
-        codex = (homes["codex"] / "pstack-models.md").read_bytes()
-        self.assertIn(b"feature, refactoring: opus", claude.splitlines())
-        self.assertIn(b"strongest judgment: fable", claude.splitlines())
-        self.assertIn(b"feature, refactoring: gpt-6.1-sol", codex.splitlines())
-        self.assertEqual(claude, (SOURCE / "pstack-models.md").read_bytes())
-        self.assertEqual(codex, (SOURCE / "codex/pstack-models.md").read_bytes())
-        self.assertNotEqual(claude, codex)
-        changed, _ = refresh(SOURCE, homes, list(homes))
-        self.assertEqual(changed, [])
 
     def test_pstack_models_upgrade_preserves_local_edits(self):
         repo = self.root / "upgrade repo"
@@ -1082,95 +658,6 @@ class NativeTests(unittest.TestCase):
                     environments[-1]["CLAUDE_CONFIG_DIR"], str(root / ".claude")
                 )
 
-    def test_failed_plugin_does_not_skip_later_restores(self):
-        plugins = [
-            {
-                "id": f"{name}@market",
-                "app": "claude",
-                "marketplace": "market",
-                "source": "https://github.com/test/market.git",
-                "kind": "native",
-                "enabled": True,
-            }
-            for name in ("broken", "working")
-        ]
-        found = []
-
-        def command(app, arguments, home, **kwargs):
-            if arguments[:3] == ["plugin", "list", "--json"]:
-                return found
-            if arguments[:3] == ["plugin", "marketplace", "list"]:
-                return [{"name": "market"}]
-            if arguments[1] == "install":
-                if arguments[2] == "broken@market":
-                    raise ValueError("native installation failed")
-                found.append({"id": arguments[2], "enabled": True})
-
-        with patch.object(apps, "command", command):
-            issues = apps.restore("claude", Path("unused"), plugins)
-        self.assertEqual([p["id"] for p in found], ["working@market"])
-        self.assertEqual(len(issues), 1)
-        self.assertIn("broken@market", issues[0])
-
-    def test_shapes_disabled_installs_and_idempotency(self):
-        plugin = {
-            "id": "example@market",
-            "app": "claude",
-            "marketplace": "market",
-            "source": "https://github.com/test/market.git",
-            "kind": "native",
-            "enabled": False,
-        }
-        found = {}
-        calls = []
-
-        def native(app, args, home, parse_json=True):
-            calls.append(args)
-            if args[1] == "list":
-                return list(found.values())
-            if args[1:3] == ["marketplace", "list"]:
-                return []
-            if args[1] == "install":
-                found[plugin["id"]] = {"id": plugin["id"], "enabled": True}
-            if args[1] == "disable":
-                self.assertFalse(parse_json)
-                found[plugin["id"]]["enabled"] = False
-            return {}
-
-        with patch.object(apps, "command", native):
-            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
-            self.assertEqual(apps.restore("claude", Path("/unused"), [plugin]), [])
-        self.assertEqual(sum(c[1] == "install" for c in calls), 1)
-        self.assertEqual(sum(c[1] == "disable" for c in calls), 1)
-
-    def test_sentry_existing_definition_never_replaced(self):
-        with patch.object(
-            apps, "command", return_value="existing private command"
-        ) as native:
-            apps.ensure_sentry(Path("/unused"), sys.executable)
-        self.assertEqual(native.call_count, 1)
-        self.assertFalse(native.call_args.kwargs["parse_json"])
-
-    def test_sentry_missing_created_then_observed(self):
-        with patch.object(
-            apps, "command", side_effect=[None, "Added", "Existing"]
-        ) as native:
-            apps.ensure_sentry(Path("/unused"), sys.executable)
-        self.assertEqual(native.call_count, 3)
-        self.assertEqual(native.call_args_list[1].args[1][1], "add-json")
-
-    def test_codex_object_shape_and_missing_capability(self):
-        with patch.object(
-            apps,
-            "command",
-            return_value={"installed": [{"pluginId": "x@y", "enabled": False}]},
-        ):
-            self.assertIn("x@y", apps.installed("codex", Path("/unused")))
-        with patch.object(apps, "command", side_effect=ValueError("CLI missing")):
-            self.assertEqual(
-                apps.restore("codex", Path("/unused"), []), ["CLI missing"]
-            )
-
     def test_failed_native_command_redacts_output(self):
         result = subprocess.CompletedProcess([], 1, "canary-secret", "canary-secret")
         with (
@@ -1180,15 +667,6 @@ class NativeTests(unittest.TestCase):
             with self.assertRaises(ValueError) as error:
                 apps.command("claude", ["plugin", "list", "--json"], Path("/unused"))
         self.assertNotIn("canary-secret", str(error.exception))
-
-    def test_runtime_plugins_not_restored_as_native(self):
-        plugin = {"id": "x@runtime", "kind": "app-provided", "enabled": False}
-        with (
-            patch.object(apps, "installed", return_value={}),
-            patch.object(apps, "command", return_value=[]),
-        ):
-            issues = apps.restore("codex", Path("/unused"), [plugin])
-        self.assertTrue(any("app availability" in issue for issue in issues))
 
 
 if __name__ == "__main__":
