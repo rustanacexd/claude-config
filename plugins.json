@@ -21,15 +21,6 @@
     },
     {
       "app": "claude",
-      "id": "plannotator@plannotator",
-      "enabled": true,
-      "observed_version": "0.28.17",
-      "kind": "native",
-      "marketplace": "plannotator",
-      "source": "https://github.com/backnotprop/plannotator.git"
-    },
-    {
-      "app": "claude",
       "id": "pstack@pstack-claude",
       "enabled": true,
       "observed_version": "0.9.83",

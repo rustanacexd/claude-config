@@ -11,7 +11,6 @@ npx skills add cli/cli --skill gh -g -a claude-code codex --copy -y
 npx skills add github/gh-stack --skill gh-stack -g -a claude-code codex --copy -y
 npx skills add shadcn/improve --skill improve -g -a claude-code codex --copy -y
 npx skills add backnotprop/bro --skill status -g -a claude-code codex --copy -y
-npx skills add backnotprop/plannotator/apps/skills/core --skill plannotator plannotator-annotate plannotator-last plannotator-review -g -a claude-code codex --copy -y
 npx skills add getsentry/sentry-for-ai --skill sentry-create-alert sentry-debug-issue sentry-fix-stack-traces sentry-get-started sentry-instrument sentry-otel-exporter-setup sentry-setup-releases sentry-snapshots-cocoa -g -a claude-code codex --copy -y
 ```
 
@@ -47,4 +46,4 @@ Start a new session to load the commands. In Claude Code, use `/visual-explainer
 
 Basic HTML generation needs a browser. Video and PowerPoint export have optional dependencies described in the upstream guide.
 
-Some listed skills need additional tools such as `gh`, `gcloud`, Plannotator, or Bash. Install those tools before using the corresponding skill.
+Some listed skills need additional tools such as `gh`, `gcloud`, or Bash. Install those tools before using the corresponding skill.
