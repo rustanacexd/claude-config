@@ -82,3 +82,9 @@ architect runners: gpt-6-astra, gpt-6.1-sol
 interrogate reviewers: gpt-6-astra, gpt-6.1-sol
 
 default effort: session
+
+# Google Cloud
+
+Always prefer the installed `gcloud` CLI when interacting with Google Cloud.
+Use it first for resource queries, logs, builds, and operations. Use the browser
+only when the CLI cannot perform the action or when human sign-in is required.

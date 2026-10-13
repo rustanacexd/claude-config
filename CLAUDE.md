@@ -83,3 +83,9 @@ Give shared live-test environments and observers explicit ownership. Release you
 resources when finished; contention does not permit stopping another task's resources.
 
 @~/.claude/pstack-models.md
+
+# Google Cloud
+
+Always prefer the installed `gcloud` CLI when interacting with Google Cloud.
+Use it first for resource queries, logs, builds, and operations. Use the browser
+only when the CLI cannot perform the action or when human sign-in is required.
