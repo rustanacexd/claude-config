@@ -14,11 +14,11 @@ why investigators: gpt-6.1-sol
 why synthesizer: gpt-6.1-sol
 reflect tooling: gpt-6.1-sol
 reflect judgment, divergent, synthesizer: gpt-6.1-sol
-arena runners: gpt-6-astra, gpt-6.1-sol
-arena cross-judge pool: gpt-6-astra, gpt-6.1-sol
+arena runners: gpt-6.1-sol, gpt-6-astra
+arena cross-judge pool: gpt-6.1-sol, gpt-6-astra
 swarm workers: gpt-6.1-sol
-architect runners: gpt-6-astra, gpt-6.1-sol
-interrogate reviewers: gpt-6-astra, gpt-6.1-sol
+architect runners: gpt-6.1-sol, gpt-6-astra
+interrogate reviewers: gpt-6.1-sol, gpt-6-astra
 
 default effort: session
 session hook: on
