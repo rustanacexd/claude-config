@@ -8,11 +8,17 @@ verbatim and explicit `skip: <reason>` entries; rebuild the list after compactio
 
 Apply this section only when running in T3 Code.
 
-When pstack requests a multi-reviewer or model-diverse panel, use T3's
-`delegate_task` to include one Claude Opus participant alongside Codex.
-Select the provider and model from `orchestrator_capabilities`. Replace an existing
-panel slot; do not add reviewers or rounds. If the tool or target model is
-unavailable, report that cross-family review could not run.
+Every pstack multi-model panel (architect runners, arena runners, the arena cross-judge
+pool, interrogate reviewers, and any other model-diverse panel) has four members, in
+this order: Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then Claude Fable.
+Run the Codex members per the pstack model configuration below. Add the Claude members
+(`claude-opus-5-5` and `claude-fable-5-1`) through T3's `delegate_task`, selecting the
+provider and models from `orchestrator_capabilities`. Members are added to the panel.
+None replaces another, and the panel adds no rounds. Pass each `delegate_task` member
+the effort that the `default effort` line resolves to, where `session` means this
+session's level, because an omitted effort falls back to the provider default. If a
+member's tool or model is unavailable, run the rest and name the skipped members in
+the reply.
 
 # Search routing
 
@@ -81,11 +87,11 @@ why investigators: gpt-6.1-sol
 why synthesizer: gpt-6.1-sol
 reflect tooling: gpt-6.1-sol
 reflect judgment, divergent, synthesizer: gpt-6.1-sol
-arena runners: gpt-6-astra, gpt-6.1-sol
-arena cross-judge pool: gpt-6-astra, gpt-6.1-sol
+arena runners: gpt-6.1-sol, gpt-6-astra
+arena cross-judge pool: gpt-6.1-sol, gpt-6-astra
 swarm workers: gpt-6.1-sol
-architect runners: gpt-6-astra, gpt-6.1-sol
-interrogate reviewers: gpt-6-astra, gpt-6.1-sol
+architect runners: gpt-6.1-sol, gpt-6-astra
+interrogate reviewers: gpt-6.1-sol, gpt-6-astra
 
 default effort: session
 
