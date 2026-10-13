@@ -14,7 +14,7 @@ python3 manage.py check-sync --repo-only
 python3 -m unittest discover -s tests -v
 ```
 
-Tests use synthetic configs and temporary homes, including paths with spaces. They exercise the actual CLI, repeated refresh, local edits and deletions, nested skill resources, secret canaries, foreign links, malformed inputs, and local profiles. Windows tests exercise launcher exit codes, native entry points, and child argument/environment preservation. GitHub Actions runs Python 3.11 and 3.13 on Ubuntu, macOS and Windows. Symlink fixture tests may skip when the runner cannot create a fixture; ordinary installation still runs without links.
+Tests use synthetic configs and temporary homes, including paths with spaces. They exercise the actual CLI, repeated refresh, local edits and deletions, nested skill resources, secret canaries, foreign links, malformed inputs, and local profiles. Windows tests exercise launcher exit codes, native entry points, and child argument/environment preservation. The disabled Portable setup tests workflow retains its Python 3.11 and 3.13 matrix on Ubuntu, macOS, and Windows with a manual trigger only. The enabled Repository sync check workflow runs only the repository sync command on pushes and pull requests. Symlink fixture tests may skip when the runner cannot create a fixture; ordinary installation still runs without links.
 
 The [test audit](test-audit.md) records removed tests, retained contracts, coverage measurements, and remaining gaps. The current automated suite does not establish crash recovery, publication race handling, or native bootstrap behavior.
 

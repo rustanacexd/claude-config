@@ -20,7 +20,7 @@ git config core.hooksPath .githooks
 
 If the clone already uses a different hooks path, add this repository's pre-push check to that hook instead of replacing it. The hook runs `check-sync`, refuses uncommitted repository changes, and requires the pushed revision to be the checked-out commit. Commit the recorded changes before pushing.
 
-GitHub Actions runs `python manage.py check-sync --repo-only` on every push and pull request, followed by the test suite on macOS, Linux, and Windows. That check catches repository skills omitted from the install manifest. CI cannot inspect another machine's local installations; the pre-push hook covers that gap. Git hooks can be bypassed, so they are an early warning rather than proof about every machine.
+The enabled Repository sync check workflow runs `python manage.py check-sync --repo-only` on every push and pull request. That check catches repository skills omitted from the install manifest. The separate Portable setup tests workflow stays disabled and has only a manual trigger. CI cannot inspect another machine's local installations; the pre-push hook covers that gap. Git hooks can be bypassed, so they are an early warning rather than proof about every machine.
 
 ## Publish and apply shared changes
 
