@@ -20,6 +20,9 @@ session's level, because an omitted effort falls back to the provider default. I
 member's tool or model is unavailable, run the rest and name the skipped members in
 the reply.
 
+Pass `interactionMode: "default"` on every `delegate_task` call, because an omitted
+mode inherits this thread's, and a plan-mode child cannot write files or run commands.
+
 # Search routing
 
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.

@@ -29,7 +29,7 @@ py -3 manage.py bootstrap --install-tools
 py -3 manage.py doctor
 ```
 
-Tool installation uses Windows `winget` with `Anthropic.ClaudeCode` and `OpenAI.Codex`, or `npm install -g` with `@anthropic-ai/claude-code` and `@openai/codex`. Without a supported package manager it fails with setup guidance. Install Node/npm to use the Sentry MCP and the third-party skills installer. After bootstrap, ask your agent to follow [SKILLS.md](../SKILLS.md) and install its listed skills using `npx skills`. Those commands require network access. Some skills also need tools such as GitHub CLI, Google Cloud CLI, Plannotator, or Bash.
+Tool installation uses Windows `winget` with `Anthropic.ClaudeCode` and `OpenAI.Codex`, or `npm install -g` with `@anthropic-ai/claude-code` and `@openai/codex`. Without a supported package manager it fails with setup guidance. Install Node/npm to use the Sentry MCP and the third-party skills installer. After bootstrap, ask your agent to follow [SKILLS.md](../SKILLS.md) and install its listed skills using `npx skills`. Those commands require network access. Some skills also need tools such as GitHub CLI, Google Cloud CLI, or Bash.
 
 Authenticate each app on the new machine through its native login flow. Set `EXA_API_KEY` and `SENTRY_ACCESS_TOKEN` in the local process environment for the declared MCP servers. Doctor reports presence only, never credential values or an authentication-success claim. The Sentry wrapper runs the pinned `@sentry/mcp-server@0.42.0` against `sentry-hosted.go2.io` for organization `go2`. Bootstrap creates a missing Claude user MCP definition through the native CLI and preserves an existing definition. Codex receives the equivalent default through its config merge.
 

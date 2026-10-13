@@ -23,6 +23,9 @@ the panel adds no rounds. Pass each `delegate_task` member the effort that the
 an omitted effort falls back to the provider default. If a member's tool or model is
 unavailable, run the rest and name the skipped members in the reply.
 
+Pass `interactionMode: "default"` on every `delegate_task` call, because an omitted
+mode inherits this thread's, and a plan-mode child cannot write files or run commands.
+
 # Search routing
 
 Answer from the repo, conversation, or installed skills before searching. For external
