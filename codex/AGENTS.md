@@ -20,6 +20,12 @@ session's level, because an omitted effort falls back to the provider default. I
 member's tool or model is unavailable, run the rest and name the skipped members in
 the reply.
 
+Pass `interactionMode: "default"` on every `delegate_task` call. An omitted mode
+inherits this thread's, and a child in plan mode ends its turn with a proposed plan
+that the Codex Plannotator `Stop` hook holds for browser approval, so the task reads
+as running indefinitely. If a delegated task has not updated in 10 minutes, read its
+thread for a `proposed_plan` item or a pending request before waiting longer.
+
 # Search routing
 
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.
