@@ -728,15 +728,27 @@ class RefreshTests(unittest.TestCase):
             sorted(skills), ["skills/explain-diff-html", "skills/show-me"]
         )
         self.assertFalse((SOURCE / "skills/vendor").exists())
+        shortcuts = [
+            "visual-explainer-" + name for name in (
+                "diff-review", "fact-check", "generate-slides", "generate-video",
+                "generate-visual-plan", "generate-web-diagram", "plan-review",
+                "project-recap",
+            )
+        ]
         homes = {app: self.root / app for app in ("claude", "codex")}
         refresh(SOURCE, homes, list(homes))
-        for home in homes.values():
+        for app, home in homes.items():
             self.assertEqual(
                 (home / "SKILLS.md").read_bytes(), (SOURCE / "SKILLS.md").read_bytes()
             )
             self.assertEqual(
                 sorted(path.name for path in (home / "skills").iterdir()),
-                ["explain-diff-html", "show-me"],
+                ["explain-diff-html", "show-me"] + (shortcuts if app == "codex" else []),
+            )
+        for name in shortcuts:
+            self.assertEqual(
+                (homes["codex"] / "skills" / name / "SKILL.md").read_bytes(),
+                (SOURCE / "codex/skills" / name / "SKILL.md").read_bytes(),
             )
         changed, _ = refresh(SOURCE, homes, list(homes))
         self.assertEqual(changed, [])

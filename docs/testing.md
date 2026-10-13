@@ -21,7 +21,7 @@ python3 manage.py refresh --home /path/to/temporary-home
 python3 manage.py refresh --home /path/to/temporary-home
 ```
 
-The first command creates `claude` and `codex` homes inside that directory. The second reports zero changes if the source and installed files have not changed. Confirm that each app has its own global instructions, model sheet, and two custom skills. Refresh stays offline and does not install native plugins or third-party skills.
+The first command creates `claude` and `codex` homes inside that directory. The second reports zero changes if the source and installed files have not changed. Confirm that each app has its own global instructions, model sheet, and two shared custom skills. Codex also receives eight Visual Explainer shortcuts. Refresh stays offline and does not install native plugins or third-party skills.
 
 ## Report machine verification separately from CI
 

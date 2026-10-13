@@ -15,7 +15,7 @@ Edit `CLAUDE.md` for shared Claude instructions and `codex/AGENTS.md` for shared
 
 ## Refresh shared defaults
 
-After pulling changes, run the offline refresh. It updates configuration, global instructions, model sheets, and the two custom skills. Install third-party skills separately through [SKILLS.md](../SKILLS.md).
+After pulling changes, run the offline refresh. It updates configuration, global instructions, model sheets, the two shared custom skills, and the eight Codex Visual Explainer shortcuts. Install third-party skills separately through [SKILLS.md](../SKILLS.md).
 
 ```sh
 python3 manage.py refresh
@@ -78,6 +78,6 @@ python3 manage.py inventory
 python3 manage.py doctor
 ```
 
-Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables. They check the two custom skills and point you to `SKILLS.md` for third-party installation. They do not verify third-party skills. Plugin versions record prior observations, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
+Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables. They check managed custom skills and point you to `SKILLS.md` for third-party installation. They do not verify third-party skills. Plugin versions record prior observations, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
 
 For ownership conflicts, private state, or legacy migration, follow [Recover an installation](recovery.md).
