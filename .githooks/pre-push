@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+ROOT=$(git rev-parse --show-toplevel)
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$ROOT/manage.py" check-sync --pre-push
+elif command -v py >/dev/null 2>&1; then
+  exec py -3 "$ROOT/manage.py" check-sync --pre-push
+else
+  exec python "$ROOT/manage.py" check-sync --pre-push
+fi

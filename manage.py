@@ -14,6 +14,7 @@ if sys.version_info < (3, 11):
 
 from portable.manage import load, refresh
 from portable.links import link_codex_config
+from portable.sync import check_repository, check_local, check_committed, check_push_target
 from portable.apps import (
     installed,
     restore_preserving_flags,
@@ -28,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "operation",
-        choices=["bootstrap", "refresh", "doctor", "inventory", "link"],
+        choices=["bootstrap", "refresh", "doctor", "inventory", "link", "check-sync"],
     )
     parser.add_argument("--app", choices=["claude", "codex", "all"], default="all")
     parser.add_argument(
@@ -37,6 +38,8 @@ def main():
         help="Isolated root containing claude and codex homes; selected single app uses this path directly",
     )
     parser.add_argument("--install-tools", action="store_true")
+    parser.add_argument("--repo-only", action="store_true", help="Check skill declarations without reading app homes")
+    parser.add_argument("--pre-push", action="store_true", help="Require a clean checkout and validate Git ref updates from stdin")
     args = parser.parse_args()
     apps = ["claude", "codex"] if args.app == "all" else [args.app]
     homes = {
@@ -58,6 +61,23 @@ def main():
             for app in apps
         }
     manifest, plugins = load(REPO)
+    if args.repo_only or args.pre_push:
+        if args.operation != "check-sync" or (args.repo_only and args.pre_push):
+            parser.error("--repo-only and --pre-push are exclusive check-sync options")
+    if args.operation == "check-sync":
+        issues = check_repository(REPO, manifest)
+        if args.pre_push:
+            issues.extend(check_committed(REPO))
+            issues.extend(check_push_target(REPO, sys.stdin.read()))
+        if not args.repo_only:
+            found = {app: installed(app, home) for app, home in homes.items()}
+            agents = args.home.absolute() / "agents/skills" if args.home else Path.home() / ".agents/skills"
+            issues.extend(check_local(REPO, manifest, plugins, homes, agents, found))
+        for issue in issues:
+            print(issue, file=sys.stderr)
+        if not issues:
+            print("Repository sync declarations OK" if args.repo_only else "Installed skills and plugins are recorded and managed skills match")
+        return 1 if issues else 0
     if args.operation == "link":
         if args.app != "codex" or args.install_tools:
             raise ValueError("Use link --app codex to link an existing Codex config")

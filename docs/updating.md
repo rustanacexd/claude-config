@@ -2,6 +2,26 @@
 
 Shared changes flow from a feature checkout through GitHub to each machine's checkout. No automatic synchronization runs between machines. Edits to installed files stay local and do not flow back into the repository.
 
+## Catch unrecorded local changes
+
+Run this after installing a skill or plugin, or editing a managed skill:
+
+```sh
+python3 manage.py check-sync
+```
+
+The command checks both apps. It fails when an installed user skill or plugin has no declaration, or a managed skill differs from its repository source. Record upstream skills with explicit `--skill` and `-a` names in the single-line install commands in `SKILLS.md`. Record plugins in `plugins.json` and authored skills in `portable.json`. It reads inventories without copying credentials or editing installations. Native plugin caches and system skills are excluded. Per-machine plugin enablement and unpinned version differences remain allowed.
+
+Enable the repository's pre-push check once in each clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+If the clone already uses a different hooks path, add this repository's pre-push check to that hook instead of replacing it. The hook runs `check-sync`, refuses uncommitted repository changes, and requires the pushed revision to be the checked-out commit. Commit the recorded changes before pushing.
+
+GitHub Actions runs `python manage.py check-sync --repo-only` on every push and pull request, followed by the test suite on macOS, Linux, and Windows. That check catches repository skills omitted from the install manifest. CI cannot inspect another machine's local installations; the pre-push hook covers that gap. Git hooks can be bypassed, so they are an early warning rather than proof about every machine.
+
 ## Publish and apply shared changes
 
 1. In a feature checkout, edit the tracked configuration, global instructions, model sheets, or skill/plugin declarations. Commit, push, and merge the changes through a pull request.
@@ -15,7 +35,7 @@ Edit `CLAUDE.md` for shared Claude instructions and `codex/AGENTS.md` for shared
 
 ## Refresh shared defaults
 
-After pulling changes, run the offline refresh. It updates configuration, global instructions, model sheets, and the two custom skills. Install third-party skills separately through [SKILLS.md](../SKILLS.md).
+After pulling changes, run the offline refresh. It updates configuration, global instructions, model sheets, the two shared custom skills, and the eight Codex Visual Explainer shortcuts. Install third-party skills separately through [SKILLS.md](../SKILLS.md).
 
 ```sh
 python3 manage.py refresh
@@ -78,6 +98,6 @@ python3 manage.py inventory
 python3 manage.py doctor
 ```
 
-Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables. They check the two custom skills and point you to `SKILLS.md` for third-party installation. They do not verify third-party skills. Plugin versions record prior observations, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
+Both commands are read-only. They compare declared plugins with native inventory, report enabled state and observed versions, and report required environment variables. They check managed custom skills and point you to `SKILLS.md` for third-party installation. They do not verify third-party skills. Plugin versions record prior observations, not a promise of pinned native restoration. Missing accounts and app-provided plugins remain explicit pending items.
 
 For ownership conflicts, private state, or legacy migration, follow [Recover an installation](recovery.md).

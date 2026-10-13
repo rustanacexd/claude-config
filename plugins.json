@@ -21,18 +21,9 @@
     },
     {
       "app": "claude",
-      "id": "plannotator-effective-html@effective-html",
-      "enabled": true,
-      "observed_version": "2ac1dfecb0f2",
-      "kind": "native",
-      "marketplace": "effective-html",
-      "source": "https://github.com/plannotator/effective-html.git"
-    },
-    {
-      "app": "claude",
       "id": "plannotator@plannotator",
       "enabled": true,
-      "observed_version": "0.28.6",
+      "observed_version": "0.28.17",
       "kind": "native",
       "marketplace": "plannotator",
       "source": "https://github.com/backnotprop/plannotator.git"
@@ -41,7 +32,7 @@
       "app": "claude",
       "id": "pstack@pstack-claude",
       "enabled": true,
-      "observed_version": "0.9.74",
+      "observed_version": "0.9.83",
       "kind": "native",
       "marketplace": "pstack-claude",
       "source": "https://github.com/michael-denyer/pstack-claude.git"
@@ -50,7 +41,7 @@
       "app": "claude",
       "id": "skill-creator@claude-plugins-official",
       "enabled": false,
-      "observed_version": "d4226d062928",
+      "observed_version": "f359d43b4060",
       "kind": "native",
       "marketplace": "claude-plugins-official",
       "source": "https://github.com/anthropics/claude-plugins-official.git"
@@ -59,25 +50,52 @@
       "app": "claude",
       "id": "slack@claude-plugins-official",
       "enabled": false,
-      "observed_version": "1.3.0",
+      "observed_version": "1.4.1",
       "kind": "native",
       "marketplace": "claude-plugins-official",
       "source": "https://github.com/anthropics/claude-plugins-official.git"
     },
     {
       "app": "claude",
+      "id": "visual-explainer@visual-explainer-marketplace",
+      "kind": "native",
+      "marketplace": "visual-explainer-marketplace",
+      "source": "https://github.com/nicobailon/visual-explainer.git",
+      "enabled": true,
+      "observed_version": "0.12.0"
+    },
+    {
+      "app": "claude",
       "id": "worktrunk@worktrunk",
       "enabled": true,
-      "observed_version": "e4a25d6e37cc",
+      "observed_version": "3e17648ae4ad",
       "kind": "native",
       "marketplace": "worktrunk",
       "source": "https://github.com/max-sixty/worktrunk.git"
     },
     {
+      "app": "claude",
+      "id": "slack-by-salesforce@synced",
+      "kind": "account",
+      "marketplace": "synced",
+      "source": null,
+      "enabled": false,
+      "observed_version": "1.0.0"
+    },
+    {
+      "app": "claude",
+      "id": "cowork-plugin-management@synced",
+      "kind": "account",
+      "marketplace": "synced",
+      "source": null,
+      "enabled": false,
+      "observed_version": "0.2.2"
+    },
+    {
       "app": "codex",
       "id": "documents@openai-primary-runtime",
       "enabled": false,
-      "observed_version": "26.905.11957",
+      "observed_version": "26.1011.11113",
       "kind": "app-provided",
       "marketplace": "openai-primary-runtime",
       "source": null
@@ -86,7 +104,7 @@
       "app": "codex",
       "id": "pdf@openai-primary-runtime",
       "enabled": false,
-      "observed_version": "26.905.11957",
+      "observed_version": "26.1011.11113",
       "kind": "app-provided",
       "marketplace": "openai-primary-runtime",
       "source": null
@@ -94,8 +112,8 @@
     {
       "app": "codex",
       "id": "spreadsheets@openai-primary-runtime",
-      "enabled": true,
-      "observed_version": "26.905.11957",
+      "enabled": false,
+      "observed_version": "26.1011.11113",
       "kind": "app-provided",
       "marketplace": "openai-primary-runtime",
       "source": null
@@ -103,8 +121,8 @@
     {
       "app": "codex",
       "id": "presentations@openai-primary-runtime",
-      "enabled": true,
-      "observed_version": "26.905.11957",
+      "enabled": false,
+      "observed_version": "26.1011.11113",
       "kind": "app-provided",
       "marketplace": "openai-primary-runtime",
       "source": null
@@ -112,8 +130,8 @@
     {
       "app": "codex",
       "id": "template-creator@openai-primary-runtime",
-      "enabled": true,
-      "observed_version": "26.905.11957",
+      "enabled": false,
+      "observed_version": "26.1011.11113",
       "kind": "app-provided",
       "marketplace": "openai-primary-runtime",
       "source": null
@@ -122,7 +140,7 @@
       "app": "codex",
       "id": "codex-app-tools@openai-bundled",
       "enabled": true,
-      "observed_version": "0.1.5",
+      "observed_version": "0.1.6",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -131,7 +149,7 @@
       "app": "codex",
       "id": "browser@openai-bundled",
       "enabled": true,
-      "observed_version": "26.930.61225",
+      "observed_version": "26.1007.30912",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -140,7 +158,7 @@
       "app": "codex",
       "id": "unified-computer-use@openai-bundled",
       "enabled": true,
-      "observed_version": "26.930.61225",
+      "observed_version": "26.1007.30912",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -149,7 +167,7 @@
       "app": "codex",
       "id": "chrome@openai-bundled",
       "enabled": true,
-      "observed_version": "26.930.61225",
+      "observed_version": "26.1007.30912",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -158,7 +176,7 @@
       "app": "codex",
       "id": "computer-use@openai-bundled",
       "enabled": true,
-      "observed_version": "1.0.1001365",
+      "observed_version": "1.0.1001425",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -167,7 +185,7 @@
       "app": "codex",
       "id": "code-review@openai-bundled",
       "enabled": true,
-      "observed_version": "26.930.61225",
+      "observed_version": "26.1007.30912",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -176,7 +194,7 @@
       "app": "codex",
       "id": "visualize@openai-bundled",
       "enabled": false,
-      "observed_version": "1.0.46",
+      "observed_version": "1.0.49",
       "kind": "app-provided",
       "marketplace": "openai-bundled",
       "source": null
@@ -185,7 +203,7 @@
       "app": "codex",
       "id": "pstack@pstack-claude",
       "enabled": true,
-      "observed_version": "0.9.74",
+      "observed_version": "0.9.83",
       "kind": "native",
       "marketplace": "pstack-claude",
       "source": "https://github.com/michael-denyer/pstack-claude.git"
@@ -203,7 +221,7 @@
       "app": "codex",
       "id": "google-drive@openai-curated-remote",
       "enabled": true,
-      "observed_version": "0.1.16",
+      "observed_version": "0.1.20",
       "kind": "account",
       "marketplace": "openai-curated-remote",
       "source": null
@@ -230,7 +248,7 @@
       "app": "codex",
       "id": "notion@openai-curated-remote",
       "enabled": true,
-      "observed_version": "3.0.0",
+      "observed_version": "3.0.1",
       "kind": "account",
       "marketplace": "openai-curated-remote",
       "source": null
@@ -255,6 +273,15 @@
     },
     {
       "app": "codex",
+      "id": "cloud-environment@openai-curated-remote",
+      "kind": "account",
+      "marketplace": "openai-curated-remote",
+      "source": null,
+      "enabled": true,
+      "observed_version": "0.1.2"
+    },
+    {
+      "app": "codex",
       "id": "sentry@openai-curated-remote",
       "enabled": true,
       "observed_version": "0.1.2",
@@ -275,7 +302,7 @@
       "app": "codex",
       "id": "pages@openai-curated-remote",
       "enabled": true,
-      "observed_version": "0.1.20",
+      "observed_version": "0.1.21",
       "kind": "account",
       "marketplace": "openai-curated-remote",
       "source": null
@@ -284,7 +311,7 @@
       "app": "codex",
       "id": "sites@openai-curated-remote",
       "enabled": true,
-      "observed_version": "0.1.75",
+      "observed_version": "1.0.0",
       "kind": "account",
       "marketplace": "openai-curated-remote",
       "source": null

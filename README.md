@@ -2,7 +2,7 @@
 
 Shared Claude Code and Codex configuration for macOS, Linux, and Windows.
 
-This repository keeps global instructions, separate pstack model sheets, settings, output styles, two custom skills, and plugin declarations. Third-party skills are listed in [SKILLS.md](SKILLS.md) and installed through `npx skills`.
+This repository keeps global instructions, separate pstack model sheets, settings, output styles, shared custom skills, Codex Visual Explainer shortcuts, and plugin declarations. Third-party skills are listed in [SKILLS.md](SKILLS.md) and installed through `npx skills`.
 
 Python 3.11 or newer applies shared defaults as regular files. You can opt into a Codex config symlink with `python3 manage.py link --app codex`. Offline refresh needs no Bash, jq, Node, or symlink privileges unless you select symlink mode. Native plugins and third-party skills use their own installers. Credentials and account connections stay on each machine.
 
@@ -25,5 +25,7 @@ python3 manage.py refresh
 On Windows use `py -3 manage.py refresh`, or `python manage.py refresh` if `py` is unavailable.
 
 Refresh preserves local changes and does not publish installed-file edits back to GitHub. Follow [Update machines](docs/updating.md) for skill and plugin changes.
+
+Run `python3 manage.py check-sync` to catch installed skills and plugins that are not recorded here. Enable the [pre-push hook](docs/updating.md#catch-unrecorded-local-changes) to run it automatically before pushing.
 
 A setup agent must read [Set up a machine](docs/setup.md) and [SKILLS.md](SKILLS.md) before changing a machine. Report actual machine results separately from CI results.

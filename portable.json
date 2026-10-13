@@ -84,6 +84,70 @@
         "claude",
         "codex"
       ]
+    },
+    {
+      "source": "codex/skills/visual-explainer-diff-review",
+      "destination": "skills/visual-explainer-diff-review",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-fact-check",
+      "destination": "skills/visual-explainer-fact-check",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-generate-slides",
+      "destination": "skills/visual-explainer-generate-slides",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-generate-video",
+      "destination": "skills/visual-explainer-generate-video",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-generate-visual-plan",
+      "destination": "skills/visual-explainer-generate-visual-plan",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-generate-web-diagram",
+      "destination": "skills/visual-explainer-generate-web-diagram",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-plan-review",
+      "destination": "skills/visual-explainer-plan-review",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
+    },
+    {
+      "source": "codex/skills/visual-explainer-project-recap",
+      "destination": "skills/visual-explainer-project-recap",
+      "apps": [
+        "codex"
+      ],
+      "requires": []
     }
   ]
 }
