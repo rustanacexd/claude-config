@@ -1,4 +1,4 @@
-"service_tier" = "default"
+"service_tier" = "ultrafast"
 "model" = "gpt-6.1-sol"
 "model_reasoning_effort" = "medium"
 "model_verbosity" = "low"
@@ -10,6 +10,8 @@
 
 ["features"]
 "fast_mode" = true
+"ultrafast_mode" = true
+"local_thread_store_compression" = true
 "hooks" = true
 "js_repl" = false
 "multi_agent" = true

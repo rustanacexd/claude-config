@@ -32,6 +32,20 @@ Edit `settings.json` or `codex/config.template.toml` to share a setting. Local a
 
 For a local proxy or credential profile, create `portable.local.json` inside the relevant app home. It is a JSON object using that app's settings shape, including `env` for Claude when needed. Its values remain machine-local. Do not commit credentials or machine endpoints to shared templates. Fresh shared defaults use native app login.
 
+## Link the installed Codex config to this checkout
+
+From the permanent checkout on each machine, run:
+
+```sh
+python3 manage.py link --app codex
+```
+
+The command copies your current Codex config into this checkout's ignored `codex/config.toml`, then links `~/.codex/config.toml` to that file. It backs up both existing files under `~/.codex/.claude-config/backups`. All current settings survive, and repeating the command keeps the same config. On a new machine, run refresh before linking. Windows requires permission to create symlinks.
+
+Refresh preserves this opted-in link and merges shared changes into its target. Keep the checkout at the same path. If an app replaces the link with a regular file, run the link command again to preserve the app's latest settings and restore the link.
+
+The link is local to this machine. Continue editing `codex/config.template.toml` and following the publish steps above to share defaults across machines. Never commit `codex/config.toml`, which can contain private machine settings.
+
 ## Install and update third-party skills
 
 Ask your setup agent to follow [SKILLS.md](../SKILLS.md). It lists upstream repositories and exact skill names with grouped `npx skills add` commands for Claude Code and Codex. The repository stores that list rather than upstream skill contents. Plugin-provided skills remain owned by their native plugins.

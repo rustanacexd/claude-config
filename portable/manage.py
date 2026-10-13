@@ -5,6 +5,7 @@ import re
 import sys
 import tomllib
 from .config import merge, equal, render
+from .links import config_link_target
 from .install import (
     read,
     safe_path,
@@ -301,7 +302,8 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
                 updates[dest] = None
             elif current is not None:
                 issues.append(f"{app}: edited removed asset retained: {dest}")
-    if output != live_bytes or (home / name).is_symlink():
+    keep_link = app == "codex" and config_link_target(home) is not None
+    if output != live_bytes or ((home / name).is_symlink() and not keep_link):
         updates[name] = output
     for dest in files:
         if under_root(dest, roots):

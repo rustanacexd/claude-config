@@ -136,6 +136,13 @@ def validate_transaction(home, transaction, repo=None, manifest=None, app=None):
         transaction.get("updates"), list
     ):
         raise ValueError("Unknown journal schema")
+    config_target = transaction.get("config_link")
+    if config_target is not None:
+        from .links import config_link_target
+
+        target = config_link_target(home)
+        if target is None or str(target) != config_target:
+            raise ValueError("Config link changed during publication")
     baseline = transaction.get("baseline")
     if (
         not isinstance(baseline, dict)
@@ -246,8 +253,10 @@ def validate_transaction(home, transaction, repo=None, manifest=None, app=None):
             raise ValueError("Invalid journal fingerprint")
         after = {
             "hash": None if data is None else hashlib.sha256(data).hexdigest(),
-            "link": None,
+            "link": os.readlink(path) if config_target and name == "config.toml" else None,
         }
+        if config_target and name == "config.toml" and data is None:
+            raise ValueError("Cannot delete linked Codex config")
         if root and (home / root["path"]).is_symlink():
             current = {"hash": None, "link": None}
         else:
@@ -315,6 +324,8 @@ def finish(home, state, transaction, repo=None, manifest=None, app=None):
             sync_parent(directory)
     for name, data in decoded.items():
         path = safe_path(home, name)
+        if name == "config.toml" and transaction.get("config_link"):
+            path = Path(transaction["config_link"])
         if data is None:
             if path.exists() or path.is_symlink():
                 path.unlink()
@@ -375,6 +386,11 @@ def publish(
         for name, (data, before) in updates.items()
     ]
     transaction = {"schema": 1, "updates": records, "baseline": baseline}
+    from .links import config_link_target
+
+    config_target = config_link_target(home)
+    if config_target is not None:
+        transaction["config_link"] = str(config_target)
     if roots:
         transaction["roots"] = roots
     backup = None

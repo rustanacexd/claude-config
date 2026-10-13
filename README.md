@@ -4,7 +4,7 @@ Shared Claude Code and Codex configuration for macOS, Linux, and Windows.
 
 This repository keeps global instructions, separate pstack model sheets, settings, output styles, two custom skills, and plugin declarations. Third-party skills are listed in [SKILLS.md](SKILLS.md) and installed through `npx skills`.
 
-Python 3.11 or newer applies shared defaults as regular files. Offline refresh needs no Bash, jq, Node, or symlink privileges. Native plugins and third-party skills use their own installers. Credentials and account connections stay on each machine.
+Python 3.11 or newer applies shared defaults as regular files. You can opt into a Codex config symlink with `python3 manage.py link --app codex`. Offline refresh needs no Bash, jq, Node, or symlink privileges unless you select symlink mode. Native plugins and third-party skills use their own installers. Credentials and account connections stay on each machine.
 
 ## Start with the matching guide
 
