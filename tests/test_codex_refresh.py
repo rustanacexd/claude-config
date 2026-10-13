@@ -157,6 +157,50 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual((self.home / "config.toml").read_bytes(), original)
         self.assertEqual(target.read_text(), 'model="checkout"\n')
 
+    def test_config_link_interruption_preserves_config_and_can_retry(self):
+        self.require_symlinks()
+        from portable import links
+
+        for boundary in ("target", "marker", "before_replace", "after_replace"):
+            with self.subTest(boundary=boundary):
+                home = self.root / boundary
+                self.run_refresh()
+                home.mkdir()
+                path = home / "config.toml"
+                original = b'model="local"\n# Keep my settings\n'
+                path.write_bytes(original)
+                target = self.repo.resolve() / "codex/config.toml"
+                original_atomic = links.atomic
+                original_replace = links.os.replace
+
+                def interrupt_atomic(destination, data):
+                    original_atomic(destination, data)
+                    if (boundary == "target" and destination == target) or (
+                        boundary == "marker" and destination.name == "config-link.json"
+                    ):
+                        raise OSError("simulated interruption")
+
+                def interrupt_replace(source, destination):
+                    if destination == path and boundary == "before_replace":
+                        raise OSError("simulated interruption")
+                    original_replace(source, destination)
+                    if destination == path and boundary == "after_replace":
+                        raise OSError("simulated interruption")
+
+                with patch.object(links, "atomic", side_effect=interrupt_atomic), patch.object(
+                    links.os, "replace", side_effect=interrupt_replace
+                ):
+                    with self.assertRaises(OSError):
+                        link_codex_config(self.repo, home)
+                self.assertEqual(path.read_bytes(), original)
+                if (home / ".claude-config/config-link.json").exists() and not path.is_symlink():
+                    with self.assertRaisesRegex(ValueError, "config link changed"):
+                        refresh(self.repo, {"codex": home}, ["codex"])
+                link_codex_config(self.repo, home)
+                refresh(self.repo, {"codex": home}, ["codex"])
+                self.assertTrue(path.is_symlink())
+                self.assertEqual(tomllib.loads(path.read_text())["model"], "local")
+
     def test_real_cli_config_link(self):
         self.require_symlinks()
         source = self.root / "link CLI source"

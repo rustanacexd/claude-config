@@ -74,11 +74,11 @@ def link_codex_config(repo, home):
             if fingerprint(path) != before or read(target) != target_before:
                 raise ValueError("Config changed while linking; retry while app is idle")
             atomic(target, original)
+            atomic(marker, json.dumps({"target": str(target)}).encode())
             if fingerprint(path) != before:
                 raise ValueError("Codex config changed while linking; retry while app is idle")
             os.replace(temporary, path)
             sync_parent(path)
-            atomic(marker, json.dumps({"target": str(target)}).encode())
         finally:
             temporary.unlink(missing_ok=True)
     return target
