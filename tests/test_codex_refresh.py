@@ -121,6 +121,16 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(self.config()["model"], "updated")
         self.assertFalse((self.home / ".claude-config/journal.json").exists())
 
+    def test_new_config_link_does_not_import_an_unrelated_legacy_baseline(self):
+        self.require_symlinks()
+        legacy = 'model="local"\n[marketplaces.keep]\nsource="keep-local-plugin-source"\n'
+        (self.repo / "codex/.template.snapshot.toml").write_text(legacy)
+        (self.home / "config.toml").write_text(legacy)
+        link_codex_config(self.repo, self.home)
+        self.run_refresh()
+        self.assertTrue((self.home / "config.toml").is_symlink())
+        self.assertEqual(self.config()["marketplaces"]["keep"]["source"], "keep-local-plugin-source")
+
     def test_config_link_rejects_retargeting_without_writing_foreign_file(self):
         self.require_symlinks()
         self.run_refresh()

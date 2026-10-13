@@ -242,6 +242,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
     if (
         baseline_bytes is None
         and app == "codex"
+        and config_link_target(home) is None
         and (home / name).is_symlink()
         and (home / name).resolve() == (repo / "codex/config.toml").resolve()
     ):
