@@ -20,11 +20,8 @@ session's level, because an omitted effort falls back to the provider default. I
 member's tool or model is unavailable, run the rest and name the skipped members in
 the reply.
 
-Pass `interactionMode: "default"` on every `delegate_task` call. An omitted mode
-inherits this thread's, and a child in plan mode ends its turn with a proposed plan
-instead of a result, where an approval step can hold it while the task reads as
-running. If a delegated task has not updated in 10 minutes, read its
-thread for a `proposed_plan` item or a pending request before waiting longer.
+Pass `interactionMode: "default"` on every `delegate_task` call, because an omitted
+mode inherits this thread's, and a plan-mode child cannot write files or run commands.
 
 # Search routing
 
