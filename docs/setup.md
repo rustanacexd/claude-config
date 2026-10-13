@@ -11,7 +11,7 @@ Read this guide and [SKILLS.md](../SKILLS.md) before changing a machine.
 3. Follow every selected install command in `SKILLS.md`. Verify the requested upstream skills through the Skills CLI and their installed files. `manage.py doctor` does not verify them.
 4. Run `manage.py doctor` and `manage.py inventory`. Separate command failures from missing credentials, account connections, and app capabilities. Authenticate through native app flows; keep credentials on the machine.
 5. Verify both global instruction files, each app's distinct model sheet, the two shared custom skills, and the eight Codex Visual Explainer shortcuts. Run `manage.py refresh` again and confirm zero changes when no source or local files changed.
-6. Report the checkout revision, OS, commands run, observed results, and pending setup. Name any untested behavior. A CI result does not prove a run on the user's connected machine.
+6. Enable the [pre-push sync check](updating.md#catch-unrecorded-local-changes) and run `manage.py check-sync`. Report the checkout revision, OS, commands run, observed results, and pending setup. Name any untested behavior. A CI result does not prove a run on the user's connected machine.
 
 ## Install the shared setup
 

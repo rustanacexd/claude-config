@@ -4,6 +4,12 @@ Run these checks from the repository checkout. Use isolated app homes for instal
 
 ## Run the automated suite
 
+Check that every repository skill is included in the install manifest, without requiring app installations or credentials:
+
+```sh
+python3 manage.py check-sync --repo-only
+```
+
 ```sh
 python3 -m unittest discover -s tests -v
 ```
