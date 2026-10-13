@@ -210,6 +210,15 @@
     },
     {
       "app": "codex",
+      "id": "worktrunk@worktrunk",
+      "enabled": true,
+      "observed_version": "local",
+      "kind": "native",
+      "marketplace": "worktrunk",
+      "source": "https://github.com/max-sixty/worktrunk.git"
+    },
+    {
+      "app": "codex",
       "id": "gmail@openai-curated-remote",
       "enabled": true,
       "observed_version": "0.1.10",
