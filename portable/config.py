@@ -92,7 +92,3 @@ def render(config):
     if not equal(tomllib.loads(data.decode()), config):
         raise ValueError("TOML serialization changed the configuration")
     return data
-
-
-def parse(data):
-    return tomllib.loads(data.decode("utf-8"))
