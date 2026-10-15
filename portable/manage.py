@@ -267,7 +267,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
     )
     updates = {}
     owned = {}
-    issues = []
+    retained = []
     for dest, data in files.items():
         converting = under_root(dest, roots)
         path = home / dest if converting else safe_path(home, dest)
@@ -284,7 +284,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
                 updates[dest] = data
         elif current is None and previous is not None:
             owned[dest] = previous
-            issues.append(f"{app}: local deletion retained: {dest}")
+            retained.append(("local deletion", dest))
         elif (
             current is None
             or current_hash == previous
@@ -299,7 +299,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
         else:
             if previous is not None:
                 owned[dest] = previous
-            issues.append(f"{app}: local file retained: {dest}")
+            retained.append(("local file", dest))
     for dest, previous in baseline["files"].items():
         relative(dest)
         if dest not in files and not under_root(dest, roots):
@@ -308,7 +308,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
             if current is not None and hashlib.sha256(current).hexdigest() == previous:
                 updates[dest] = None
             elif current is not None:
-                issues.append(f"{app}: edited removed asset retained: {dest}")
+                retained.append(("edited removed asset", dest))
     keep_link = app == "codex" and config_link_target(home) is not None
     if output != live_bytes or ((home / name).is_symlink() and not keep_link):
         updates[name] = output
@@ -327,7 +327,7 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
         )
         for dest, data in updates.items()
     }
-    return updates, {"schema": 1, "files": owned, "config": shared}, issues
+    return updates, {"schema": 1, "files": owned, "config": shared}, retained
 
 
 def refresh(repo, homes, apps):
@@ -353,5 +353,5 @@ def refresh(repo, homes, apps):
             )
             publish(home, state, updates, baseline, roots, repo, manifest, app)
             changed.extend(f"{app}: {p}" for p in updates)
-            issues.extend(retained)
+            issues.extend(f"{app}: {kind} retained: {dest}" for kind, dest in retained)
     return changed, issues

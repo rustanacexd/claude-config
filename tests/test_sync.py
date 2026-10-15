@@ -18,6 +18,8 @@ class SyncTests(unittest.TestCase):
         (self.repo / "skills/shared").mkdir(parents=True)
         (self.repo / "skills/shared/SKILL.md").write_text("shared skill")
         (self.repo / "settings.json").write_text("{}")
+        (self.repo / "codex").mkdir()
+        (self.repo / "codex/config.template.toml").write_text("")
         self.manifest = {"assets": [{"source": "skills/shared",
                                      "destination": "skills/shared",
                                      "apps": ["claude", "codex"]}]}
@@ -95,7 +97,71 @@ class SyncTests(unittest.TestCase):
     def test_local_edit_to_managed_skill_is_reported(self):
         (self.homes["codex"] / "skills/shared/SKILL.md").write_text("local edit")
         self.assertEqual(self.check(), [
+            "codex: skills/shared/SKILL.md differs from skills/shared/SKILL.md in the repository; "
+            "edit the repository copy and run refresh"
+        ])
+
+    def test_edited_copy_of_managed_skill_outside_the_home_is_reported(self):
+        (self.agents / "shared").mkdir()
+        (self.agents / "shared/SKILL.md").write_text("agents copy")
+        self.assertEqual(self.check(), [
             "codex: skill shared differs from skills/shared; copy the intended edits into the repository"
+        ])
+
+    def add_instructions(self):
+        (self.repo / "CLAUDE.md").write_text("claude instructions")
+        (self.repo / "codex/AGENTS.md").write_text("codex instructions")
+        self.manifest["assets"] += [
+            {"source": "CLAUDE.md", "destination": "CLAUDE.md", "apps": ["claude"]},
+            {"source": "codex/AGENTS.md", "destination": "AGENTS.md", "apps": ["codex"]},
+        ]
+        (self.repo / "portable.json").write_text(json.dumps(dict(self.manifest, schema=1)))
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+
+    def refreshed_instructions(self):
+        self.add_instructions()
+        refresh(self.repo, self.homes, ["claude", "codex"])
+
+    def test_refreshed_files_pass_before_refresh_after_it_and_while_the_repository_is_ahead(self):
+        self.add_instructions()
+        self.assertEqual(self.check(), [])
+        refresh(self.repo, self.homes, ["claude", "codex"])
+        self.assertEqual(self.check(), [])
+        (self.repo / "CLAUDE.md").write_text("newer claude instructions")
+        (self.repo / "skills/shared/SKILL.md").write_text("newer shared skill")
+        self.assertEqual(self.check(), [])
+        refresh(self.repo, self.homes, ["claude", "codex"])
+        self.assertEqual((self.homes["claude"] / "CLAUDE.md").read_text(), "newer claude instructions")
+        self.assertEqual(self.check(), [])
+
+    def test_edited_claude_instructions_are_reported_until_recorded(self):
+        self.refreshed_instructions()
+        (self.homes["claude"] / "CLAUDE.md").write_text("edited in place")
+        self.assertEqual(self.check(), [
+            "claude: CLAUDE.md differs from CLAUDE.md in the repository; "
+            "edit the repository copy and run refresh"
+        ])
+        (self.repo / "CLAUDE.md").write_text("edited in place")
+        refresh(self.repo, self.homes, ["claude", "codex"])
+        self.assertEqual(self.check(), [])
+
+    def test_edited_codex_instructions_are_reported(self):
+        self.refreshed_instructions()
+        (self.homes["codex"] / "AGENTS.md").write_text("edited in place")
+        self.assertEqual(self.check(), [
+            "codex: AGENTS.md differs from codex/AGENTS.md in the repository; "
+            "edit the repository copy and run refresh"
+        ])
+
+    def test_deleted_instructions_and_added_skill_files_are_reported(self):
+        self.refreshed_instructions()
+        (self.homes["claude"] / "CLAUDE.md").unlink()
+        (self.homes["codex"] / "skills/shared/notes.md").write_text("local notes")
+        self.assertEqual(self.check(), [
+            "claude: CLAUDE.md was deleted; copy CLAUDE.md from the repository to restore it, "
+            "or remove it from the repository",
+            "codex: skills/shared/notes.md is not in the repository; add it as "
+            "skills/shared/notes.md and run refresh, or delete it",
         ])
 
     def test_upstream_and_system_skills_do_not_require_vendoring(self):

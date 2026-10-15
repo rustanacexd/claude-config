@@ -4,7 +4,7 @@ from pathlib import Path
 import shlex
 import subprocess
 
-from .manage import desired, merge_config
+from .manage import asset_source, desired, merge_config, plan
 
 
 def upstream_skills(repo):
@@ -49,6 +49,28 @@ def skill_files(directory):
             for p in directory.rglob("*") if p.is_file()}
 
 
+FILE_MESSAGES = {
+    "local file": "{app}: {dest} differs from {source} in the repository; "
+                  "edit the repository copy and run refresh",
+    "local deletion": "{app}: {dest} was deleted; copy {source} from the repository "
+                      "to restore it, or remove it from the repository",
+    "extra": "{app}: {dest} is not in the repository; add it as {source} "
+             "and run refresh, or delete it",
+}
+
+
+def installed_file_issues(repo, manifest, plugins, app, home, managed):
+    files, _, _ = desired(repo, manifest, plugins, app, home)
+    _, _, retained = plan(repo, manifest, plugins, app, home, home / ".claude-config")
+    extra = [("extra", path.relative_to(home).as_posix())
+             for name in managed for path in sorted((home / "skills" / name).rglob("*"))
+             if path.is_file() and path.relative_to(home).as_posix() not in files]
+    return [FILE_MESSAGES[kind].format(
+                app=app, dest=dest,
+                source=asset_source(repo, manifest, app, dest).relative_to(repo).as_posix())
+            for kind, dest in retained + extra if kind in FILE_MESSAGES]
+
+
 def check_local(repo, manifest, plugins, homes, agents, inventory):
     issues = []
     upstream = upstream_skills(repo)
@@ -64,7 +86,7 @@ def check_local(repo, manifest, plugins, homes, agents, inventory):
                 seen.add(skill.resolve())
                 if skill.name in managed:
                     source = managed[skill.name]
-                    if skill_files(skill) != skill_files(source):
+                    if root != home / "skills" and skill_files(skill) != skill_files(source):
                         issues.append(f"{app}: skill {skill.name} differs from "
                                       f"{source.relative_to(repo).as_posix()}; "
                                       "copy the intended edits into the repository")
@@ -79,6 +101,7 @@ def check_local(repo, manifest, plugins, homes, agents, inventory):
             if identifier not in declared:
                 issues.append(f"{app}: plugin {identifier} is not recorded in plugins.json")
                 continue
+        issues.extend(installed_file_issues(repo, manifest, plugins, app, home, managed))
     # Codex writes trust levels, hook hashes, and app MCP servers into config.toml,
     # so only Claude settings are compared.
     if "claude" in homes:
