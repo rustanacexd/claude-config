@@ -1,3 +1,11 @@
+# Global instruction ownership
+
+The `claude-config` repository owns `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`.
+Before changing either file, read the repository's `README.md` and `docs/updating.md`.
+Edit `CLAUDE.md` and `codex/AGENTS.md` in the repository, then run
+`python3 manage.py refresh` and `python3 manage.py check-sync` from that checkout.
+Do not edit the installed copies directly.
+
 # Skills and task tracking
 
 Follow a named skill's supplied instructions or read its SKILL.md and runtime mapping.
@@ -8,8 +16,8 @@ verbatim and explicit `skip: <reason>` entries; rebuild the list after compactio
 
 Apply this section only when running in T3 Code.
 
-Every pstack multi-model panel (architect runners, arena runners, the arena cross-judge
-pool, interrogate reviewers, and any other model-diverse panel) has four members, in
+Every pstack multi-model panel (architect runners, arena runners, interrogate
+reviewers, and any other model-diverse panel) has four members, in
 this order: Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then Claude Fable.
 Run the Codex members per the pstack model configuration below. Add the Claude members
 (`claude-opus-5-5` and `claude-fable-5-1`) through T3's `delegate_task`, selecting the
@@ -19,6 +27,9 @@ the effort that the `default effort` line resolves to, where `session` means thi
 session's level, because an omitted effort falls back to the provider default. If a
 member's tool or model is unavailable, run the rest and name the skipped members in
 the reply.
+
+Arena cross-judging follows pstack's default. Choose one judge from the configured
+cross-judge pool. The owner reads all candidates and makes the final selection.
 
 Pass `interactionMode: "default"` on every `delegate_task` call, because an omitted
 mode inherits this thread's, and a plan-mode child cannot write files or run commands.
