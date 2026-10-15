@@ -1,11 +1,3 @@
-# Global instruction ownership
-
-The `claude-config` repository owns `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`.
-Before changing either file, read the repository's `README.md` and `docs/updating.md`.
-Edit `CLAUDE.md` and `codex/AGENTS.md` in the repository, then run
-`python3 manage.py refresh` and `python3 manage.py check-sync` from that checkout.
-Do not edit the installed copies directly.
-
 # Skills and todolists
 
 For a message starting with `/<skill>`, load that skill with the `Skill` tool unless the
