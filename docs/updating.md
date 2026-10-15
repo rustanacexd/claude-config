@@ -4,13 +4,15 @@ Shared changes flow from a feature checkout through GitHub to each machine's che
 
 ## Catch unrecorded local changes
 
-Run this after installing a skill or plugin, or editing a managed skill:
+Run this after you install a skill or plugin, edit a managed skill, or change a Claude setting:
 
 ```sh
 python3 manage.py check-sync
 ```
 
 The command checks both apps. It fails when an installed user skill or plugin has no declaration, or a managed skill differs from its repository source. Record upstream skills with explicit `--skill` and `-a` names in the single-line install commands in `SKILLS.md`. Record plugins in `plugins.json` and authored skills in `portable.json`. It reads inventories without copying credentials or editing installations. Native plugin caches and system skills are excluded. Per-machine plugin enablement and unpinned version differences remain allowed.
+
+The command also fails when refresh would keep a local Claude setting over the value it builds from `settings.json`, `portable.local.json`, and the generated `statusLine`. Each message names the dotted path of the setting, never its value. Copy a shared setting into `settings.json`. Copy a machine-specific or secret setting into `portable.local.json` in the Claude home. A repository change that refresh has not applied yet does not fail the check. Codex settings are not compared, because Codex writes trust levels, hook hashes, and its own MCP servers into `config.toml`.
 
 Enable the repository's pre-push check once in each clone:
 
@@ -48,7 +50,7 @@ The default homes are `~/.claude` and `~/.codex`. `CLAUDE_CONFIG_DIR` and `CODEX
 
 Claude Code uses the root `pstack-models.md`, installed as `~/.claude/pstack-models.md`, with its existing `opus` and `fable` roles. Codex uses `codex/pstack-models.md`, installed as `~/.codex/pstack-models.md`, with its Codex model roles. Edit each sheet independently. Refresh updates an unchanged managed sheet and preserves local edits.
 
-Edit `settings.json` or `codex/config.template.toml` to share a setting. Local app settings never flow into this repository. The three-way merge updates unchanged defaults and keeps local values, unknown keys, deleted settings and arrays. Entire locally deleted tables remain deleted. Identical refreshes preserve config bytes and file mtimes and create no new backups.
+Edit `settings.json` or `codex/config.template.toml` to share a setting. Local app settings never flow into this repository on their own. If refresh keeps a changed local Claude setting, `check-sync` fails until you record the setting in `settings.json` or `portable.local.json`. The three-way merge updates unchanged defaults and keeps local values, unknown keys, deleted settings and arrays. Entire locally deleted tables remain deleted. Identical refreshes preserve config bytes and file mtimes and create no new backups.
 
 For a local proxy or credential profile, create `portable.local.json` inside the relevant app home. It is a JSON object using that app's settings shape, including `env` for Claude when needed. Its values remain machine-local. Do not commit credentials or machine endpoints to shared templates. Fresh shared defaults use native app login.
 
