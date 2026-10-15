@@ -4,6 +4,8 @@ from pathlib import Path
 import shlex
 import subprocess
 
+from .manage import desired, merge_config
+
 
 def upstream_skills(repo):
     names = {"claude": set(), "codex": set()}
@@ -77,6 +79,16 @@ def check_local(repo, manifest, plugins, homes, agents, inventory):
             if identifier not in declared:
                 issues.append(f"{app}: plugin {identifier} is not recorded in plugins.json")
                 continue
+    # Codex writes trust levels, hook hashes, and app MCP servers into config.toml,
+    # so only Claude settings are compared.
+    if "claude" in homes:
+        home = homes["claude"]
+        _, name, shared = desired(repo, manifest, plugins, "claude", home)
+        retained = []
+        merge_config(repo, "claude", home, home / ".claude-config", name, shared, retained)
+        issues.extend(f"claude: setting {'.'.join(path)} differs from settings.json; "
+                      f"copy it into the repository or {home / 'portable.local.json'}"
+                      for path in retained if path[0] != "enabledPlugins")
     return issues
 
 

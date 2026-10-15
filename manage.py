@@ -76,7 +76,7 @@ def main():
         for issue in issues:
             print(issue, file=sys.stderr)
         if not issues:
-            print("Repository sync declarations OK" if args.repo_only else "Installed skills and plugins are recorded and managed skills match")
+            print("Repository sync declarations OK" if args.repo_only else "Installed skills, plugins, and Claude settings are recorded and managed skills match")
         return 1 if issues else 0
     if args.operation == "link":
         if args.app != "codex" or args.install_tools:
