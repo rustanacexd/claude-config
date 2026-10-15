@@ -26,6 +26,6 @@ On Windows use `py -3 manage.py refresh`, or `python manage.py refresh` if `py` 
 
 Refresh preserves local changes and does not publish installed-file edits back to GitHub. Follow [Update machines](docs/updating.md) for skill and plugin changes.
 
-Run `python3 manage.py check-sync` to catch installed skills and plugins that are not recorded here. Enable the [pre-push hook](docs/updating.md#catch-unrecorded-local-changes) to run it automatically before pushing.
+Run `python3 manage.py check-sync` to catch installed skills, plugins, and Claude settings that are not recorded here. Enable the [pre-push hook](docs/updating.md#catch-unrecorded-local-changes) to run it automatically before pushing.
 
 A setup agent must read [Set up a machine](docs/setup.md) and [SKILLS.md](SKILLS.md) before changing a machine. Report actual machine results separately from CI results.

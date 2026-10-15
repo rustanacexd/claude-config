@@ -21,7 +21,7 @@ def equal(a, b):
     return type(a) is type(b) and a == b
 
 
-def merge(previous, live, shared, path=(), conflicts=None):
+def merge(previous, live, shared, path=(), retained=None):
     if equal(live, previous):
         return shared
     if isinstance(live, dict) and all(
@@ -36,17 +36,13 @@ def merge(previous, live, shared, path=(), conflicts=None):
                 live.get(key, MISSING),
                 new.get(key, MISSING),
                 path + (key,),
-                conflicts,
+                retained,
             )
             if value is not MISSING:
                 result[key] = value
         return result
-    if (
-        conflicts is not None
-        and not equal(previous, shared)
-        and not equal(live, shared)
-    ):
-        conflicts.append(".".join(path))
+    if retained is not None and not equal(live, shared):
+        retained.append(path)
     return live
 
 

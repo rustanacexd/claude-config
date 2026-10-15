@@ -223,9 +223,7 @@ def under_root(dest, roots):
     return any(dest.startswith(root["path"] + "/") for root in roots)
 
 
-def plan(repo, manifest, plugins, app, home, state, roots=None):
-    roots = directory_roots(repo, manifest, app, home) if roots is None else roots
-    files, name, shared = desired(repo, manifest, plugins, app, home)
+def merge_config(repo, app, home, state, name, shared, retained=None):
     if (state / "baseline.json").is_symlink():
         raise ValueError("Baseline must not be a symlink")
     baseline_bytes = read(state / "baseline.json")
@@ -249,7 +247,15 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
         snapshot = read(repo / "codex/.template.snapshot.toml")
         if snapshot is not None:
             old = parse(app, snapshot)
-    merged = merge(old, live, shared)
+    return baseline, live_bytes, live, merge(old, live, shared, retained=retained)
+
+
+def plan(repo, manifest, plugins, app, home, state, roots=None):
+    roots = directory_roots(repo, manifest, app, home) if roots is None else roots
+    files, name, shared = desired(repo, manifest, plugins, app, home)
+    baseline, live_bytes, live, merged = merge_config(
+        repo, app, home, state, name, shared
+    )
     output = (
         live_bytes
         if live_bytes is not None and equal(live, merged)

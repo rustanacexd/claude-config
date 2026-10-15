@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from portable import sync
+from portable.manage import refresh
 
 
 class SyncTests(unittest.TestCase):
@@ -16,6 +17,7 @@ class SyncTests(unittest.TestCase):
         self.repo.mkdir()
         (self.repo / "skills/shared").mkdir(parents=True)
         (self.repo / "skills/shared/SKILL.md").write_text("shared skill")
+        (self.repo / "settings.json").write_text("{}")
         self.manifest = {"assets": [{"source": "skills/shared",
                                      "destination": "skills/shared",
                                      "apps": ["claude", "codex"]}]}
@@ -51,6 +53,44 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.check(declared, inventory), [
             "claude: plugin new@market is not recorded in plugins.json",
         ])
+
+    def refreshed_claude(self, settings):
+        (self.repo / "portable.json").write_text(json.dumps(dict(self.manifest, schema=1)))
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        (self.repo / "settings.json").write_text(json.dumps(settings))
+        home = self.homes["claude"]
+        (home / "portable.local.json").write_text('{"env":{"ANTHROPIC_AUTH_TOKEN":"local-token"}}')
+        refresh(self.repo, {"claude": home}, ["claude"])
+        return home
+
+    def edit_live(self, home, change):
+        live = json.loads((home / "settings.json").read_text())
+        change(live)
+        (home / "settings.json").write_text(json.dumps(live))
+
+    def test_live_setting_edit_is_reported_until_recorded(self):
+        home = self.refreshed_claude({"model": "opus"})
+        self.assertEqual(self.check(), [])
+        (self.repo / "settings.json").write_text('{"model": "fable"}')
+        self.assertEqual(self.check(), [])
+        self.edit_live(home, lambda live: live.update(
+            model="sonnet", enabledPlugins={"local@market": True}))
+        self.assertEqual(self.check(), [
+            "claude: setting model differs from settings.json; copy it into the "
+            f"repository or {home / 'portable.local.json'}"
+        ])
+        (self.repo / "settings.json").write_text('{"model": "sonnet"}')
+        self.assertEqual(self.check(), [])
+
+    def test_drifted_secret_is_reported_without_its_value(self):
+        home = self.refreshed_claude({})
+        self.edit_live(home, lambda live: live["env"].update(ANTHROPIC_AUTH_TOKEN="rotated-token"))
+        issues = self.check()
+        self.assertEqual(issues, [
+            "claude: setting env.ANTHROPIC_AUTH_TOKEN differs from settings.json; copy it into "
+            f"the repository or {home / 'portable.local.json'}"
+        ])
+        self.assertNotIn("rotated-token", issues[0])
 
     def test_local_edit_to_managed_skill_is_reported(self):
         (self.homes["codex"] / "skills/shared/SKILL.md").write_text("local edit")
