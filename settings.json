@@ -6,7 +6,13 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "auto",
+    "deny": [
+      "Artifact",
+      "ArtifactComments",
+      "ArtifactData",
+      "DesignSync"
+    ]
   },
   "disableClaudeAiConnectors": true,
   "skillOverrides": {
@@ -17,7 +23,7 @@
     "block-kit": "off",
     "slack-cli": "off",
     "create-slack-app": "off",
-    "gh": "on",
+    "gh": "off",
     "gh-stack": "on",
     "docx": "off",
     "pptx": "off",
@@ -25,12 +31,20 @@
     "pdf": "off",
     "learn": "off",
     "morning": "off",
-    "docs": "off"
+    "docs": "off",
+    "sentry-create-alert": "off",
+    "sentry-debug-issue": "off",
+    "sentry-fix-stack-traces": "off",
+    "sentry-get-started": "off",
+    "sentry-instrument": "off",
+    "sentry-otel-exporter-setup": "off",
+    "sentry-setup-releases": "off",
+    "sentry-snapshots-cocoa": "off",
+    "finding-google-skills": "off"
   },
-  "enableArtifact": true,
+  "enableArtifact": false,
   "outputStyle": "Concise",
-  "effortLevel": "medium",
-  "advisorModel": "fable",
+  "effortLevel": "high",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
@@ -46,5 +60,45 @@
   "preferredNotifChannel": "ghostty",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "model": "opus",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    }
+  },
+  "enableWorkflows": false,
+  "extraKnownMarketplaces": {
+    "worktrunk": {
+      "source": {
+        "source": "github",
+        "repo": "max-sixty/worktrunk"
+      },
+      "autoUpdate": true
+    },
+    "pstack-claude": {
+      "source": {
+        "source": "github",
+        "repo": "michael-denyer/pstack-claude"
+      },
+      "autoUpdate": true
+    },
+    "visual-explainer-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "nicobailon/visual-explainer"
+      }
+    }
+  },
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "FORCE_AUTOUPDATE_PLUGINS": "true",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+    "CLAUDE_CODE_ENABLE_TASKS": "false"
+  }
 }
