@@ -2,15 +2,30 @@
 
 Shared changes flow from a feature checkout through GitHub to each machine's checkout. No automatic synchronization runs between machines. Edits to installed files stay local and do not flow back into the repository.
 
+## Edit managed files in the repository
+
+Refresh installs each managed file as a regular copy, not a link. `portable.json` lists the managed files. They include these instruction files and model sheets:
+
+- `CLAUDE.md` installs as `~/.claude/CLAUDE.md`.
+- `codex/AGENTS.md` installs as `~/.codex/AGENTS.md`.
+- `pstack-models.md` installs as `~/.claude/pstack-models.md`.
+- `codex/pstack-models.md` installs as `~/.codex/pstack-models.md`.
+
+To change one of these files, edit the repository copy and run `python3 manage.py refresh`. Then commit and push the change so other machines get it.
+
+An edit to `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md` changes only that machine. Refresh keeps the edited file and prints `local file retained`, and `check-sync` fails with a message such as `claude: CLAUDE.md differs from CLAUDE.md in the repository; edit the repository copy and run refresh`. To keep the edit, copy it into the repository file and run refresh. To discard the edit, copy the repository file over the installed file.
+
+If an older setup linked `~/.claude/CLAUDE.md` to the checkout, refresh replaces the link with a copy. After that, edits to the installed file no longer reach the repository.
+
 ## Catch unrecorded local changes
 
-Run this after you install a skill or plugin, edit a managed skill, or change a Claude setting:
+Run this after you install a skill or plugin, edit an installed managed file, or change a Claude setting:
 
 ```sh
 python3 manage.py check-sync
 ```
 
-The command checks both apps. It fails when an installed user skill or plugin has no declaration, or a managed skill differs from its repository source. Record upstream skills with explicit `--skill` and `-a` names in the single-line install commands in `SKILLS.md`. Record plugins in `plugins.json` and authored skills in `portable.json`. It reads inventories without copying credentials or editing installations. Native plugin caches and system skills are excluded. Per-machine plugin enablement and unpinned version differences remain allowed.
+The command checks both apps. It fails when an installed user skill or plugin has no declaration. It also fails when refresh would keep an installed managed file instead of replacing it: a file edited in place, a refreshed file that you deleted, or an extra file in a managed skill directory. A managed file that refresh has not installed yet, or that refresh would update to a newer repository copy, does not fail the check. Record upstream skills with explicit `--skill` and `-a` names in the single-line install commands in `SKILLS.md`. Record plugins in `plugins.json` and authored skills in `portable.json`. It reads inventories without copying credentials or editing installations. Native plugin caches and system skills are excluded. Per-machine plugin enablement and unpinned version differences remain allowed.
 
 The command also fails when refresh would keep a local Claude setting over the value it builds from `settings.json`, `portable.local.json`, and the generated `statusLine`. Each message names the dotted path of the setting, never its value. Copy a shared setting into `settings.json`. Copy a machine-specific or secret setting into `portable.local.json` in the Claude home. A repository change that refresh has not applied yet does not fail the check. Codex settings are not compared, because Codex writes trust levels, hook hashes, and its own MCP servers into `config.toml`.
 
@@ -48,7 +63,7 @@ On Windows use `py -3 manage.py refresh`, or `./refresh.ps1`. `./refresh.sh` is 
 
 The default homes are `~/.claude` and `~/.codex`. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` override them. `--home PATH` uses that path directly when selecting one app. For both apps it creates `PATH/claude` and `PATH/codex`, which is useful for an isolated test.
 
-Claude Code uses the root `pstack-models.md`, installed as `~/.claude/pstack-models.md`, with its existing `opus` and `fable` roles. Codex uses `codex/pstack-models.md`, installed as `~/.codex/pstack-models.md`, with its Codex model roles. Edit each sheet independently. Refresh updates an unchanged managed sheet and preserves local edits.
+Claude Code uses the root `pstack-models.md`, installed as `~/.claude/pstack-models.md`, with its existing `opus` and `fable` roles. Codex uses `codex/pstack-models.md`, installed as `~/.codex/pstack-models.md`, with its Codex model roles. Edit each sheet independently. Refresh updates an unchanged installed sheet and preserves local edits, which `check-sync` reports.
 
 Edit `settings.json` or `codex/config.template.toml` to share a setting. Local app settings never flow into this repository on their own. If refresh keeps a changed local Claude setting, `check-sync` fails until you record the setting in `settings.json` or `portable.local.json`. The three-way merge updates unchanged defaults and keeps local values, unknown keys, deleted settings and arrays. Entire locally deleted tables remain deleted. Identical refreshes preserve config bytes and file mtimes and create no new backups.
 
