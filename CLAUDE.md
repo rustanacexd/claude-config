@@ -1,6 +1,7 @@
 # Skills and todolists
 
-For a message starting with `/<skill>`, the first tool call is `Skill` with that name.
+For a message starting with `/<skill>`, load that skill with the `Skill` tool unless the
+harness already expanded it this turn. Reading its SKILL.md does not count as loading it.
 For a selected playbook, copy its numbered steps verbatim before task-specific items.
 Keep omitted steps with `skip: <reason>` and rebuild the list after compaction or
 handoff. A concise reply does not waive the steps.
@@ -37,8 +38,8 @@ sources support an answer or show it is unavailable, and cite the supporting URL
 
 # Stacked PRs
 
-Build and land PR stacks with `gh stack`, never by hand, and read the `gh-stack` skill
-file even when it is not in your invocable list. Drive it end to end. Hand back only for
+Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` skill, or
+read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
 # Never work on main
