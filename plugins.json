@@ -23,7 +23,7 @@
       "app": "claude",
       "id": "pstack@pstack-claude",
       "enabled": true,
-      "observed_version": "0.9.83",
+      "observed_version": "0.9.88",
       "kind": "native",
       "marketplace": "pstack-claude",
       "source": "https://github.com/michael-denyer/pstack-claude.git"
@@ -194,7 +194,7 @@
       "app": "codex",
       "id": "pstack@pstack-claude",
       "enabled": true,
-      "observed_version": "0.9.83",
+      "observed_version": "0.9.88",
       "kind": "native",
       "marketplace": "pstack-claude",
       "source": "https://github.com/michael-denyer/pstack-claude.git"
