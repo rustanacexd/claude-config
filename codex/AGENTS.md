@@ -1,8 +1,7 @@
 # Skills and task tracking
 
 Follow a named skill's supplied instructions or read its SKILL.md and runtime mapping.
-Use the current runtime's task tracker. For a selected playbook, keep its numbered steps
-verbatim and explicit `skip: <reason>` entries; rebuild the list after compaction or handoff.
+Use the current runtime's task tracker.
 
 # Search routing
 
@@ -39,12 +38,6 @@ Use checks proportionate to the change; repeat them for a concrete reason, such 
 instability, required sampling, or invalidated evidence. Preserve required reviews and
 fresh CI. Report gaps and blockers honestly; a round limit never makes a failure a pass.
 Track unrelated inherited defects separately, but block defects that defeat acceptance.
-
-# Repeated failures
-
-When repeated fixes fail, name their shared assumption and test an observation that
-could falsify it before another fix depends on it. Cite instructions or principles as
-applied only after reading them in the current session.
 
 # Delegation and shared resources
 

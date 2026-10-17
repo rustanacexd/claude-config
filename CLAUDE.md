@@ -2,9 +2,6 @@
 
 For a message starting with `/<skill>`, load that skill with the `Skill` tool unless the
 harness already expanded it this turn. Reading its SKILL.md does not count as loading it.
-For a selected playbook, copy its numbered steps verbatim before task-specific items.
-Keep omitted steps with `skip: <reason>` and rebuild the list after compaction or
-handoff. A concise reply does not waive the steps.
 
 # Search routing
 
@@ -58,12 +55,6 @@ Use checks proportionate to the change; repeat them for a concrete reason, such 
 instability, required sampling, or invalidated evidence. Preserve required reviews and
 fresh CI. Report gaps and blockers honestly; a round limit never makes a failure a pass.
 Track unrelated inherited defects separately, but block defects that defeat acceptance.
-
-# Repeated failures
-
-When repeated fixes fail, name their shared assumption and test an observation that
-could falsify it before another fix depends on it. Cite instructions or principles as
-applied only after reading them in the current session.
 
 # Delegation and shared resources
 
