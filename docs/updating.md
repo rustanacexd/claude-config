@@ -63,7 +63,7 @@ On Windows use `py -3 manage.py refresh`, or `./refresh.ps1`. `./refresh.sh` is 
 
 The default homes are `~/.claude` and `~/.codex`. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` override them. `--home PATH` uses that path directly when selecting one app. For both apps it creates `PATH/claude` and `PATH/codex`, which is useful for an isolated test.
 
-Claude Code uses the root `pstack-models.md`, installed as `~/.claude/pstack-models.md`, with its existing `opus` and `fable` roles. Codex uses `codex/pstack-models.md`, installed as `~/.codex/pstack-models.md`, with its Codex model roles. Edit each sheet independently. Refresh updates an unchanged installed sheet and preserves local edits, which `check-sync` reports.
+Claude Code uses the root `pstack-models.md`, installed as `~/.claude/pstack-models.md`, with the upstream pstack default roles. Codex uses `codex/pstack-models.md`, installed as `~/.codex/pstack-models.md`, with its Codex model roles. Edit each sheet independently. Refresh updates an unchanged installed sheet and preserves local edits, which `check-sync` reports.
 
 Edit `settings.json` or `codex/config.template.toml` to share a setting. Local app settings never flow into this repository on their own. If refresh keeps a changed local Claude setting, `check-sync` fails until you record the setting in `settings.json` or `portable.local.json`. The three-way merge updates unchanged defaults and keeps local values, unknown keys, deleted settings and arrays. Entire locally deleted tables remain deleted. Identical refreshes preserve config bytes and file mtimes and create no new backups.
 
