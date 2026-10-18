@@ -3,6 +3,33 @@
 Follow a named skill's supplied instructions or read its SKILL.md and runtime mapping.
 Use the current runtime's task tracker.
 
+# T3 Code only
+
+Apply this section only when running in T3 Code.
+
+Every pstack multi-model panel (architect runners, arena runners, interrogate
+reviewers, and any other model-diverse panel) has four members, in
+this order: Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then Claude Fable.
+
+In T3 Code, the four-member roster above overrides the panel member lists in the
+model configuration. Use the model configuration for effort and non-panel roles;
+leave the configured cross-judge pool unchanged.
+
+Run the Codex members per the pstack model configuration below. Add the Claude members
+(`claude-opus-5-5` and `claude-fable-5-1`) through T3's `delegate_task`, selecting the
+provider and models from `orchestrator_capabilities`. Members are added to the panel.
+None replaces another, and the panel adds no rounds. Pass each `delegate_task` member
+the effort that the `default effort` line resolves to, where `session` means this
+session's level, because an omitted effort falls back to the provider default. If a
+member's tool or model is unavailable, run the rest and name the skipped members in
+the reply.
+
+Arena cross-judging follows pstack's default. Choose one judge from the configured
+cross-judge pool. The owner reads all candidates and makes the final selection.
+
+Pass `interactionMode: "default"` on every `delegate_task` call, because an omitted
+mode inherits this thread's, and a plan-mode child cannot write files or run commands.
+
 # Search routing
 
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.
