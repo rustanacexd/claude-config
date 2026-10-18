@@ -3,6 +3,17 @@
 Follow a named skill's supplied instructions or read its SKILL.md and runtime mapping.
 Use the current runtime's task tracker.
 
+# T3 Code only
+
+In T3 Code, use Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then
+Claude Fable for the `arena runners`, `architect runners`, and `interrogate reviewers`
+role lists. Follow pstack for workflow, effort, judging, unavailable-model handling,
+and review requirements.
+
+For cross-provider members, use T3's `delegate_task` with providers and models from
+`orchestrator_capabilities`, preserving pstack's resolved task instructions and model
+options. Set `interactionMode: "default"` when delegating execution tasks.
+
 # Search routing
 
 Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.

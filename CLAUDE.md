@@ -3,6 +3,17 @@
 For a message starting with `/<skill>`, load that skill with the `Skill` tool unless the
 harness already expanded it this turn. Reading its SKILL.md does not count as loading it.
 
+# T3 Code only
+
+In T3 Code, use Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then
+Claude Fable for the `arena runners`, `architect runners`, and `interrogate reviewers`
+role lists. Follow pstack for workflow, effort, judging, unavailable-model handling,
+and review requirements.
+
+For cross-provider members, use T3's `delegate_task` with providers and models from
+`orchestrator_capabilities`, preserving pstack's resolved task instructions and model
+options. Set `interactionMode: "default"` when delegating execution tasks.
+
 # Search routing
 
 Answer from the repo, conversation, or installed skills before searching. For external
