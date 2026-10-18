@@ -5,18 +5,14 @@ Use the current runtime's task tracker.
 
 # T3 Code only
 
-In T3 Code, every pstack multi-model panel uses this roster, in order: Claude Opus,
-Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, Claude Fable. This overrides panel member
-lists only; keep configured effort, non-panel roles, and cross-judge pools. Add no rounds.
+In T3 Code, use Claude Opus, Codex `gpt-6.1-sol`, Codex `gpt-6-astra`, then
+Claude Fable for the `arena runners`, `architect runners`, and `interrogate reviewers`
+role lists. Follow pstack for workflow, effort, judging, unavailable-model handling,
+and review requirements.
 
-Use native subagents for same-provider members when they support the model; otherwise
-use T3's `delegate_task`. Select providers and models from `orchestrator_capabilities`.
-Pass delegated members the configured effort (`session` means this session's level)
-and `interactionMode: "default"` to avoid inheriting plan mode. If a member is
-unavailable, run the rest and name the skipped members.
-
-For Arena, choose one judge from the configured cross-judge pool. The owner reads
-all candidates and makes the final selection.
+For cross-provider members, use T3's `delegate_task` with providers and models from
+`orchestrator_capabilities`, preserving pstack's resolved task instructions and model
+options. Set `interactionMode: "default"` when delegating execution tasks.
 
 # Search routing
 
