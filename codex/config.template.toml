@@ -47,3 +47,87 @@
 ["tui"]
 "status_line" = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number", "context-remaining"]
 "status_line_use_colors" = true
+
+["plugins"."documents@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."pdf@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."spreadsheets@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."presentations@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."template-creator@openai-primary-runtime"]
+"enabled" = false
+
+["plugins"."codex-app-tools@openai-bundled"]
+"enabled" = true
+
+["plugins"."browser@openai-bundled"]
+"enabled" = true
+
+["plugins"."unified-computer-use@openai-bundled"]
+"enabled" = true
+
+["plugins"."chrome@openai-bundled"]
+"enabled" = true
+
+["plugins"."computer-use@openai-bundled"]
+"enabled" = true
+
+["plugins"."code-review@openai-bundled"]
+"enabled" = true
+
+["plugins"."visualize@openai-bundled"]
+"enabled" = false
+
+["plugins"."pstack@pstack-claude"]
+"enabled" = true
+
+["plugins"."worktrunk@worktrunk"]
+"enabled" = true
+
+["plugins"."gmail@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."google-drive@openai-curated-remote"]
+"enabled" = false
+
+["plugins"."github@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."app-69ea4ed2cf7c8191b742ef3622479ddd@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."notion@openai-curated-remote"]
+"enabled" = false
+
+["plugins"."slack@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."google-calendar@openai-curated-remote"]
+"enabled" = false
+
+["plugins"."cloud-environment@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."sentry@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."openai-templates@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."pages@openai-curated-remote"]
+"enabled" = false
+
+["plugins"."sites@openai-curated-remote"]
+"enabled" = false
+
+["plugins"."plugin-management@openai-curated-remote"]
+"enabled" = true
+
+["plugins"."work-pets@openai-curated-remote"]
+"enabled" = true
