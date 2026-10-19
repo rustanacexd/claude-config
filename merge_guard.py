@@ -22,12 +22,12 @@ query($owner:String!,$name:String!,$number:Int!,$after:String){
         comments(first:1){nodes{author{login} body}}}}}}}
 """
 
-SEPARATORS = set(";&|()\n")
+SEPARATORS = set(";&|()<>\n")
 VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t", "--subject",
                "-A", "--author-email", "--match-head-commit"}
-DIRECTORY_CHANGES = {"cd", "pushd", "popd", "chdir", "set-location", "push-location",
-                     "pop-location", "sl"}
-MERGE_TEXT = re.compile(r"\bgh(\.exe)?\b.*\bpr\b\W*\bmerge\b", re.I)
+MERGE_TEXT = re.compile(r"\bgh(\.exe)?\b.*\bpr\b\W*\bmerge\b", re.I | re.S)
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+ALONE = "run `gh pr merge <number> --repo OWNER/REPO` on its own"
 
 
 def repo_flag(words, i):
@@ -42,10 +42,17 @@ def repo_flag(words, i):
     return None, 0
 
 
+def boolean(word, name):
+    """Return the value of --name or --name=value, or None when word is another flag."""
+    if word == name:
+        return True
+    if word.startswith(name + "="):
+        return word.split("=", 1)[1].lower() not in ("false", "0")
+    return None
+
+
 def segments(command):
-    # Bash joins backslash-newline and PowerShell joins backtick-newline.
-    command = re.sub(r"[\\`]\r?\n", "", command)
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
     lexer.whitespace_split = True
     lexer.commenters = ""
     segment = []
@@ -58,67 +65,64 @@ def segments(command):
     yield segment
 
 
-def merge_args(words):
-    """Return (repo args, `gh pr merge` arguments) for one simple command, or None."""
-    names = [re.sub(r"\.exe$", "", os.path.basename(w.lstrip("`$")), flags=re.I) for w in words]
-    if "gh" not in names:
-        return None
-    start = names.index("gh")
-    repo = next((["--repo", w.split("=", 1)[1]] for w in words[:start]
-                 if w.startswith("GH_REPO=")), [])
-    words, i = words[start + 1:], 0
+def merges(command):
+    """Yield (gh pr view args, env, flags) for the merge in command.
+
+    Only a lone, literal `gh pr merge` is read. Any other command that mentions
+    one raises ValueError, since shell composition can change what it merges.
+    """
+    # Bash joins backslash-newline and PowerShell joins backtick-newline.
+    command = re.sub(r"[\\`]\r?\n", "", command)
+    if not MERGE_TEXT.search(command):
+        return
+    parts = [part for part in segments(command) if part]
+    words = parts[0] if len(parts) == 1 else []
+    env = {}
+    while words and ASSIGNMENT.match(words[0]):
+        name, value = words.pop(0).split("=", 1)
+        env[name] = value
+    name = re.sub(r"\.exe$", "", re.split(r"[\\/]", words[0])[-1], flags=re.I).lower() if words else ""
+    if name != "gh" or "\n" in command.strip():
+        raise ValueError(f"the merge is combined with other shell syntax; {ALONE}")
+    words = words[1:]
+    if any("$" in w or "`" in w for w in words):
+        raise ValueError(f"the merge uses shell expansion; {ALONE}")
+    repo = ["--repo", env["GH_REPO"]] if "GH_REPO" in env else []
+    i = 0
     while i < len(words) and words[i].startswith("-"):
         found, used = repo_flag(words, i)
         repo = found or repo
         i += used or 1
     if words[i:i + 2] != ["pr", "merge"]:
-        return None
-    return repo, words[i + 2:]
-
-
-def merges(command):
-    """Yield (gh pr view args, auto) per merge; a disable-auto call is skipped.
-
-    Raises ValueError for a merge this parser cannot pin to a repository.
-    """
-    moved = False
-    for words in segments(command):
-        if words and words[0].lower() in DIRECTORY_CHANGES:
-            moved = True
-        found = merge_args(words)
-        if found is None:
-            if any(MERGE_TEXT.search(w) for w in words):
-                raise ValueError("`pr merge` appears in a form the guard cannot read")
+        return
+    words = words[i + 2:]
+    target, flags, i = None, {"auto": False, "disable": False, "admin": False}, 0
+    while i < len(words):
+        word = words[i]
+        found, used = repo_flag(words, i)
+        if found:
+            repo = found
+            i += used
             continue
-        repo, words = found
-        target, auto, disable, i = None, False, False, 0
-        while i < len(words):
-            word = words[i]
-            found_repo, used = repo_flag(words, i)
-            if found_repo:
-                repo = found_repo
-                i += used
-                continue
+        for key, flag in (("auto", "--auto"), ("disable", "--disable-auto"), ("admin", "--admin")):
+            value = boolean(word, flag)
+            if value is not None:
+                flags[key] = value
+                break
+        else:
             if word in VALUE_FLAGS:
                 i += 1
-            elif word == "--auto":
-                auto = True
-            elif word == "--disable-auto":
-                disable = True
             elif not word.startswith("-") and target is None:
                 target = word
-            i += 1
-        if disable:
-            continue
-        if moved and not repo:
-            raise ValueError("the command changes directory before merging; "
-                             "pass --repo OWNER/REPO or run the merge on its own")
-        yield ([target] if target else []) + repo, auto
+        i += 1
+    if not flags["disable"]:
+        yield ([target] if target else []) + repo, env, flags
 
 
-def gh(args, cwd):
+def gh(args, cwd, env=None):
     result = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, cwd=cwd, timeout=15
+        ["gh", *args], capture_output=True, text=True, cwd=cwd, timeout=15,
+        env=dict(os.environ, **(env or {})),
     )
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
@@ -138,7 +142,7 @@ class Deferred(Exception):
     pass
 
 
-def threads(url, cwd):
+def threads(url, cwd, env, queue_defers):
     match = re.search(r"https?://([^/]+)/([^/]+)/([^/]+)/pull/(\d+)", url)
     if not match:
         raise RuntimeError(f"unexpected PR URL {url!r}")
@@ -147,9 +151,9 @@ def threads(url, cwd):
     while True:
         data = json.loads(gh(["api", "graphql", "--hostname", host, "-F", f"owner={owner}",
                               "-F", f"name={name}", "-F", f"number={number}", *after,
-                              "-f", f"query={QUERY}"], cwd))
+                              "-f", f"query={QUERY}"], cwd, env))
         pull = data["data"]["repository"]["pullRequest"]
-        if first and pull.get("isMergeQueueEnabled"):
+        if first and queue_defers and pull.get("isMergeQueueEnabled"):
             raise Deferred("its base branch uses a merge queue")
         first = False
         page = pull["reviewThreads"]
@@ -159,12 +163,14 @@ def threads(url, cwd):
         after = ["-f", f"after={page['pageInfo']['endCursor']}"]
 
 
-def check(args, auto, cwd):
-    url = gh(["pr", "view", *args, "--json", "url", "-q", ".url"], cwd).strip()
+def check(args, env, flags, cwd):
+    url = gh(["pr", "view", *args, "--json", "url", "-q", ".url"], cwd, env).strip()
     try:
-        if auto:
+        if flags["auto"]:
             raise Deferred("--auto was passed")
-        open_threads = [summary(t) for t in threads(url, cwd) if not t["isResolved"]]
+        # --admin merges at once, skipping the queue.
+        found = threads(url, cwd, env, queue_defers=not flags["admin"])
+        open_threads = [summary(t) for t in found if not t["isResolved"]]
     except Deferred as reason:
         return [f"Merge blocked: {url} would land later ({reason}), after this check runs, "
                 "so a thread opened before then would land unseen.",
@@ -180,7 +186,7 @@ def check(args, auto, cwd):
 def main():
     event = json.load(sys.stdin)
     command = event.get("tool_input", {}).get("command", "")
-    if not re.search(r"\bgh\b", command) or not re.search(r"\bmerge\b", command):
+    if not re.search(r"\bgh\b", command, re.I) or not re.search(r"\bmerge\b", command, re.I):
         return 0
     cwd = event.get("cwd")
     cwd = cwd if cwd and os.path.isdir(cwd) else None
@@ -189,9 +195,9 @@ def main():
     except ValueError as error:
         print(f"Merge blocked: could not check the command ({error}).", file=sys.stderr)
         return 2
-    for args, auto in found:
+    for args, env, flags in found:
         try:
-            problems = check(args, auto, cwd)
+            problems = check(args, env, flags, cwd)
         except (RuntimeError, OSError, subprocess.TimeoutExpired, KeyError, TypeError, ValueError) as error:
             problems = ["Merge blocked: could not read the PR's review threads.", str(error)]
         if problems:

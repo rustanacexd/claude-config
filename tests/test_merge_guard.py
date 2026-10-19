@@ -168,14 +168,37 @@ class MergeGuardTests(unittest.TestCase):
             self.assertEqual(self.guard(command).returncode, 0, command)
             self.assertEqual(self.calls()[0][:5], ["pr", "view", "42", "--repo", "o/r"], command)
 
-    def test_directory_change_before_an_unpinned_merge_blocks(self):
+    def test_merge_combined_with_other_commands_blocks(self):
         for command in ("cd /other && gh pr merge 42", "pushd ../b; gh pr merge 42",
-                        "Set-Location C:\\b; gh pr merge 42"):
+                        "Set-Location C:\\b; gh pr merge 42", "cd /other && gh pr merge 42 -R o/r",
+                        "export GH_REPO=o/other; gh pr merge 42",
+                        "printf '42 --squash\\n' | xargs gh pr merge", "xargs gh pr merge < ids"):
             result = self.guard(command)
             self.assertEqual(result.returncode, 2, command)
-            self.assertIn("--repo", result.stderr)
-        self.assertEqual(self.guard("cd /other && gh pr merge 42 -R o/r").returncode, 0)
+            self.assertIn("on its own", result.stderr, command)
+        self.assertEqual(self.calls(), [])
 
+    def test_expansions_in_a_merge_block(self):
+        for command in ("gh pr merge `42", "gh pr merge $PR", "gh pr merge 42 -R $REPO"):
+            self.assertEqual(self.guard(command).returncode, 2, command)
+        self.assertEqual(self.calls(), [])
+
+    def test_attached_auto_values_are_read(self):
+        self.assertEqual(self.guard("gh pr merge 42 --auto=true").returncode, 2)
+        self.assertEqual(self.guard("gh pr merge 42 --auto=false").returncode, 0)
+        self.state["pages"]["first"] = [thread(False)]
+        self.assertEqual(self.guard("gh pr merge 42 --disable-auto=true").returncode, 0)
+
+    def test_admin_merge_on_a_queue_branch_is_checked_now(self):
+        self.state["queue"] = True
+        self.assertEqual(self.guard("gh pr merge 42 --admin --squash").returncode, 0)
+        self.state["pages"]["first"] = [thread(False)]
+        self.assertEqual(self.guard("gh pr merge 42 --admin").returncode, 2)
+
+    def test_gh_name_is_matched_case_insensitively(self):
+        self.state["pages"]["first"] = [thread(False)]
+        for command in ("GH pr merge 42", "C:\\tools\\GH.EXE pr merge 42", "Gh.exe pr merge 42"):
+            self.assertEqual(self.guard(command, "PowerShell").returncode, 2, command)
 
 if __name__ == "__main__":
     unittest.main()
