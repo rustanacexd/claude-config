@@ -67,6 +67,12 @@ instability, required sampling, or invalidated evidence. Preserve required revie
 fresh CI. Report gaps and blockers honestly; a round limit never makes a failure a pass.
 Track unrelated inherited defects separately, but block defects that defeat acceptance.
 
+A PR's review state is what its forge shows: read its threads before calling it ready.
+Name each reviewer by source, such as a delegated round or a forge bot, never by model.
+A verifier's brief carries no earlier review conclusions; pass it the open threads.
+After a compaction mid-playbook, re-read the playbook before the next step, not the
+summary's plan.
+
 # Delegation and shared resources
 
 Keep each delegated task's owner, runtime, result location, and delivery state clear.

@@ -84,6 +84,71 @@ class SyncTests(unittest.TestCase):
         (self.repo / "settings.json").write_text('{"model": "sonnet"}')
         self.assertEqual(self.check(), [])
 
+    def merge_guards(self, home):
+        live = json.loads((home / "settings.json").read_text())
+        return [hook for entry in live.get("hooks", {}).get("PreToolUse", [])
+                for hook in entry["hooks"] if "merge_guard.py" in json.dumps(hook)]
+
+    def test_merge_guard_blocks_on_failure_for_bash_and_powershell(self):
+        home = self.refreshed_claude({})
+        guards = self.merge_guards(home)
+        self.assertEqual(sorted(hook["if"].split("(")[0] for hook in guards), ["Bash", "PowerShell"])
+        self.assertTrue(all(hook["onFailure"] == "block" for hook in guards))
+        self.assertEqual(self.check(), [])
+
+    def test_merge_guard_survives_local_profile_hooks(self):
+        local_hook = {"matcher": "Edit", "hooks": [{"type": "command", "command": "fmt"}]}
+        (self.repo / "portable.json").write_text(json.dumps(dict(self.manifest, schema=1)))
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        home = self.homes["claude"]
+        (home / "portable.local.json").write_text(json.dumps({"hooks": {"PreToolUse": [local_hook]}}))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        self.assertIn(local_hook, live["hooks"]["PreToolUse"])
+        self.assertEqual(len(self.merge_guards(home)), 2)
+        self.assertEqual(self.check(), [])
+        refresh(self.repo, {"claude": home}, ["claude"])
+        self.assertEqual(len(self.merge_guards(home)), 2)
+
+    def test_merge_guard_survives_live_hook_edits(self):
+        home = self.refreshed_claude({})
+        local_hook = {"matcher": "Edit", "hooks": [{"type": "command", "command": "fmt"}]}
+        self.edit_live(home, lambda live: live["hooks"].update(PreToolUse=[local_hook]))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        self.assertIn(local_hook, live["hooks"]["PreToolUse"])
+        self.assertEqual(len(self.merge_guards(home)), 2)
+
+    def test_merge_guard_refresh_keeps_other_handlers_in_its_entry(self):
+        home = self.refreshed_claude({})
+        extra = {"type": "command", "command": "audit"}
+        self.edit_live(home, lambda live: live["hooks"]["PreToolUse"][-1]["hooks"].append(extra))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        handlers = [h for entry in live["hooks"]["PreToolUse"] for h in entry["hooks"]]
+        self.assertIn(extra, handlers)
+        self.assertEqual(len(self.merge_guards(home)), 2)
+
+    def test_refresh_refuses_to_enable_a_guard_it_did_not_install(self):
+        (self.repo / "merge_guard.py").write_text("real guard")
+        self.manifest["assets"].append(
+            {"source": "merge_guard.py", "destination": "merge_guard.py", "apps": ["claude"]})
+        (self.homes["claude"] / "merge_guard.py").write_text("import sys; sys.exit(0)")
+        with self.assertRaisesRegex(ValueError, "merge_guard.py"):
+            self.refreshed_claude({})
+        self.assertFalse((self.homes["claude"] / "settings.json").exists())
+
+    def test_refresh_keeps_a_user_hook_that_only_mentions_the_guard_name(self):
+        own = {"matcher": "Bash", "hooks": [
+            {"type": "command", "command": "/opt/hooks/custom_merge_guard.py"}]}
+        (self.repo / "portable.json").write_text(json.dumps(dict(self.manifest, schema=1)))
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        home = self.homes["claude"]
+        (home / "portable.local.json").write_text(json.dumps({"hooks": {"PreToolUse": [own]}}))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        self.assertIn(own, live["hooks"]["PreToolUse"])
+
     def test_drifted_secret_is_reported_without_its_value(self):
         home = self.refreshed_claude({})
         self.edit_live(home, lambda live: live["env"].update(ANTHROPIC_AUTH_TOKEN="rotated-token"))
