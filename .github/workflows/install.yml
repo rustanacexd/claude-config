@@ -1,0 +1,59 @@
+name: Install
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install -g @anthropic-ai/claude-code @openai/codex
+      - name: Install into an empty home, twice
+        run: |
+          H="$RUNNER_TEMP/home"
+          mkdir -p "$H"
+          export HOME="$H" USERPROFILE="$H"
+          python install.py 2>&1 | tee first.log
+          python install.py 2>&1 | tee second.log
+          if grep '^failed' first.log second.log; then exit 1; fi
+          if grep '^wrote' second.log; then echo "second run was not a no-op"; exit 1; fi
+          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/skills/show-me/SKILL.md \
+                   .codex/AGENTS.md .codex/skills/visual-explainer-diff-review/SKILL.md \
+                   .claude/skills/gh-stack/SKILL.md .agents/skills/visual-explainer/SKILL.md; do
+            test -f "$H/$f" || { echo "missing $f"; exit 1; }
+          done
+          python - "$H" <<'EOF'
+          import json, sys, tomllib
+          from pathlib import Path
+          home = Path(sys.argv[1])
+          settings = json.loads((home / ".claude/settings.json").read_text())
+          assert "merge_guard.py" in json.dumps(settings["hooks"]["PreToolUse"]), "merge guard hook installed"
+          assert "statusline.py" in settings["statusLine"]["command"], "status line installed"
+          tomllib.loads((home / ".codex/config.toml").read_text())
+          EOF
+          CLAUDE_CONFIG_DIR="$H/.claude" claude plugin list | tee plugins.txt
+          for p in pstack@pstack-claude worktrunk@worktrunk visual-explainer@visual-explainer-marketplace; do
+            grep -q "$p" plugins.txt || { echo "plugin $p not installed"; exit 1; }
+          done
+          mkdir -p artifact
+          cp first.log second.log plugins.txt "$H/.claude/settings.json" "$H/.codex/config.toml" artifact/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: install-${{ matrix.os }}
+          path: artifact/
