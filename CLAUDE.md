@@ -16,12 +16,22 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
 
 # Search routing
 
-Answer from the repo, conversation, or installed skills before searching. For external
-research, programming or otherwise, use the Exa plugin: start with 1-2 focused searches
-with its search tool and fetch the strongest sources with its fetch tool. Invoke the
-plugin's `search` skill only when the question needs multi-source research. For
-programming, prefer primary sources: official docs, specs, and upstream repos. Stop once
-sources support an answer or show it is unavailable, and cite the supporting URLs.
+1. Check local sources first: the conversation, the repo, installed skills and connectors,
+   and local tools (`--help`, installed package source). For a library question, find the
+   pinned version first and research that version.
+2. Search only for what local sources cannot settle, such as current releases, vendor
+   docs, external errors, and prices. Use the Exa plugin's search and fetch tools. Use
+   WebFetch or curl only after an Exa fetch fails, truncates, or returns a stale copy. Use
+   the plugin's `search` skill only for multi-source research.
+3. Fetch and read the primary source before you state a fact: official docs, a spec, the
+   upstream repo, or the vendor's own changelog, blog, release notes, or official social
+   posts. A search snippet, aggregator, affiliate review, or undated post is a lead, not
+   evidence.
+4. Stop once a primary source settles the question. A page that lacks the answer settles
+   nothing: before you say something does not exist or was not announced, run one search
+   aimed at the claim itself across the vendor's channels.
+5. Put the URL beside each web-derived claim wherever it lands: the reply, a file, a PR
+   body, or a report to another agent.
 
 # Stacked PRs
 
