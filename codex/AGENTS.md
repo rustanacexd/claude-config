@@ -33,12 +33,6 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
 5. Put the URL beside each web-derived claim wherever it lands: the reply, a file, a PR
    body, or a report to another agent.
 
-# Scope and authorization
-
-Keep one current statement of scope, acceptance criteria, and user approvals with their
-message references. Reuse approvals while their scope remains the same. Preserve explicit user gates.
-An agent proposal or deadline does not grant authority to merge or drop required scope.
-
 # Verification
 
 - Never write unit tests after you write code.
@@ -46,24 +40,6 @@ An agent proposal or deadline does not grant authority to merge or drop required
 - If you must test a system in isolation, first write down all the ways it could fail, then write the code.
 - A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
 - Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
-
-Verify the real artifact and keep evidence tied to the revision, base, scenario, and
-environment it covers. Recheck applicability after changes to behavior or dependencies.
-Use checks proportionate to the change; repeat them for a concrete reason, such as
-instability, required sampling, or invalidated evidence. Preserve required reviews and
-fresh CI. Report gaps and blockers honestly; a round limit never makes a failure a pass.
-Track unrelated inherited defects separately, but block defects that defeat acceptance.
-
-# Delegation and shared resources
-
-Keep each delegated task's owner, runtime, result location, and delivery state clear.
-Read returned results, deliver them to the responsible owner through that runtime, and
-confirm receipt or resumed work before considering the handoff complete. A completion
-notice or empty process search alone does not prove an owner and its children stopped.
-Do not mutate a delegated worktree until the runtime confirms its owner and children
-stopped or explicitly handed it off. Use another worktree while ownership is active.
-Give shared live-test environments and observers explicit ownership. Release your own
-resources when finished; contention does not permit stopping another task's resources.
 
 # pstack model configuration
 

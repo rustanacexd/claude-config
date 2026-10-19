@@ -39,27 +39,6 @@ Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` s
 read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
-# Never work on main
-
-Never write on the default branch. Before the first write, run `wt switch --create
-<branch>` (the `wt-switch-create` skill, or EnterWorktree when `wt` is unavailable) and
-open the pull request from that branch. If the default branch has uncommitted changes you
-did not make, leave them alone and report them in your first sentence.
-
-# Delegated worktrees
-
-A delegated worktree remains its owner's until the runtime confirms the owner and
-its children have stopped or explicitly handed it off. Check for remaining processes
-before mutating the checkout; an empty process search alone is not a handoff.
-Use another worktree while ownership is active. Never reset another agent's database,
-rebase its branch, discard its files, or commit its unfinished work.
-
-# Scope and authorization
-
-Keep one current statement of scope, acceptance criteria, and user approvals with their
-message references. Reuse approvals while their scope remains the same. Preserve explicit user gates.
-An agent proposal or deadline does not grant authority to merge or drop required scope.
-
 # Testing
 
 - Never write unit tests after you write code.
@@ -70,27 +49,11 @@ An agent proposal or deadline does not grant authority to merge or drop required
 
 # Verification
 
-Verify the real artifact and keep evidence tied to the revision, base, scenario, and
-environment it covers. Recheck applicability after changes to behavior or dependencies.
-Use checks proportionate to the change; repeat them for a concrete reason, such as
-instability, required sampling, or invalidated evidence. Preserve required reviews and
-fresh CI. Report gaps and blockers honestly; a round limit never makes a failure a pass.
-Track unrelated inherited defects separately, but block defects that defeat acceptance.
-
 A PR's review state is what its forge shows: read its threads before calling it ready.
 Name each reviewer by source, such as a delegated round or a forge bot, never by model.
 A verifier's brief carries no earlier review conclusions; pass it the open threads.
 After a compaction mid-playbook, re-read the playbook before the next step, not the
 summary's plan.
-
-# Delegation and shared resources
-
-Keep each delegated task's owner, runtime, result location, and delivery state clear.
-Read returned results, deliver them to the responsible owner through that runtime, and
-confirm receipt or resumed work before considering the handoff complete. A completion
-notice or empty process search alone does not prove an owner and its children stopped.
-Give shared live-test environments and observers explicit ownership. Release your own
-resources when finished; contention does not permit stopping another task's resources.
 
 @~/.claude/pstack-models.md
 
