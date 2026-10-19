@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Install this repository's Claude Code and Codex config on this machine.
-
-Run `python3 install.py` (Windows: `py -3 install.py`). Rerun it after every pull.
-"""
-
 import json
 import os
 from pathlib import Path
@@ -52,8 +47,7 @@ THIRD_PARTY_SKILLS = [
 ]
 
 
-def write(path, data):
-    # Replace rather than write through, so a symlinked config becomes a regular file.
+def replace_file(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file() and not path.is_symlink() and path.read_bytes() == data:
         return
@@ -70,7 +64,7 @@ def copy(source, dest):
             if file.is_file():
                 copy(file, dest / file.relative_to(source))
     else:
-        write(dest, source.read_bytes())
+        replace_file(dest, source.read_bytes())
 
 
 def overlay(live, repo):
@@ -108,7 +102,8 @@ def claude_settings():
         "matcher": "Bash|PowerShell",
         "hooks": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"})],
     })
-    write(path, json.dumps(settings, indent=2).encode() + b"\n")
+    if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text()):
+        replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
     return settings["enabledPlugins"]
 
 
@@ -116,7 +111,9 @@ def codex_config():
     path = CODEX / "config.toml"
     live = tomllib.loads(path.read_text()) if path.exists() else {}
     config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text()))
-    write(path, toml(config))
+    # Codex rewrites this file in its own style, so only write when the values differ.
+    if path.is_symlink() or not path.exists() or config != tomllib.loads(path.read_text()):
+        replace_file(path, toml(config))
     return {name: value["enabled"] for name, value in config.get("plugins", {}).items()}
 
 
@@ -184,7 +181,10 @@ def install_plugins(app, enabled):
         if not on or plugin in installed or marketplace not in MARKETPLACES:
             continue
         if marketplace not in known:
-            run(app, "plugin", "marketplace", "add", f"https://github.com/{MARKETPLACES[marketplace]}.git", *scope)
+            # Claude rejects a source that differs from its extraKnownMarketplaces entry.
+            source = MARKETPLACES[marketplace]
+            run(app, "plugin", "marketplace", "add",
+                source if app == "claude" else f"https://github.com/{source}.git", *scope)
             known.add(marketplace)
         run(app, "plugin", "install" if app == "claude" else "add", plugin, *scope)
 
