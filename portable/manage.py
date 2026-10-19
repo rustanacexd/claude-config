@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 from pathlib import PurePosixPath
@@ -114,6 +115,30 @@ def validate_shared(config):
     walk(config)
 
 
+def with_merge_guard(config, home):
+    # Added after every merge: a local PreToolUse list would otherwise replace it.
+    guard = {
+        "type": "command",
+        "command": sys.executable,
+        "args": [str(home / "merge_guard.py")],
+        "timeout": 60,
+        "onFailure": "block",
+        "statusMessage": "Checking PR review threads",
+    }
+    hooks = config.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    hooks[:] = [entry for entry in hooks if "merge_guard.py" not in json.dumps(entry)]
+    hooks.append(
+        {
+            "matcher": "Bash|PowerShell",
+            "hooks": [
+                dict(guard, **{"if": "Bash(*gh*)"}),
+                dict(guard, **{"if": "PowerShell(*gh*)"}),
+            ],
+        }
+    )
+    return config
+
+
 def desired(repo, manifest, plugins, app, home):
     files = {}
     for asset in manifest["assets"]:
@@ -139,20 +164,6 @@ def desired(repo, manifest, plugins, app, home):
             "type": "command",
             "command": f'"{sys.executable}" "{home / "statusline.py"}"',
         }
-        shared.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
-            {
-                "matcher": "Bash",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "if": "Bash(*gh pr merge*)",
-                        "command": f'"{sys.executable}" "{home / "merge_guard.py"}"',
-                        "timeout": 30,
-                        "statusMessage": "Checking PR review threads",
-                    }
-                ],
-            }
-        )
     else:
         shared = tomllib.loads((repo / "codex/config.template.toml").read_text())
         name = "config.toml"
@@ -182,6 +193,8 @@ def desired(repo, manifest, plugins, app, home):
         if not isinstance(local, dict):
             raise ValueError("Local profile must be an object")
         shared = merge({}, local, shared)
+    if app == "claude":
+        with_merge_guard(shared, home)
     return files, name, shared
 
 
@@ -261,7 +274,10 @@ def merge_config(repo, app, home, state, name, shared, retained=None):
         snapshot = read(repo / "codex/.template.snapshot.toml")
         if snapshot is not None:
             old = parse(app, snapshot)
-    return baseline, live_bytes, live, merge(old, live, shared, retained=retained)
+    merged = merge(old, live, shared, retained=retained)
+    if app == "claude" and isinstance(merged, dict):
+        merged = with_merge_guard(copy.deepcopy(merged), home)
+    return baseline, live_bytes, live, merged
 
 
 def plan(repo, manifest, plugins, app, home, state, roots=None):
