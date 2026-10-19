@@ -139,6 +139,20 @@ def desired(repo, manifest, plugins, app, home):
             "type": "command",
             "command": f'"{sys.executable}" "{home / "statusline.py"}"',
         }
+        shared.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "if": "Bash(*gh pr merge*)",
+                        "command": f'"{sys.executable}" "{home / "merge_guard.py"}"',
+                        "timeout": 30,
+                        "statusMessage": "Checking PR review threads",
+                    }
+                ],
+            }
+        )
     else:
         shared = tomllib.loads((repo / "codex/config.template.toml").read_text())
         name = "config.toml"
