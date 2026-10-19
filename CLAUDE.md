@@ -39,27 +39,6 @@ Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` s
 read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
-# Never work on main
-
-Never write on the default branch. Before the first write, run `wt switch --create
-<branch>` (the `wt-switch-create` skill, or EnterWorktree when `wt` is unavailable) and
-open the pull request from that branch. If the default branch has uncommitted changes you
-did not make, leave them alone and report them in your first sentence.
-
-# Delegated worktrees
-
-A delegated worktree remains its owner's until the runtime confirms the owner and
-its children have stopped or explicitly handed it off. Check for remaining processes
-before mutating the checkout; an empty process search alone is not a handoff.
-Use another worktree while ownership is active. Never reset another agent's database,
-rebase its branch, discard its files, or commit its unfinished work.
-
-# Scope and authorization
-
-Keep one current statement of scope, acceptance criteria, and user approvals with their
-message references. Reuse approvals while their scope remains the same. Preserve explicit user gates.
-An agent proposal or deadline does not grant authority to merge or drop required scope.
-
 # Testing
 
 - Never write unit tests after you write code.
