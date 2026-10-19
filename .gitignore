@@ -1,1 +1,3 @@
 __pycache__/
+# Older checkouts kept a machine's Codex config here.
+/codex/config.toml

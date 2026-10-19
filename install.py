@@ -14,7 +14,9 @@ import tomllib
 REPO = Path(__file__).resolve().parent
 CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 CODEX = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-SKILL_DIRS = {"claude-code": CLAUDE / "skills", "codex": Path.home() / ".agents/skills"}
+# `npx skills -g` ignores CLAUDE_CONFIG_DIR and always installs under the home directory.
+SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home() / ".agents/skills"}
+FAILED = []
 
 FILES = {
     "CLAUDE.md": [CLAUDE / "CLAUDE.md"],
@@ -60,9 +62,15 @@ def replace_file(path, data):
 
 def copy(source, dest):
     if source.is_dir():
+        if dest.is_symlink() or getattr(os.path, "isjunction", lambda _: False)(dest):
+            (os.rmdir if os.name == "nt" else os.unlink)(dest)
         for file in source.rglob("*"):
             if file.is_file():
                 copy(file, dest / file.relative_to(source))
+        for file in dest.rglob("*"):
+            if file.is_file() and not (source / file.relative_to(dest)).is_file():
+                file.unlink()
+                print(f"removed {file}")
     else:
         replace_file(dest, source.read_bytes())
 
@@ -96,7 +104,7 @@ def claude_settings():
     hooks = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for entry in hooks:
         entry["hooks"] = [h for h in entry.get("hooks", [])
-                          if not str((h.get("args") or [""])[-1]).endswith("merge_guard.py")]
+                          if Path(str((h.get("args") or [""])[-1])).name != "merge_guard.py"]
     hooks[:] = [entry for entry in hooks if entry["hooks"]]
     hooks.append({
         "matcher": "Bash|PowerShell",
@@ -157,6 +165,7 @@ def run(*argv):
     result = subprocess.run([executable, *argv[1:]], env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
     if result.returncode:
         print(f"failed `{' '.join(argv)}`: {result.stderr.strip()}", file=sys.stderr)
+        FAILED.append(argv)
         return None
     return result.stdout
 
@@ -205,3 +214,4 @@ if __name__ == "__main__":
     claude_settings()
     codex_config()
     install_third_party_skills()
+    sys.exit(1 if FAILED else 0)
