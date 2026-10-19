@@ -161,7 +161,9 @@ def run(*argv):
         return None
     env = dict(os.environ)
     if os.name == "nt":
-        env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="core.longpaths", GIT_CONFIG_VALUE_0="true")
+        n = int(env.get("GIT_CONFIG_COUNT") or 0)
+        env.update({"GIT_CONFIG_COUNT": str(n + 1), f"GIT_CONFIG_KEY_{n}": "core.longpaths",
+                    f"GIT_CONFIG_VALUE_{n}": "true"})
     result = subprocess.run([executable, *argv[1:]], env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
     if result.returncode:
         print(f"failed `{' '.join(argv)}`: {result.stderr.strip()}", file=sys.stderr)
