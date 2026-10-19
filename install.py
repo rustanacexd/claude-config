@@ -78,8 +78,8 @@ def overlay(live, repo):
 
 def claude_settings():
     path = CLAUDE / "settings.json"
-    live = json.loads(path.read_text()) if path.exists() else {}
-    settings = overlay(live, json.loads((REPO / "settings.json").read_text()))
+    live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    settings = overlay(live, json.loads((REPO / "settings.json").read_text(encoding="utf-8")))
     settings["statusLine"] = {
         "type": "command",
         "command": f'"{sys.executable}" "{CLAUDE / "statusline.py"}"',
@@ -102,19 +102,17 @@ def claude_settings():
         "matcher": "Bash|PowerShell",
         "hooks": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"})],
     })
-    if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text()):
+    if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
-    return settings["enabledPlugins"]
 
 
 def codex_config():
     path = CODEX / "config.toml"
-    live = tomllib.loads(path.read_text()) if path.exists() else {}
-    config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text()))
+    live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
     # Codex rewrites this file in its own style, so only write when the values differ.
-    if path.is_symlink() or not path.exists() or config != tomllib.loads(path.read_text()):
+    if path.is_symlink() or not path.exists() or config != tomllib.loads(path.read_text(encoding="utf-8")):
         replace_file(path, toml(config))
-    return {name: value["enabled"] for name, value in config.get("plugins", {}).items()}
 
 
 def toml(config):
@@ -156,7 +154,7 @@ def run(*argv):
     env = dict(os.environ)
     if os.name == "nt":
         env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="core.longpaths", GIT_CONFIG_VALUE_0="true")
-    result = subprocess.run([executable, *argv[1:]], env=env, capture_output=True, text=True, timeout=600)
+    result = subprocess.run([executable, *argv[1:]], env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
     if result.returncode:
         print(f"failed `{' '.join(argv)}`: {result.stderr.strip()}", file=sys.stderr)
         return None
@@ -200,6 +198,10 @@ if __name__ == "__main__":
     for source, destinations in FILES.items():
         for dest in destinations:
             copy(REPO / source, dest)
-    install_plugins("claude", claude_settings())
-    install_plugins("codex", codex_config())
+    # The plugin CLIs rewrite settings as they install, so the repo's config is written after them.
+    install_plugins("claude", json.loads((REPO / "settings.json").read_text(encoding="utf-8"))["enabledPlugins"])
+    codex_plugins = tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8"))["plugins"]
+    install_plugins("codex", {name: value["enabled"] for name, value in codex_plugins.items()})
+    claude_settings()
+    codex_config()
     install_third_party_skills()
