@@ -30,13 +30,6 @@
       ]
     },
     {
-      "source": "output-styles",
-      "destination": "output-styles",
-      "apps": [
-        "claude"
-      ]
-    },
-    {
       "source": "statusline.py",
       "destination": "statusline.py",
       "apps": [
