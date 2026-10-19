@@ -16,18 +16,22 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
 
 # Search routing
 
-Answer from the repository, conversation, or installed skills first. Search the internet only when local sources cannot settle the question or the user requests current information, verification, links, or citations. Prefer the most specific available skill, connector, or repository workflow.
-
-1. Route by question.
-   - Programming documentation, APIs, SDK examples, configuration, and debugging: use the installed Exa plugin and its bundled Search skill.
-   - Other web research: follow the installed Exa plugin's bundled Search skill when external research is needed.
-   - Connected-service data: use the matching connector when one is available.
-   - Codebase questions: use repository search and project documentation before internet search.
-2. Increase depth only when the question requires it.
-   - Start with 1-2 focused searches and open or fetch the strongest results.
-   - For unresolved multi-hop research, follow the installed Exa plugin's research workflow and available tools.
-3. For programming questions, rely on primary sources such as official documentation, specifications, and upstream repositories. For other topics, prefer authoritative sources and corroborate material claims when practical.
-4. Stop when authoritative sources support the answer or when the available evidence clearly shows that the information cannot be found. Cite the supporting page URLs in the response.
+1. Check local sources first: the conversation, the repo, installed skills and connectors,
+   and local tools (`--help`, installed package source). For a library question, find the
+   pinned version first and research that version.
+2. Search only for what local sources cannot settle, such as current releases, vendor
+   docs, external errors, and prices. Use `web_search_exa` and `web_fetch_exa`. Use
+   curl only after an Exa fetch fails, truncates, or returns a stale copy. Use
+   the Exa plugin's Search skill only for multi-source research.
+3. Fetch and read the primary source before you state a fact: official docs, a spec, the
+   upstream repo, or the vendor's own changelog, blog, release notes, or official social
+   posts. A search snippet, aggregator, affiliate review, or undated post is a lead, not
+   evidence.
+4. Stop once a primary source settles the question. A page that lacks the answer settles
+   nothing: before you say something does not exist or was not announced, run one search
+   aimed at the claim itself across the vendor's channels.
+5. Put the URL beside each web-derived claim wherever it lands: the reply, a file, a PR
+   body, or a report to another agent.
 
 # Scope and authorization
 
