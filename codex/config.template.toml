@@ -114,9 +114,6 @@
 ["plugins"."cloud-environment@openai-curated-remote"]
 "enabled" = true
 
-["plugins"."sentry@openai-curated-remote"]
-"enabled" = true
-
 ["plugins"."openai-templates@openai-curated-remote"]
 "enabled" = true
 
