@@ -52,7 +52,7 @@ Four sections, in this order:
      nothing user-visible broke, say so directly — a hygiene or security fix
      with no behavioural symptom is a legitimate outcome.
      Every incident claim carries its provenance in the sentence: "verified"
-     with a Sentry issue, ticket, or log citation, or "reported by <PR body /
+     with an error-tracker issue, ticket, or log citation, or "reported by <PR body /
      ticket>, not verified". When an error-tracking or issue-tracker
      connector is available, query it for the error text before writing the
      section, and say what the query returned even when it returned nothing;

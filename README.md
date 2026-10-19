@@ -1,31 +1,26 @@
-# Portable Claude and Codex setup
+# Claude Code and Codex config
 
-Shared Claude Code and Codex configuration for macOS, Linux, and Windows.
+My global config for Claude Code and Codex: instructions, settings, pstack model sheets, custom skills, and plugins.
 
-This repository keeps global instructions, separate pstack model sheets, settings, output styles, shared custom skills, Codex Visual Explainer shortcuts, and plugin declarations. Third-party skills are listed in [SKILLS.md](SKILLS.md) and installed through `npx skills`.
+## Install
 
-Python 3.11 or newer applies shared defaults as regular files. You can opt into a Codex config symlink with `python3 manage.py link --app codex`. Offline refresh needs no Bash, jq, Node, or symlink privileges unless you select symlink mode. Native plugins and third-party skills use their own installers. Credentials and account connections stay on each machine.
-
-## Start with the matching guide
-
-- [Set up a machine](docs/setup.md) covers prerequisites, bootstrap, authentication, and the complete setup-agent checklist.
-- [Update machines](docs/updating.md) covers the Mac, GitHub, and Windows flow, shared source files, local edits, skills, and plugins.
-- [Recover an installation](docs/recovery.md) covers ownership, private state, backups, interrupted writes, and legacy migration.
-- [Verify the portable setup](docs/testing.md) covers tests, isolated refresh, and the limits of machine-verification claims.
-- [Install third-party skills](SKILLS.md) lists upstream sources and the exact install commands.
-
-## Apply shared changes
-
-After pulling repository changes, run this from the checkout on macOS or Linux.
+Needs Python 3.11 or newer. Run this from the checkout on any machine, and again after every pull:
 
 ```sh
-python3 manage.py refresh
+python3 install.py
 ```
 
-On Windows use `py -3 manage.py refresh`, or `python manage.py refresh` if `py` is unavailable.
+On Windows, run `py -3 install.py`.
 
-Refresh installs the instructions, model sheets, and other managed files as copies, so edit `CLAUDE.md`, `codex/AGENTS.md`, or a model sheet in this repository and run refresh. An edit to `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md` stays on that machine, and `check-sync` reports it. Follow [Update machines](docs/updating.md) for skill and plugin changes.
+It does four things:
 
-Run `python3 manage.py check-sync` to catch installed skills, plugins, Claude settings, and managed-file edits that are not recorded here. Enable the [pre-push hook](docs/updating.md#catch-unrecorded-local-changes) to run it automatically before pushing.
+- Copies the instructions, model sheets, status line, merge guard, and skills into `~/.claude` and `~/.codex`.
+- Lays `settings.json` over `~/.claude/settings.json` and `codex/config.template.toml` over `~/.codex/config.toml`. Keys set here win. Keys that exist only on the machine, such as a local proxy or credentials, stay.
+- Installs missing enabled plugins with the `claude` and `codex` CLIs.
+- Installs missing third-party skills with `npx skills`.
 
-A setup agent must read [Set up a machine](docs/setup.md) and [SKILLS.md](SKILLS.md) before changing a machine. Report actual machine results separately from CI results.
+A step whose CLI is not on `PATH` is skipped with a message. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` override the default homes.
+
+## Change something
+
+Edit the file here, then run `python3 install.py`. Don't edit the installed copies, because the next install overwrites them.

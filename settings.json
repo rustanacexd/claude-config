@@ -32,14 +32,6 @@
     "learn": "off",
     "morning": "off",
     "docs": "off",
-    "sentry-create-alert": "off",
-    "sentry-debug-issue": "off",
-    "sentry-fix-stack-traces": "off",
-    "sentry-get-started": "off",
-    "sentry-instrument": "off",
-    "sentry-otel-exporter-setup": "off",
-    "sentry-setup-releases": "off",
-    "sentry-snapshots-cocoa": "off",
     "finding-google-skills": "off"
   },
   "enableArtifact": false,
@@ -71,6 +63,17 @@
     }
   },
   "enableWorkflows": false,
+  "enabledPlugins": {
+    "eli5@claude-community": true,
+    "exa@claude-plugins-official": true,
+    "pstack@pstack-claude": true,
+    "skill-creator@claude-plugins-official": false,
+    "slack@claude-plugins-official": false,
+    "visual-explainer@visual-explainer-marketplace": true,
+    "worktrunk@worktrunk": true,
+    "slack-by-salesforce@synced": false,
+    "cowork-plugin-management@synced": false
+  },
   "extraKnownMarketplaces": {
     "worktrunk": {
       "source": {
