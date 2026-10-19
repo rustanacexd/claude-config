@@ -210,6 +210,28 @@ class MergeGuardTests(unittest.TestCase):
             self.assertEqual(self.guard(command).returncode, 0, command)
         self.assertEqual(self.calls(), [])
 
+    def test_quote_split_and_substituted_names_are_checked(self):
+        self.state["pages"]["first"] = [thread(False)]
+        for command in ("gh pr m'er'ge 42", 'g"h" pr merge 42', "$(printf gh) pr merge 42",
+                        "`printf gh` pr merge 42", '"$GH" pr merge 42'):
+            self.assertEqual(self.guard(command).returncode, 2, command)
+
+    def test_option_terminator_marks_the_target(self):
+        self.guard("gh pr merge --squash -- -release")
+        self.assertEqual(self.calls()[0][:3], ["pr", "view", "-release"])
+
+    def test_quoted_newlines_and_dollars_are_literal(self):
+        for command in ('gh pr merge 42 --body "line one\nline two"',
+                        "gh pr merge 42 --body 'Fix $PATH handling'"):
+            self.log.unlink(missing_ok=True)
+            self.assertEqual(self.guard(command).returncode, 0, command)
+            self.assertEqual(self.calls()[0][:3], ["pr", "view", "42"], command)
+
+    def test_real_expansions_and_newline_commands_still_block(self):
+        for command in ('gh pr merge 42 --body "Fix $PATH"', "gh pr merge 42\nrm -rf x",
+                        "gh pr merge $(cat id)"):
+            self.assertEqual(self.guard(command).returncode, 2, repr(command))
+
 
 if __name__ == "__main__":
     unittest.main()

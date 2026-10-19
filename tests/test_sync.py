@@ -138,6 +138,17 @@ class SyncTests(unittest.TestCase):
             self.refreshed_claude({})
         self.assertFalse((self.homes["claude"] / "settings.json").exists())
 
+    def test_refresh_keeps_a_user_hook_that_only_mentions_the_guard_name(self):
+        own = {"matcher": "Bash", "hooks": [
+            {"type": "command", "command": "/opt/hooks/custom_merge_guard.py"}]}
+        (self.repo / "portable.json").write_text(json.dumps(dict(self.manifest, schema=1)))
+        (self.repo / "plugins.json").write_text('{"schema":1,"plugins":[]}')
+        home = self.homes["claude"]
+        (home / "portable.local.json").write_text(json.dumps({"hooks": {"PreToolUse": [own]}}))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        self.assertIn(own, live["hooks"]["PreToolUse"])
+
     def test_drifted_secret_is_reported_without_its_value(self):
         home = self.refreshed_claude({})
         self.edit_live(home, lambda live: live["env"].update(ANTHROPIC_AUTH_TOKEN="rotated-token"))

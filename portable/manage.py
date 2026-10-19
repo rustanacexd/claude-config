@@ -126,10 +126,15 @@ def with_merge_guard(config, home):
         "statusMessage": "Checking PR review threads",
     }
     hooks = config.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    path = guard["args"][0]
+
+    def generated(handler):
+        return handler.get("args") == [path] or handler.get("command", "").endswith(
+            f'"{path}"'
+        )
+
     for entry in hooks:
-        entry["hooks"] = [
-            h for h in entry.get("hooks", []) if "merge_guard.py" not in json.dumps(h)
-        ]
+        entry["hooks"] = [h for h in entry.get("hooks", []) if not generated(h)]
     hooks[:] = [entry for entry in hooks if entry["hooks"]]
     hooks.append(
         {

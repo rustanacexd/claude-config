@@ -51,8 +51,29 @@ def boolean(word, name):
     return None
 
 
+def expands(command):
+    """Whether the shell would expand $ or a backtick anywhere in command."""
+    quote, escaped = None, False
+    for char in command:
+        if escaped:
+            escaped = False
+        elif quote == "'":
+            quote = None if char == "'" else quote
+        elif char == "\\":
+            escaped = True
+        elif char in "$`":
+            return True
+        elif char == '"':
+            quote = None if quote == '"' else '"'
+        elif char == "'" and quote is None:
+            quote = "'"
+    return False
+
+
 def segments(command):
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
+    # Newline separates commands outside quotes, so it is punctuation here.
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>\n")
+    lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     lexer.commenters = ""
     segment = []
@@ -90,15 +111,18 @@ def parse(words):
             found, used = repo_flag(words, i)
             repo = found or repo
             i += used or 1
+        if i < len(words) and ("$" in words[i] or "`" in words[i]):
+            raise ValueError(f"a gh subcommand comes from shell expansion; {ALONE}")
         if words[i:i + 1] != [command_name]:
             return None
         i += 1
-    if any("$" in w or "`" in w for w in words):
-        raise ValueError(f"the merge uses shell expansion; {ALONE}")
     words = words[i:]
     target, flags, i = None, {"auto": False, "disable": False, "admin": False, "help": False}, 0
     while i < len(words):
         word = words[i]
+        if word == "--":
+            target = target or (words[i + 1] if i + 1 < len(words) else None)
+            break
         found, used = repo_flag(words, i)
         if found:
             repo = found
@@ -120,6 +144,13 @@ def parse(words):
     return ([target] if target else []) + repo, env, flags
 
 
+def wraps_merge(words):
+    """Whether words, not themselves a gh command, may run `pr merge`."""
+    if any(MERGE_TEXT.search(word) for word in words):
+        return True
+    return "pr" in words and "merge" in words[words.index("pr"):]
+
+
 def merges(command):
     """Yield (gh pr view args, env, flags) for the merge in command.
 
@@ -129,15 +160,22 @@ def merges(command):
     """
     # Bash joins backslash-newline and PowerShell joins backtick-newline.
     command = re.sub(r"[\\`]\r?\n", "", command)
-    parts = [part for part in segments(command) if part]
+    try:
+        parts = [part for part in segments(command) if part]
+    except ValueError:
+        if re.search("merge", re.sub(r"[\"'\\`]", "", command), re.I):
+            raise
+        return
     found = [merge for merge in map(parse, parts) if merge is not None]
     if not found:
         # A gh command parse() read is not a merge; anything else may wrap one.
-        if any(MERGE_TEXT.search(" ".join(part)) for part in parts if not is_gh(part)):
+        if any(wraps_merge(part) for part in parts if not is_gh(part)):
             raise ValueError(f"`gh pr merge` appears in a form the guard cannot read; {ALONE}")
         return
-    if len(parts) > 1 or "\n" in command.strip():
+    if len(parts) > 1:
         raise ValueError(f"the merge is combined with other shell syntax; {ALONE}")
+    if expands(command):
+        raise ValueError(f"the merge uses shell expansion; {ALONE}")
     args, env, flags = found[0]
     if not flags["disable"] and not flags["help"]:
         yield args, env, flags
@@ -210,8 +248,6 @@ def check(args, env, flags, cwd):
 def main():
     event = json.load(sys.stdin)
     command = event.get("tool_input", {}).get("command", "")
-    if not re.search(r"\bgh\b", command, re.I) or not re.search(r"\bmerge\b", command, re.I):
-        return 0
     cwd = event.get("cwd")
     cwd = cwd if cwd and os.path.isdir(cwd) else None
     try:
