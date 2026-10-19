@@ -3,8 +3,8 @@
 
 GitHub reports a PR as CLEAN when branch protection does not require resolved
 conversations, so mergeability alone lets open findings land. When the threads
-cannot be read, the merge is refused too. `--auto` is refused because the PR
-lands later, after this check can no longer see new threads.
+cannot be read, the merge is refused too. `--auto` and merge queues are refused
+because the PR lands later, after this check can no longer see new threads.
 """
 
 import json
@@ -16,7 +16,7 @@ import sys
 
 QUERY = """
 query($owner:String!,$name:String!,$number:Int!,$after:String){
-  repository(owner:$owner,name:$name){pullRequest(number:$number){
+  repository(owner:$owner,name:$name){pullRequest(number:$number){isMergeQueueEnabled
     reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}
       nodes{isResolved isOutdated path line
         comments(first:1){nodes{author{login} body}}}}}}}
@@ -25,9 +25,26 @@ query($owner:String!,$name:String!,$number:Int!,$after:String){
 SEPARATORS = set(";&|()\n")
 VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t", "--subject",
                "-A", "--author-email", "--match-head-commit"}
+DIRECTORY_CHANGES = {"cd", "pushd", "popd", "chdir", "set-location", "push-location",
+                     "pop-location", "sl"}
+MERGE_TEXT = re.compile(r"\bgh(\.exe)?\b.*\bpr\b\W*\bmerge\b", re.I)
+
+
+def repo_flag(words, i):
+    """Return (repo args, words consumed) when words[i] selects a repository."""
+    word = words[i]
+    if word in ("-R", "--repo"):
+        return ["--repo", words[i + 1] if i + 1 < len(words) else ""], 2
+    if word.startswith("--repo="):
+        return ["--repo", word.split("=", 1)[1]], 1
+    if word.startswith("-R") and len(word) > 2:
+        return ["--repo", word[2:].removeprefix("=")], 1
+    return None, 0
 
 
 def segments(command):
+    # Bash joins backslash-newline and PowerShell joins backtick-newline.
+    command = re.sub(r"[\\`]\r?\n", "", command)
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -42,40 +59,48 @@ def segments(command):
 
 
 def merge_args(words):
-    """Return the `gh pr merge` arguments in one simple command, or None."""
+    """Return (repo args, `gh pr merge` arguments) for one simple command, or None."""
     names = [re.sub(r"\.exe$", "", os.path.basename(w.lstrip("`$")), flags=re.I) for w in words]
     if "gh" not in names:
         return None
-    words = words[names.index("gh") + 1:]
-    repo, i = [], 0
+    start = names.index("gh")
+    repo = next((["--repo", w.split("=", 1)[1]] for w in words[:start]
+                 if w.startswith("GH_REPO=")), [])
+    words, i = words[start + 1:], 0
     while i < len(words) and words[i].startswith("-"):
-        if words[i] in ("-R", "--repo"):
-            repo = ["--repo", words[i + 1] if i + 1 < len(words) else ""]
-            i += 1
-        elif words[i].startswith("--repo="):
-            repo = ["--repo", words[i].split("=", 1)[1]]
-        i += 1
+        found, used = repo_flag(words, i)
+        repo = found or repo
+        i += used or 1
     if words[i:i + 2] != ["pr", "merge"]:
         return None
     return repo, words[i + 2:]
 
 
 def merges(command):
-    """Yield (gh pr view args, auto) per merge, or None to skip a disable-auto call."""
+    """Yield (gh pr view args, auto) per merge; a disable-auto call is skipped.
+
+    Raises ValueError for a merge this parser cannot pin to a repository.
+    """
+    moved = False
     for words in segments(command):
+        if words and words[0].lower() in DIRECTORY_CHANGES:
+            moved = True
         found = merge_args(words)
         if found is None:
+            if any(MERGE_TEXT.search(w) for w in words):
+                raise ValueError("`pr merge` appears in a form the guard cannot read")
             continue
         repo, words = found
         target, auto, disable, i = None, False, False, 0
         while i < len(words):
             word = words[i]
+            found_repo, used = repo_flag(words, i)
+            if found_repo:
+                repo = found_repo
+                i += used
+                continue
             if word in VALUE_FLAGS:
-                if word in ("-R", "--repo") and i + 1 < len(words):
-                    repo = ["--repo", words[i + 1]]
                 i += 1
-            elif word.startswith("--repo="):
-                repo = ["--repo", word.split("=", 1)[1]]
             elif word == "--auto":
                 auto = True
             elif word == "--disable-auto":
@@ -83,8 +108,12 @@ def merges(command):
             elif not word.startswith("-") and target is None:
                 target = word
             i += 1
-        if not disable:
-            yield ([target] if target else []) + repo, auto
+        if disable:
+            continue
+        if moved and not repo:
+            raise ValueError("the command changes directory before merging; "
+                             "pass --repo OWNER/REPO or run the merge on its own")
+        yield ([target] if target else []) + repo, auto
 
 
 def gh(args, cwd):
@@ -105,17 +134,25 @@ def summary(thread):
     return f"- {thread['path']}:{thread['line'] or '?'} [{author}]{outdated} {first[:120]}"
 
 
+class Deferred(Exception):
+    pass
+
+
 def threads(url, cwd):
     match = re.search(r"https?://([^/]+)/([^/]+)/([^/]+)/pull/(\d+)", url)
     if not match:
         raise RuntimeError(f"unexpected PR URL {url!r}")
     host, owner, name, number = match.groups()
-    after = []
+    after, first = [], True
     while True:
         data = json.loads(gh(["api", "graphql", "--hostname", host, "-F", f"owner={owner}",
                               "-F", f"name={name}", "-F", f"number={number}", *after,
                               "-f", f"query={QUERY}"], cwd))
-        page = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+        pull = data["data"]["repository"]["pullRequest"]
+        if first and pull.get("isMergeQueueEnabled"):
+            raise Deferred("its base branch uses a merge queue")
+        first = False
+        page = pull["reviewThreads"]
         yield from page["nodes"]
         if not page["pageInfo"]["hasNextPage"]:
             return
@@ -124,11 +161,14 @@ def threads(url, cwd):
 
 def check(args, auto, cwd):
     url = gh(["pr", "view", *args, "--json", "url", "-q", ".url"], cwd).strip()
-    if auto:
-        return [f"Merge blocked: {url} with --auto lands after this check runs, so a thread "
-                "opened before checks finish would land unseen.",
-                "Wait for the required checks, resolve every thread, then merge without --auto."]
-    open_threads = [summary(t) for t in threads(url, cwd) if not t["isResolved"]]
+    try:
+        if auto:
+            raise Deferred("--auto was passed")
+        open_threads = [summary(t) for t in threads(url, cwd) if not t["isResolved"]]
+    except Deferred as reason:
+        return [f"Merge blocked: {url} would land later ({reason}), after this check runs, "
+                "so a thread opened before then would land unseen.",
+                "Wait for the required checks, resolve every thread, then merge directly."]
     if open_threads:
         return [f"Merge blocked: {url} has {len(open_threads)} unresolved review thread(s):",
                 *open_threads,
@@ -147,7 +187,7 @@ def main():
     try:
         found = list(merges(command))
     except ValueError as error:
-        print(f"Merge blocked: could not parse the command ({error}).", file=sys.stderr)
+        print(f"Merge blocked: could not check the command ({error}).", file=sys.stderr)
         return 2
     for args, auto in found:
         try:

@@ -119,6 +119,16 @@ class SyncTests(unittest.TestCase):
         self.assertIn(local_hook, live["hooks"]["PreToolUse"])
         self.assertEqual(len(self.merge_guards(home)), 2)
 
+    def test_merge_guard_refresh_keeps_other_handlers_in_its_entry(self):
+        home = self.refreshed_claude({})
+        extra = {"type": "command", "command": "audit"}
+        self.edit_live(home, lambda live: live["hooks"]["PreToolUse"][-1]["hooks"].append(extra))
+        refresh(self.repo, {"claude": home}, ["claude"])
+        live = json.loads((home / "settings.json").read_text())
+        handlers = [h for entry in live["hooks"]["PreToolUse"] for h in entry["hooks"]]
+        self.assertIn(extra, handlers)
+        self.assertEqual(len(self.merge_guards(home)), 2)
+
     def test_drifted_secret_is_reported_without_its_value(self):
         home = self.refreshed_claude({})
         self.edit_live(home, lambda live: live["env"].update(ANTHROPIC_AUTH_TOKEN="rotated-token"))

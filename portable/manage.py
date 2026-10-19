@@ -126,7 +126,11 @@ def with_merge_guard(config, home):
         "statusMessage": "Checking PR review threads",
     }
     hooks = config.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    hooks[:] = [entry for entry in hooks if "merge_guard.py" not in json.dumps(entry)]
+    for entry in hooks:
+        entry["hooks"] = [
+            h for h in entry.get("hooks", []) if "merge_guard.py" not in json.dumps(h)
+        ]
+    hooks[:] = [entry for entry in hooks if entry["hooks"]]
     hooks.append(
         {
             "matcher": "Bash|PowerShell",

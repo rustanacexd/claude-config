@@ -24,7 +24,8 @@ FAKE_GH = textwrap.dedent("""\
         after = next((a.split("=", 1)[1] for a in args if a.startswith("after=")), "")
         threads = state["pages"][after or "first"]
         cursor = state.get("next", {}).get(after or "first")
-        print(json.dumps({"data": {"repository": {"pullRequest": {"reviewThreads": {
+        print(json.dumps({"data": {"repository": {"pullRequest": {
+            "isMergeQueueEnabled": state.get("queue", False), "reviewThreads": {
             "nodes": threads,
             "pageInfo": {"hasNextPage": cursor is not None, "endCursor": cursor}}}}}}))
     """)
@@ -144,6 +145,36 @@ class MergeGuardTests(unittest.TestCase):
     def test_powershell_commands_are_checked(self):
         self.state["pages"]["first"] = [thread(False)]
         self.assertEqual(self.guard("gh pr merge 42 --squash; Write-Output done", "PowerShell").returncode, 2)
+
+    def test_line_continuations_are_joined(self):
+        self.state["pages"]["first"] = [thread(False)]
+        for command in ("gh pr \\\nmerge 42", "gh pr `\nmerge 42", "gh \\\n  pr merge 42"):
+            self.assertEqual(self.guard(command).returncode, 2, repr(command))
+
+    def test_unrecognized_pr_merge_text_blocks(self):
+        self.assertEqual(self.guard("eval 'gh pr merge 42'").returncode, 2)
+        self.assertEqual(self.guard('gh pr create --title "block pr merge"').returncode, 0)
+
+    def test_merge_queue_is_refused_like_auto(self):
+        self.state["queue"] = True
+        result = self.guard("gh pr merge 42 --squash")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("merge queue", result.stderr)
+
+    def test_attached_short_repo_values_are_passed_on(self):
+        for command in ("gh -R=o/r pr merge 42", "gh -Ro/r pr merge 42", "gh pr merge 42 -Ro/r",
+                        "GH_REPO=o/r gh pr merge 42"):
+            self.log.unlink(missing_ok=True)
+            self.assertEqual(self.guard(command).returncode, 0, command)
+            self.assertEqual(self.calls()[0][:5], ["pr", "view", "42", "--repo", "o/r"], command)
+
+    def test_directory_change_before_an_unpinned_merge_blocks(self):
+        for command in ("cd /other && gh pr merge 42", "pushd ../b; gh pr merge 42",
+                        "Set-Location C:\\b; gh pr merge 42"):
+            result = self.guard(command)
+            self.assertEqual(result.returncode, 2, command)
+            self.assertIn("--repo", result.stderr)
+        self.assertEqual(self.guard("cd /other && gh pr merge 42 -R o/r").returncode, 0)
 
 
 if __name__ == "__main__":
