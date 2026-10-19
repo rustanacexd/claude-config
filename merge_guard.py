@@ -25,7 +25,7 @@ query($owner:String!,$name:String!,$number:Int!,$after:String){
 SEPARATORS = set(";&|()<>\n")
 VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t", "--subject",
                "-A", "--author-email", "--match-head-commit"}
-MERGE_TEXT = re.compile(r"\bgh(\.exe)?\b.*\bpr\b\W*\bmerge\b", re.I | re.S)
+MERGE_TEXT = re.compile(r"\bgh(\.exe)?\b[^;&|\n]*\bpr\b[^;&|\n]*\bmerge\b", re.I)
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 ALONE = "run `gh pr merge <number> --repo OWNER/REPO` on its own"
 
@@ -65,38 +65,38 @@ def segments(command):
     yield segment
 
 
-def merges(command):
-    """Yield (gh pr view args, env, flags) for the merge in command.
-
-    Only a lone, literal `gh pr merge` is read. Any other command that mentions
-    one raises ValueError, since shell composition can change what it merges.
-    """
-    # Bash joins backslash-newline and PowerShell joins backtick-newline.
-    command = re.sub(r"[\\`]\r?\n", "", command)
-    if not MERGE_TEXT.search(command):
-        return
-    parts = [part for part in segments(command) if part]
-    words = parts[0] if len(parts) == 1 else []
-    env = {}
+def is_gh(words):
+    words = list(words)
     while words and ASSIGNMENT.match(words[0]):
+        words.pop(0)
+    # Suffix match: POSIX shlex drops the backslashes of a Windows path.
+    return bool(words) and re.search(r"gh(\.exe)?$", words[0], re.I) is not None
+
+
+def parse(words):
+    """Return (gh pr view args, env, flags) when words run `gh pr merge`, else None."""
+    if not is_gh(words):
+        return None
+    words, env = list(words), {}
+    while ASSIGNMENT.match(words[0]):
         name, value = words.pop(0).split("=", 1)
         env[name] = value
-    name = re.sub(r"\.exe$", "", re.split(r"[\\/]", words[0])[-1], flags=re.I).lower() if words else ""
-    if name != "gh" or "\n" in command.strip():
-        raise ValueError(f"the merge is combined with other shell syntax; {ALONE}")
     words = words[1:]
-    if any("$" in w or "`" in w for w in words):
-        raise ValueError(f"the merge uses shell expansion; {ALONE}")
     repo = ["--repo", env["GH_REPO"]] if "GH_REPO" in env else []
     i = 0
-    while i < len(words) and words[i].startswith("-"):
-        found, used = repo_flag(words, i)
-        repo = found or repo
-        i += used or 1
-    if words[i:i + 2] != ["pr", "merge"]:
-        return
-    words = words[i + 2:]
-    target, flags, i = None, {"auto": False, "disable": False, "admin": False}, 0
+    for command_name in ("pr", "merge"):
+        # gh and gh pr both take -R/--repo before their subcommand.
+        while i < len(words) and words[i].startswith("-"):
+            found, used = repo_flag(words, i)
+            repo = found or repo
+            i += used or 1
+        if words[i:i + 1] != [command_name]:
+            return None
+        i += 1
+    if any("$" in w or "`" in w for w in words):
+        raise ValueError(f"the merge uses shell expansion; {ALONE}")
+    words = words[i:]
+    target, flags, i = None, {"auto": False, "disable": False, "admin": False, "help": False}, 0
     while i < len(words):
         word = words[i]
         found, used = repo_flag(words, i)
@@ -104,6 +104,8 @@ def merges(command):
             repo = found
             i += used
             continue
+        if word in ("-h", "--help"):
+            flags["help"] = True
         for key, flag in (("auto", "--auto"), ("disable", "--disable-auto"), ("admin", "--admin")):
             value = boolean(word, flag)
             if value is not None:
@@ -115,8 +117,30 @@ def merges(command):
             elif not word.startswith("-") and target is None:
                 target = word
         i += 1
-    if not flags["disable"]:
-        yield ([target] if target else []) + repo, env, flags
+    return ([target] if target else []) + repo, env, flags
+
+
+def merges(command):
+    """Yield (gh pr view args, env, flags) for the merge in command.
+
+    Only a lone, literal `gh pr merge` is read. Any other command that runs or
+    mentions one raises ValueError, since shell composition can change what it
+    merges.
+    """
+    # Bash joins backslash-newline and PowerShell joins backtick-newline.
+    command = re.sub(r"[\\`]\r?\n", "", command)
+    parts = [part for part in segments(command) if part]
+    found = [merge for merge in map(parse, parts) if merge is not None]
+    if not found:
+        # A gh command parse() read is not a merge; anything else may wrap one.
+        if any(MERGE_TEXT.search(" ".join(part)) for part in parts if not is_gh(part)):
+            raise ValueError(f"`gh pr merge` appears in a form the guard cannot read; {ALONE}")
+        return
+    if len(parts) > 1 or "\n" in command.strip():
+        raise ValueError(f"the merge is combined with other shell syntax; {ALONE}")
+    args, env, flags = found[0]
+    if not flags["disable"] and not flags["help"]:
+        yield args, env, flags
 
 
 def gh(args, cwd, env=None):

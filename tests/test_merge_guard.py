@@ -199,6 +199,17 @@ class MergeGuardTests(unittest.TestCase):
         self.state["pages"]["first"] = [thread(False)]
         for command in ("GH pr merge 42", "C:\\tools\\GH.EXE pr merge 42", "Gh.exe pr merge 42"):
             self.assertEqual(self.guard(command, "PowerShell").returncode, 2, command)
+    def test_repo_flag_at_the_pr_level_is_read(self):
+        self.state["pages"]["first"] = [thread(False)]
+        self.assertEqual(self.guard("gh pr -R o/r merge 42").returncode, 2)
+        self.assertEqual(self.calls()[0][:5], ["pr", "view", "42", "--repo", "o/r"])
+
+    def test_help_is_never_checked(self):
+        self.state["fail"] = True
+        for command in ("gh pr merge --help", "gh pr merge 42 -h", "gh pr -R o/r merge --help"):
+            self.assertEqual(self.guard(command).returncode, 0, command)
+        self.assertEqual(self.calls(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

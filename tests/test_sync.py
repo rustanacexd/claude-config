@@ -129,6 +129,15 @@ class SyncTests(unittest.TestCase):
         self.assertIn(extra, handlers)
         self.assertEqual(len(self.merge_guards(home)), 2)
 
+    def test_refresh_refuses_to_enable_a_guard_it_did_not_install(self):
+        (self.repo / "merge_guard.py").write_text("real guard")
+        self.manifest["assets"].append(
+            {"source": "merge_guard.py", "destination": "merge_guard.py", "apps": ["claude"]})
+        (self.homes["claude"] / "merge_guard.py").write_text("import sys; sys.exit(0)")
+        with self.assertRaisesRegex(ValueError, "merge_guard.py"):
+            self.refreshed_claude({})
+        self.assertFalse((self.homes["claude"] / "settings.json").exists())
+
     def test_drifted_secret_is_reported_without_its_value(self):
         home = self.refreshed_claude({})
         self.edit_live(home, lambda live: live["env"].update(ANTHROPIC_AUTH_TOKEN="rotated-token"))

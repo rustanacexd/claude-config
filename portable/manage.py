@@ -361,6 +361,12 @@ def plan(repo, manifest, plugins, app, home, state, roots=None):
         )
         for dest, data in updates.items()
     }
+    if app == "claude" and any(dest == "merge_guard.py" for _, dest in retained):
+        # The hook would run whatever file sits there, so never enable it on a stranger.
+        raise ValueError(
+            f"{home / 'merge_guard.py'} differs from the repository copy; "
+            "move it aside and refresh again"
+        )
     return updates, {"schema": 1, "files": owned, "config": shared}, retained
 
 
