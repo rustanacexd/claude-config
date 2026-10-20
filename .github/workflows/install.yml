@@ -32,7 +32,7 @@ jobs:
           python install.py 2>&1 | tee second.log
           if grep '^failed' first.log second.log; then exit 1; fi
           if grep '^wrote' second.log; then echo "second run was not a no-op"; exit 1; fi
-          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/skills/show-me/SKILL.md \
+          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/update_plugins.py .claude/skills/show-me/SKILL.md \
                    .codex/AGENTS.md .codex/skills/visual-explainer-diff-review/SKILL.md \
                    .claude/skills/gh-stack/SKILL.md .agents/skills/visual-explainer/SKILL.md; do
             test -f "$H/$f" || { echo "missing $f"; exit 1; }
@@ -52,6 +52,13 @@ jobs:
           done
           mkdir -p artifact
           cp first.log second.log plugins.txt "$H/.claude/settings.json" "$H/.codex/config.toml" artifact/
+          if [ "$RUNNER_OS" = macOS ]; then
+            test -f "$H/Library/LaunchAgents/com.claude-config.update-plugins.plist" || { echo "missing launch agent"; exit 1; }
+            launchctl print "gui/$(id -u)/com.claude-config.update-plugins" > artifact/launchctl.txt
+            # A slow upstream clone can fail one marketplace, so check only that the run reached pstack.
+            python "$H/.claude/update_plugins.py" 2>&1 | tee artifact/update.log || true
+            grep -q '^updated pstack@pstack-claude' artifact/update.log || { echo "updater did not update pstack"; exit 1; }
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
