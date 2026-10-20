@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -199,6 +200,33 @@ def install_plugins(app, enabled):
         run(app, "plugin", "install" if app == "claude" else "add", plugin, *scope)
 
 
+def schedule_plugin_updates():
+    if sys.platform != "darwin":
+        print("skipped plugin update schedule: launchd only")
+        return
+    label = "com.claude-config.update-plugins"
+    plist = Path.home() / f"Library/LaunchAgents/{label}.plist"
+    log = str(Path.home() / "Library/Logs/claude-config-update-plugins.log")
+    data = plistlib.dumps({
+        "Label": label,
+        "ProgramArguments": [sys.executable, str(CLAUDE / "update_plugins.py")],
+        "StartInterval": 12 * 60 * 60,
+        # launchd's default PATH lacks ~/.local/bin and /opt/homebrew/bin, where claude and codex live.
+        "EnvironmentVariables": {"PATH": os.environ["PATH"],
+                                 **{k: os.environ[k] for k in ("CLAUDE_CONFIG_DIR", "CODEX_HOME") if k in os.environ}},
+        "StandardOutPath": log,
+        "StandardErrorPath": log,
+    })
+    domain = f"gui/{os.getuid()}"
+    # Also reload an unchanged plist that is not loaded, such as after a failed bootstrap.
+    loaded = subprocess.run(["launchctl", "print", f"{domain}/{label}"], capture_output=True).returncode == 0
+    if loaded and plist.is_file() and plist.read_bytes() == data:
+        return
+    replace_file(plist, data)
+    subprocess.run(["launchctl", "bootout", f"{domain}/{label}"], capture_output=True)
+    run("launchctl", "bootstrap", domain, str(plist))
+
+
 def install_third_party_skills():
     for source, skills, agents in THIRD_PARTY_SKILLS:
         if all((SKILL_DIRS[a] / s / "SKILL.md").is_file() for a in agents for s in skills):
@@ -216,5 +244,6 @@ if __name__ == "__main__":
     install_plugins("codex", {name: value["enabled"] for name, value in codex_plugins.items()})
     claude_settings()
     codex_config()
+    schedule_plugin_updates()
     install_third_party_skills()
     sys.exit(1 if FAILED else 0)
