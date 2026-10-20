@@ -23,6 +23,7 @@ FILES = {
     "pstack-models.md": [CLAUDE / "pstack-models.md"],
     "statusline.py": [CLAUDE / "statusline.py"],
     "merge_guard.py": [CLAUDE / "merge_guard.py"],
+    "update_plugins.py": [CLAUDE / "update_plugins.py"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
