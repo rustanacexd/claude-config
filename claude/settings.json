@@ -36,7 +36,7 @@
   },
   "enableArtifact": false,
   "outputStyle": "Concise",
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
@@ -59,7 +59,7 @@
       "effortLevel": "high"
     },
     "claude-opus-5-5": {
-      "effortLevel": "high"
+      "effortLevel": "medium"
     }
   },
   "enableWorkflows": false,
@@ -97,7 +97,7 @@
     }
   },
   "env": {
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "320000",
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
     "FORCE_AUTOUPDATE_PLUGINS": "true",
     "DISABLE_ERROR_REPORTING": "1",
