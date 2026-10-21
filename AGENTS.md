@@ -2,8 +2,6 @@
 
 This repository owns `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, and the other files `install.py` copies.
 Edit them here. Do not edit the installed copies directly.
-The source of `~/.claude/CLAUDE.md` is `claude/CLAUDE.md`. Keep `CLAUDE.md` out of the repo root and `.claude/`:
-Claude Code reads this `AGENTS.md` only when neither exists.
 
 After every commit or push here, run `python3 install.py` so the live config matches the repo.
 The installer copies the working tree, not the commit: if `git status` shows uncommitted edits
