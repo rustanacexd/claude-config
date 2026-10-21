@@ -181,10 +181,10 @@ def merges(command):
         yield args, env, flags
 
 
-def gh(args, cwd, env=None):
+def gh(args, cwd, env):
     result = subprocess.run(
         ["gh", *args], capture_output=True, text=True, cwd=cwd, timeout=15,
-        env=dict(os.environ, **(env or {})),
+        env=dict(os.environ, **env),
     )
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
@@ -192,10 +192,12 @@ def gh(args, cwd, env=None):
 
 
 def summary(thread):
-    comment = (thread["comments"]["nodes"] or [{}])[0]
-    body = re.sub(r"<[^>]*>|!\[[^\]]*\]\([^)]*\)|\*\*", "", comment.get("body", ""))
+    comments = thread["comments"]["nodes"]
+    comment = comments[0] if comments else None
+    body = re.sub(r"<[^>]*>|!\[[^\]]*\]\([^)]*\)|\*\*", "", comment["body"] if comment is not None else "")
     first = next((s.strip() for s in body.splitlines() if re.search("[A-Za-z]", s)), "")
-    author = (comment.get("author") or {}).get("login", "?")
+    author = comment["author"] if comment is not None else None
+    author = author["login"] if author is not None else "?"
     outdated = " (outdated)" if thread["isOutdated"] else ""
     return f"- {thread['path']}:{thread['line'] or '?'} [{author}]{outdated} {first[:120]}"
 
@@ -215,7 +217,7 @@ def threads(url, cwd, env, queue_defers):
                               "-F", f"name={name}", "-F", f"number={number}", *after,
                               "-f", f"query={QUERY}"], cwd, env))
         pull = data["data"]["repository"]["pullRequest"]
-        if first and queue_defers and pull.get("isMergeQueueEnabled"):
+        if first and queue_defers and pull["isMergeQueueEnabled"]:
             raise Deferred("its base branch uses a merge queue")
         first = False
         page = pull["reviewThreads"]
@@ -246,13 +248,12 @@ def check(args, env, flags, cwd):
 
 
 def main():
-    event = json.load(sys.stdin)
-    command = event.get("tool_input", {}).get("command", "")
-    cwd = event.get("cwd")
-    cwd = cwd if cwd and os.path.isdir(cwd) else None
     try:
+        event = json.load(sys.stdin)
+        command = event["tool_input"]["command"]
+        cwd = os.fspath(event["cwd"])
         found = list(merges(command))
-    except ValueError as error:
+    except (KeyError, TypeError, ValueError) as error:
         print(f"Merge blocked: could not check the command ({error}).", file=sys.stderr)
         return 2
     for args, env, flags in found:
