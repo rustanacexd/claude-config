@@ -103,8 +103,8 @@ def claude_settings():
     }
     hooks = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for entry in hooks:
-        entry["hooks"] = [h for h in entry.get("hooks", [])
-                          if Path(str((h.get("args") or [""])[-1])).name != "merge_guard.py"]
+        entry["hooks"] = [h for h in entry["hooks"]
+                          if not h.get("args") or Path(h["args"][-1]).name != "merge_guard.py"]
     hooks[:] = [entry for entry in hooks if entry["hooks"]]
     hooks.append({
         "matcher": "Bash|PowerShell",
@@ -174,23 +174,19 @@ def run(*argv):
     return result.stdout
 
 
-def names(listing, key):
-    rows = json.loads(listing or "[]")
-    rows = rows.get(key, []) if isinstance(rows, dict) else rows
-    return {row.get("id") or row.get("pluginId") or row.get("name") for row in rows}
-
-
 def install_plugins(app, enabled):
     scope = ["--scope", "user"] if app == "claude" else []
     installed = run(app, "plugin", "list", "--json")
     if installed is None:
         return
+    listing = json.loads(installed)
     if app == "codex":
-        rows = json.loads(installed)["installed"]
+        rows = listing["installed"]
+        installed = {row["pluginId"] for row in rows}
         disabled_remote = {
             row["pluginId"] for row in rows
-            if enabled.get(row["pluginId"]) is False and row.get("enabled") is True
-            and row.get("source", {}).get("source") == "remote"
+            if enabled.get(row["pluginId"]) is False and row["enabled"]
+            and row["source"]["source"] == "remote"
             and row["pluginId"].endswith("@openai-curated-remote")
         }
         for plugin in sorted(disabled_remote):
@@ -201,12 +197,18 @@ def install_plugins(app, enabled):
                 return
             rows = json.loads(verified)["installed"]
             for row in rows:
-                if (row["pluginId"] in disabled_remote and row.get("enabled") is True
-                        and row.get("source", {}).get("source") == "remote"):
+                if row["pluginId"] in disabled_remote and row["enabled"]:
                     print(f"failed to disable remote plugin `{row['pluginId']}`: still enabled", file=sys.stderr)
                     FAILED.append((app, "plugin", "remove", row["pluginId"]))
-    installed = names(installed, "installed")
-    known = names(run(app, "plugin", "marketplace", "list", "--json"), "marketplaces")
+    else:
+        installed = {row["id"] for row in listing}
+    marketplaces = run(app, "plugin", "marketplace", "list", "--json")
+    if marketplaces is None:
+        return
+    rows = json.loads(marketplaces)
+    if app == "codex":
+        rows = rows["marketplaces"]
+    known = {row["name"] for row in rows}
     for plugin, on in enabled.items():
         marketplace = plugin.split("@")[1]
         if not on or plugin in installed or marketplace not in MARKETPLACES:

@@ -15,7 +15,7 @@ def humanize(number):
 
 
 def format_status(data):
-    cwd = data.get("workspace", {}).get("current_dir", data.get("cwd", "."))
+    cwd = data["workspace"]["current_dir"]
     path = str(cwd).replace(str(Path.home()), "~", 1)
     parts = path.replace("\\", "/").split("/")
     if len(parts) > 3:
@@ -37,31 +37,30 @@ def format_status(data):
                 break
     except (OSError, subprocess.TimeoutExpired):
         pass
-    model = data.get("model", {}).get("display_name", "Claude").split(" (")[0]
+    model = data["model"]["display_name"].split(" (")[0]
     result.append(f"\033[35m{model}\033[0m")
-    effort = data.get("effort", {}).get("level")
-    if effort:
-        result.append(f"\033[36m{effort}\033[0m")
-    context = data.get("context_window", {})
-    used = context.get("total_input_tokens")
-    size = context.get("context_window_size")
-    if used is not None:
-        ceiling = os.environ.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
-        pct = context.get("used_percentage", 0)
-        if ceiling and size and int(ceiling) < size:
-            size = int(ceiling)
-            pct = used * 100 / size
-        color = 31 if pct >= 80 else 33 if pct >= 50 else 32
-        tokens = humanize(used) + (("/" + humanize(size)) if size else "")
-        result.append(f"\033[{color}m{tokens}\033[0m")
-    pr = data.get("pr", {})
-    if pr.get("number") and pr.get("url"):
+    effort = data.get("effort")
+    if effort is not None:
+        result.append(f"\033[36m{effort['level']}\033[0m")
+    context = data["context_window"]
+    used = context["total_input_tokens"]
+    size = context["context_window_size"]
+    ceiling = os.environ.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
+    pct = context["used_percentage"] or 0
+    if ceiling and int(ceiling) < size:
+        size = int(ceiling)
+        pct = used * 100 / size
+    color = 31 if pct >= 80 else 33 if pct >= 50 else 32
+    tokens = humanize(used) + "/" + humanize(size)
+    result.append(f"\033[{color}m{tokens}\033[0m")
+    pr = data.get("pr")
+    if pr is not None:
         result.append(
             f"\033[96m\033]8;;{pr['url']}\033\\PR #{pr['number']}\033]8;;\033\\\033[0m"
         )
-    mode = data.get("vim", {}).get("mode")
-    if mode:
-        result.append(f"\033[38;5;208m[{mode.lower()}]\033[0m")
+    vim = data.get("vim")
+    if vim is not None:
+        result.append(f"\033[38;5;208m[{vim['mode'].lower()}]\033[0m")
     return " ".join(result)
 
 
