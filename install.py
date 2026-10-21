@@ -19,7 +19,7 @@ SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home(
 FAILED = []
 
 FILES = {
-    "CLAUDE.md": [CLAUDE / "CLAUDE.md"],
+    "claude/CLAUDE.md": [CLAUDE / "CLAUDE.md"],
     "pstack-models.md": [CLAUDE / "pstack-models.md"],
     "statusline.py": [CLAUDE / "statusline.py"],
     "merge_guard.py": [CLAUDE / "merge_guard.py"],
