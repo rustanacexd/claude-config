@@ -64,7 +64,7 @@
   },
   "enableWorkflows": false,
   "enabledPlugins": {
-    "eli5@claude-community": true,
+    "eli5@claude-community": false,
     "exa@claude-plugins-official": true,
     "pstack@pstack-claude": true,
     "skill-creator@claude-plugins-official": false,
