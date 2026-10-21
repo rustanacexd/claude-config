@@ -165,7 +165,9 @@ def run(*argv):
         env.update({"GIT_CONFIG_COUNT": str(n + 1), f"GIT_CONFIG_KEY_{n}": "core.longpaths",
                     f"GIT_CONFIG_VALUE_{n}": "true"})
     result = subprocess.run([executable, *argv[1:]], env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
-    if result.returncode:
+    remote_list_failed = (argv[:3] == ("codex", "plugin", "list")
+                          and "Warning: failed to list remote marketplace plugins:" in result.stderr)
+    if result.returncode or remote_list_failed:
         print(f"failed `{' '.join(argv)}`: {result.stderr.strip()}", file=sys.stderr)
         FAILED.append(argv)
         return None
@@ -183,6 +185,28 @@ def install_plugins(app, enabled):
     installed = run(app, "plugin", "list", "--json")
     if installed is None:
         return
+    if app == "codex":
+        listing = json.loads(installed)
+        rows = listing.get("installed", []) if isinstance(listing, dict) else listing
+        disabled_remote = {
+            row["pluginId"] for row in rows
+            if enabled.get(row["pluginId"]) is False and row.get("enabled") is True
+            and row.get("source", {}).get("source") == "remote"
+            and row["pluginId"].endswith("@openai-curated-remote")
+        }
+        for plugin in sorted(disabled_remote):
+            run(app, "plugin", "remove", plugin)
+        if disabled_remote:
+            verified = run(app, "plugin", "list", "--marketplace", "openai-curated-remote", "--json")
+            if verified is None:
+                return
+            listing = json.loads(verified)
+            rows = listing.get("installed", []) if isinstance(listing, dict) else listing
+            for row in rows:
+                if (row["pluginId"] in disabled_remote and row.get("enabled") is True
+                        and row.get("source", {}).get("source") == "remote"):
+                    print(f"failed to disable remote plugin `{row['pluginId']}`: still enabled", file=sys.stderr)
+                    FAILED.append((app, "plugin", "remove", row["pluginId"]))
     installed = names(installed, "installed")
     known = names(run(app, "plugin", "marketplace", "list", "--json"), "marketplaces")
     for plugin, on in enabled.items():
