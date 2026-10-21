@@ -6,10 +6,10 @@ Files for `~/.claude` live in `claude/`, files for `~/.codex` in `codex/`, and s
 Keep `CLAUDE.md` out of the repo root and `.claude/`: Claude Code reads this file only when neither exists.
 
 After every commit or push here, run `python3 install.py` so the live config matches the repo.
-The installer copies the working tree, not the commit: if `git status` shows uncommitted edits
-you did not make to files it copies, stop and ask before running it.
-The installer does not delete a skill removed from the repo. Delete its installed copies under
-`~/.claude/skills` and `~/.codex/skills` yourself.
+The installer runs and reads the working tree, not the commit: if `git status` shows uncommitted
+edits you did not make, stop and ask before running it.
+The installer does not delete a skill removed from the repo. Delete its installed copies under the
+`skills/` directories of `CLAUDE_CONFIG_DIR` and `CODEX_HOME` (default `~/.claude` and `~/.codex`) yourself.
 
 # Testing
 
