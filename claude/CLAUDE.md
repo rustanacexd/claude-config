@@ -55,16 +55,6 @@ Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` s
 read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
-# Testing
-
-- Do not add unit tests unless I explicitly request them.
-- Prefer existing E2E or integration checks and verification against the real application.
-- For small fixes, keep one-off verification scripts and artifacts outside the repository.
-- Do not add testing frameworks, harnesses, or suites unless I explicitly request them.
-- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
-- A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
-- Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
-
 # Verification
 
 A PR's review state is what its forge shows: read its threads before calling it ready.

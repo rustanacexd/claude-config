@@ -10,13 +10,3 @@ The installer runs and reads the working tree, not the commit: if `git status` s
 edits you did not make, stop and ask before running it.
 The installer does not delete a skill removed from the repo. Delete its installed copies under the
 `skills/` directories of `CLAUDE_CONFIG_DIR` and `CODEX_HOME` (default `~/.claude` and `~/.codex`) yourself.
-
-# Testing
-
-- Do not add unit tests unless I explicitly request them.
-- Prefer existing E2E or integration checks and verification against the real application.
-- For small fixes, keep one-off verification scripts and artifacts outside the repository.
-- Do not add testing frameworks, harnesses, or suites unless I explicitly request them.
-- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
-- A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
-- Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.

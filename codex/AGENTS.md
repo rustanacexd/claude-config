@@ -48,16 +48,6 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
 6. Put the URL beside each web-derived claim wherever it lands: the reply, a file, a PR
    body, or a report to another agent.
 
-# Verification
-
-- Do not add unit tests unless I explicitly request them.
-- Prefer existing E2E or integration checks and verification against the real application.
-- For small fixes, keep one-off verification scripts and artifacts outside the repository.
-- Do not add testing frameworks, harnesses, or suites unless I explicitly request them.
-- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
-- A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
-- Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
-
 # pstack model configuration
 
 feature, refactoring: gpt-6.1-sol @high
