@@ -33,7 +33,8 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
    - Vendor docs, changelogs, upstream repos: `web_search_advanced_exa` with
      `includeDomains` set to the vendor's domains.
    - Current releases, news, anything dated: `web_search_advanced_exa` with
-     `startPublishedDate`.
+     `startPublishedDate`, plus `endPublishedDate` when the question names a closed
+     period.
    - Open-ended questions: `web_search_exa`.
    - Multi-hop questions: one filtered search per hop. Use `agent_run` when the list of
      entities is long or not known up front.

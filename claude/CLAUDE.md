@@ -33,10 +33,12 @@ options. Set `interactionMode: "default"` when delegating execution tasks.
    - Vendor docs, changelogs, upstream repos: `web_search_advanced_exa` with
      `includeDomains` set to the vendor's domains.
    - Current releases, news, anything dated: `web_search_advanced_exa` with
-     `startPublishedDate`.
+     `startPublishedDate`, plus `endPublishedDate` when the question names a closed
+     period.
    - Open-ended questions: `web_search_exa`.
    - Multi-hop questions: one filtered search per hop. Use `agent_run` when the list of
-     entities is long or not known up front.
+     entities is long or not known up front. Do not load the Exa plugin's `search`
+     skill for research; it forbids the filtered search.
    If `web_search_advanced_exa` is not available, use `web_search_exa` with the vendor's
    domain or the year in the query. Read pages with `web_fetch_exa`.
    Run curl or wget on a web page only after `web_fetch_exa` failed on that page,
