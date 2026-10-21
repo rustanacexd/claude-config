@@ -186,8 +186,7 @@ def install_plugins(app, enabled):
     if installed is None:
         return
     if app == "codex":
-        listing = json.loads(installed)
-        rows = listing.get("installed", []) if isinstance(listing, dict) else listing
+        rows = json.loads(installed)["installed"]
         disabled_remote = {
             row["pluginId"] for row in rows
             if enabled.get(row["pluginId"]) is False and row.get("enabled") is True
@@ -200,8 +199,7 @@ def install_plugins(app, enabled):
             verified = run(app, "plugin", "list", "--marketplace", "openai-curated-remote", "--json")
             if verified is None:
                 return
-            listing = json.loads(verified)
-            rows = listing.get("installed", []) if isinstance(listing, dict) else listing
+            rows = json.loads(verified)["installed"]
             for row in rows:
                 if (row["pluginId"] in disabled_remote and row.get("enabled") is True
                         and row.get("source", {}).get("source") == "remote"):
