@@ -1,7 +1,13 @@
 # Global instruction ownership
 
 This repository owns `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, and the other files `install.py` copies.
-Edit them here, then run `python3 install.py`. Do not edit the installed copies directly.
+Edit them here. Do not edit the installed copies directly.
+
+After every commit or push here, run `python3 install.py` so the live config matches the repo.
+The installer copies the working tree, not the commit: if `git status` shows uncommitted edits
+you did not make to files it copies, stop and ask before running it.
+The installer does not delete a skill removed from the repo. Delete its installed copies under
+`~/.claude/skills` and `~/.codex/skills` yourself.
 
 # Testing
 
