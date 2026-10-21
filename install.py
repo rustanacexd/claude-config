@@ -19,10 +19,10 @@ SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home(
 FAILED = []
 
 FILES = {
-    "CLAUDE.md": [CLAUDE / "CLAUDE.md"],
-    "pstack-models.md": [CLAUDE / "pstack-models.md"],
-    "statusline.py": [CLAUDE / "statusline.py"],
-    "merge_guard.py": [CLAUDE / "merge_guard.py"],
+    "claude/CLAUDE.md": [CLAUDE / "CLAUDE.md"],
+    "claude/pstack-models.md": [CLAUDE / "pstack-models.md"],
+    "claude/statusline.py": [CLAUDE / "statusline.py"],
+    "claude/merge_guard.py": [CLAUDE / "merge_guard.py"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
@@ -87,7 +87,7 @@ def overlay(live, repo):
 def claude_settings():
     path = CLAUDE / "settings.json"
     live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    settings = overlay(live, json.loads((REPO / "settings.json").read_text(encoding="utf-8")))
+    settings = overlay(live, json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8")))
     settings["statusLine"] = {
         "type": "command",
         "command": f'"{sys.executable}" "{CLAUDE / "statusline.py"}"',
@@ -234,7 +234,7 @@ if __name__ == "__main__":
         for dest in destinations:
             copy(REPO / source, dest)
     # The plugin CLIs rewrite settings as they install, so the repo's config is written after them.
-    install_plugins("claude", json.loads((REPO / "settings.json").read_text(encoding="utf-8"))["enabledPlugins"])
+    install_plugins("claude", json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8"))["enabledPlugins"])
     codex_plugins = tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8"))["plugins"]
     install_plugins("codex", {name: value["enabled"] for name, value in codex_plugins.items()})
     claude_settings()
