@@ -103,7 +103,7 @@
 "enabled" = true
 
 ["plugins"."notion@openai-curated-remote"]
-"enabled" = false
+"enabled" = true
 
 ["plugins"."slack@openai-curated-remote"]
 "enabled" = true
