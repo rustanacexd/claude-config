@@ -181,25 +181,7 @@ def install_plugins(app, enabled):
         return
     listing = json.loads(installed)
     if app == "codex":
-        rows = listing["installed"]
-        installed = {row["pluginId"] for row in rows}
-        disabled_remote = {
-            row["pluginId"] for row in rows
-            if enabled.get(row["pluginId"]) is False and row["enabled"]
-            and row["source"]["source"] == "remote"
-            and row["pluginId"].endswith("@openai-curated-remote")
-        }
-        for plugin in sorted(disabled_remote):
-            run(app, "plugin", "remove", plugin)
-        if disabled_remote:
-            verified = run(app, "plugin", "list", "--marketplace", "openai-curated-remote", "--json")
-            if verified is None:
-                return
-            rows = json.loads(verified)["installed"]
-            for row in rows:
-                if row["pluginId"] in disabled_remote and row["enabled"]:
-                    print(f"failed to disable remote plugin `{row['pluginId']}`: still enabled", file=sys.stderr)
-                    FAILED.append((app, "plugin", "remove", row["pluginId"]))
+        installed = {row["pluginId"] for row in listing["installed"]}
     else:
         installed = {row["id"] for row in listing}
     marketplaces = run(app, "plugin", "marketplace", "list", "--json")
