@@ -55,14 +55,6 @@ Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` s
 read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
-# Verification
-
-A PR's review state is what its forge shows: read its threads before calling it ready.
-Name each reviewer by source, such as a delegated round or a forge bot, never by model.
-A verifier's brief carries no earlier review conclusions; pass it the open threads.
-After a compaction mid-playbook, re-read the playbook before the next step, not the
-summary's plan.
-
 @~/.claude/pstack-models.md
 
 # Google Cloud
