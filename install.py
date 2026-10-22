@@ -45,7 +45,7 @@ THIRD_PARTY_SKILLS = [
     ("google/skills", ["finding-google-skills", "gcloud"], ["claude-code", "codex"]),
     ("cli/cli", ["gh"], ["claude-code", "codex"]),
     ("github/gh-stack", ["gh-stack"], ["claude-code", "codex"]),
-    ("backnotprop/bro", ["status"], ["claude-code", "codex"]),
+    ("backnotprop/bro", ["status", "big-pics-little-words"], ["claude-code", "codex"]),
     ("nicobailon/visual-explainer", ["visual-explainer"], ["codex"]),
 ]
 
