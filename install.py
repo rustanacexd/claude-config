@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -118,12 +119,19 @@ def codex_config():
     path = CODEX / "config.toml"
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
-    # Codex rewrites this file in its own style, so only write when the values differ.
-    if path.is_symlink() or not path.exists() or config != tomllib.loads(path.read_text(encoding="utf-8")):
+    # Codex rewrites this file in its own style, so only write when the values differ
+    # or an older install left quoted keys that text-matching tools do not recognize.
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if (path.is_symlink() or not path.exists() or config != tomllib.loads(text)
+            or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)):
         replace_file(path, toml(config))
 
 
 def toml(config):
+    # Bare keys where TOML allows them: tools such as Plannotator's updater match `[features]` as text.
+    def key(k):
+        return k if k and all(c.isascii() and (c.isalnum() or c in "_-") for c in k) else json.dumps(k)
+
     def scalar(value):
         if isinstance(value, bool):
             return "true" if value else "false"
@@ -132,7 +140,7 @@ def toml(config):
         if isinstance(value, list):
             return "[" + ", ".join(scalar(v) for v in value) + "]"
         if isinstance(value, dict):
-            return "{" + ", ".join(f"{json.dumps(k)} = {scalar(v)}" for k, v in value.items()) + "}"
+            return "{" + ", ".join(f"{key(k)} = {scalar(v)}" for k, v in value.items()) + "}"
         if isinstance(value, str):
             return json.dumps(value, ensure_ascii=False)
         return value.isoformat()
@@ -141,11 +149,11 @@ def toml(config):
 
     def table(value, path):
         if path:
-            lines.extend(["", "[" + ".".join(json.dumps(k) for k in path) + "]"])
-        lines.extend(f"{json.dumps(k)} = {scalar(v)}" for k, v in value.items() if not isinstance(v, dict))
-        for key, item in value.items():
+            lines.extend(["", "[" + ".".join(key(k) for k in path) + "]"])
+        lines.extend(f"{key(k)} = {scalar(v)}" for k, v in value.items() if not isinstance(v, dict))
+        for k, item in value.items():
             if isinstance(item, dict):
-                table(item, path + (key,))
+                table(item, path + (k,))
 
     table(config, ())
     data = "\n".join(lines).lstrip("\n") + "\n"
