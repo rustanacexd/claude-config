@@ -118,6 +118,7 @@ def claude_settings():
 def codex_config():
     path = CODEX / "config.toml"
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
     config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
     # Codex rewrites this file in its own style, so only write when the values differ
     # or an older install left quoted keys that text-matching tools do not recognize.

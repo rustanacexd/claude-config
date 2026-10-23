@@ -43,7 +43,7 @@
 
 ["mcp_servers"."exa"]
 "url" = "https://mcp.exa.ai/mcp?tools=web_search_exa,web_fetch_exa,agent_run,web_search_advanced_exa"
-"bearer_token_env_var" = "EXA_API_KEY"
+"http_headers_helper" = "zsh -lc 'printf \"{\\\"Authorization\\\":\\\"Bearer %s\\\"}\\n\" \"$EXA_API_KEY\"'"
 
 ["tui"]
 "status_line" = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number", "context-remaining"]
