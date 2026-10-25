@@ -14,11 +14,11 @@ why investigators: opus
 why synthesizer: opus
 reflect tooling: opus
 reflect judgment, divergent, synthesizer: opus
-arena runners: opus, fable, opus
-arena cross-judge pool: opus, fable, opus
+arena runners: opus, fable, sonnet
+arena cross-judge pool: opus, fable, sonnet
 swarm workers: opus
-architect runners: opus, fable, opus
-interrogate reviewers: opus, fable, opus
+architect runners: opus, fable, sonnet
+interrogate reviewers: opus, fable, sonnet
 
 default effort: session
 session hook: on
