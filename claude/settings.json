@@ -54,14 +54,6 @@
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "model": "opus",
-  "modelSettings": {
-    "claude-fable-5-1": {
-      "effortLevel": "high"
-    },
-    "claude-opus-5-5": {
-      "effortLevel": "medium"
-    }
-  },
   "enableWorkflows": false,
   "enabledPlugins": {
     "eli5@claude-community": false,

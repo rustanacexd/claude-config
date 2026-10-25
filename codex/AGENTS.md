@@ -57,6 +57,19 @@ interrogate reviewers: gpt-6-astra, gpt-6.1-sol
 
 default effort: session
 
+## Strict session effort
+
+Every pstack agent must use the calling session's current effort. This overrides
+pstack's task-based effort adjustments and its instruction to omit effort for
+`session`. Keep each role's configured model. Do not substitute a model default,
+raise or lower effort, or reuse an effort value from an earlier turn.
+
+The installed `pstack_effort.py` PreToolUse hook enforces this at each dispatch.
+Claude Code supplies the live effort in the hook event. Codex reads the matching
+current `turn_context` from the transcript and passes it as `reasoning_effort`.
+If the live effort cannot be determined, the hook blocks the dispatch. Do not
+bypass the hook or retry with a different effort. Report unsupported levels.
+
 # Google Cloud
 
 Always prefer the installed `gcloud` CLI when interacting with Google Cloud.

@@ -1,6 +1,6 @@
 # pstack model configuration
 
-Per-role model overrides for pstack skills. Each pstack SKILL.md names its defaults in a Models section; the values here override those defaults. Delete a line to fall back to the skill default. A value of `inherit-parent` or `auto` runs that role on the parent session's model (the `Agent` call omits `model`); an alias entry in a panel list still counts toward that panel's fan-out. A model may carry a reasoning effort, as in `gpt-6.1-sol @xhigh` (levels: low, medium, high, xhigh, max); the role then runs through the pstack effort agent of that level, each entry of a panel list on its own. `default effort` sets the level for a value without one; `session` keeps the parent session's effort. `session hook: off` stops the Claude Code or Codex SessionStart hook, or the pstack Pi extension, from injecting the poteto-mode mandate; any other value, or no line, leaves it on.
+Per-role model overrides for pstack. `default effort: session` means strict inheritance from the calling session, enforced at dispatch by the installed PreToolUse hook. The rules below override pstack's default effort adjustments. `session hook: on` enables pstack's routing instruction.
 
 feature, refactoring: gpt-6.1-sol
 bug-fix: gpt-6.1-sol
@@ -22,3 +22,16 @@ interrogate reviewers: gpt-6-astra, gpt-6.1-sol
 
 default effort: session
 session hook: on
+
+## Strict session effort
+
+Every pstack agent must use the calling session's current effort. This overrides
+pstack's task-based effort adjustments and its instruction to omit effort for
+`session`. Keep each role's configured model. Do not substitute a model default,
+raise or lower effort, or reuse an effort value from an earlier turn.
+
+The installed `pstack_effort.py` PreToolUse hook enforces this at each dispatch.
+Claude Code supplies the live effort in the hook event. Codex reads the matching
+current `turn_context` from the transcript and passes it as `reasoning_effort`.
+If the live effort cannot be determined, the hook blocks the dispatch. Do not
+bypass the hook or retry with a different effort. Report unsupported levels.

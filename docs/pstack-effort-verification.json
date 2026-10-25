@@ -1,0 +1,70 @@
+{
+  "verified_on": "2026-10-25",
+  "claude_version": "2.1.310 (Claude Code)",
+  "codex_version": "codex-cli 0.163.0",
+  "verification": "Child effort was deliberately set to low; the installed hook rewrote it to the current parent effort. Actual efforts were read from persisted runtime metadata, not model responses.",
+  "codex_invocation": "The installed PreToolUse hook definition ran with features.hooks=true and one-off hook trust bypass. Persistent trust was unchanged.",
+  "repeat": "python3 tools/verify_pstack_effort.py --output-dir <temporary-directory>",
+  "results": [
+    {
+      "runtime": "claude",
+      "parent_effort": "high",
+      "model": "claude-opus-5-5",
+      "child_effort": "high"
+    },
+    {
+      "runtime": "claude",
+      "parent_effort": "high",
+      "model": "claude-sonnet-5-5",
+      "child_effort": "high"
+    },
+    {
+      "runtime": "claude",
+      "parent_effort": "high",
+      "model": "claude-fable-5-1",
+      "child_effort": "high"
+    },
+    {
+      "runtime": "claude",
+      "parent_effort": "medium",
+      "model": "claude-fable-5-1",
+      "child_effort": "medium"
+    },
+    {
+      "runtime": "claude",
+      "parent_effort": "medium",
+      "model": "claude-opus-5-5",
+      "child_effort": "medium"
+    },
+    {
+      "runtime": "claude",
+      "parent_effort": "medium",
+      "model": "claude-sonnet-5-5",
+      "child_effort": "medium"
+    },
+    {
+      "runtime": "codex",
+      "parent_effort": "high",
+      "model": "gpt-6-astra",
+      "child_effort": "high"
+    },
+    {
+      "runtime": "codex",
+      "parent_effort": "high",
+      "model": "gpt-6.1-sol",
+      "child_effort": "high"
+    },
+    {
+      "runtime": "codex",
+      "parent_effort": "medium",
+      "model": "gpt-6.1-sol",
+      "child_effort": "medium"
+    },
+    {
+      "runtime": "codex",
+      "parent_effort": "medium",
+      "model": "gpt-6-astra",
+      "child_effort": "medium"
+    }
+  ]
+}

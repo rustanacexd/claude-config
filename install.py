@@ -26,6 +26,7 @@ FILES = {
     "claude/merge_guard.py": [CLAUDE / "merge_guard.py"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
+    "hooks/pstack_effort.py": [CLAUDE / "pstack_effort.py", CODEX / "pstack_effort.py"],
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
        for d in (REPO / "skills").iterdir() if d.is_dir()},
     **{f"codex/skills/{d.name}": [CODEX / "skills" / d.name]
@@ -85,10 +86,36 @@ def overlay(live, repo):
     return live
 
 
+def agent_effort_hook(settings, home):
+    script = str(home / "pstack_effort.py")
+    hooks = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    for entry in hooks:
+        entry["hooks"] = [hook for hook in entry["hooks"] if script not in hook.get("command", "")]
+    hooks[:] = [entry for entry in hooks if entry["hooks"]]
+    hooks.append({
+        "matcher": "^(Agent|Task|spawn_agent|collaborationspawn_agent)$",
+        "hooks": [{
+            "type": "command",
+            "command": f'"{sys.executable}" "{script}"',
+            "timeout": 10,
+        }],
+    })
+
+
 def claude_settings():
     path = CLAUDE / "settings.json"
     live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     settings = overlay(live, json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8")))
+    models = settings.get("modelSettings", {})
+    for family in ("OPUS", "FABLE", "SONNET"):
+        model = settings["env"][f"ANTHROPIC_DEFAULT_{family}_MODEL"]
+        if model in models:
+            models[model].pop("effortLevel", None)
+            if not models[model]:
+                del models[model]
+    if not models:
+        settings.pop("modelSettings", None)
+    agent_effort_hook(settings, CLAUDE)
     settings["statusLine"] = {
         "type": "command",
         "command": f'"{sys.executable}" "{CLAUDE / "statusline.py"}"',
@@ -120,6 +147,7 @@ def codex_config():
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
     config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
+    agent_effort_hook(config, CODEX)
     # Codex rewrites this file in its own style, so only write when the values differ
     # or an older install left quoted keys that text-matching tools do not recognize.
     text = path.read_text(encoding="utf-8") if path.exists() else ""
