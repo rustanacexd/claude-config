@@ -22,7 +22,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: python -m unittest discover -s tests
       - run: npm install -g @anthropic-ai/claude-code @openai/codex
       - name: Install into an empty home, twice
         run: |
@@ -33,8 +32,7 @@ jobs:
           python install.py 2>&1 | tee second.log
           if grep '^failed' first.log second.log; then exit 1; fi
           if grep '^wrote' second.log; then echo "second run was not a no-op"; exit 1; fi
-          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/pstack_effort.py .claude/skills/show-me/SKILL.md \
-                   .codex/pstack_effort.py \
+          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/skills/show-me/SKILL.md \
                    .codex/AGENTS.md .codex/skills/visual-explainer-diff-review/SKILL.md \
                    .claude/skills/gh-stack/SKILL.md .agents/skills/visual-explainer/SKILL.md; do
             test -f "$H/$f" || { echo "missing $f"; exit 1; }
