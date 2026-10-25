@@ -10,26 +10,24 @@ Use the current runtime's task tracker.
    pinned version first and research that version.
 2. Search only for what local sources cannot settle, such as current releases, vendor
    docs, external errors, and prices. Memory does not settle these, even when you are
-   sure. Start with the built-in web search: open the page directly when you know its
-   URL.
+   sure. Use Exa (`web_fetch_exa` when you know the page's URL, or the search tools
+   below when you don't).
 3. Fetch and read the primary source before you state a fact: official docs, a spec, the
    upstream repo, or the vendor's own changelog, blog, release notes, or official social
    posts. A search snippet, aggregator, affiliate review, or undated post is a lead, not
    evidence.
-4. Escalate to Exa when built-in search finds only snippets or secondary sources,
-   cannot open the page, or returns a cached copy older than the question needs. Pick
-   the Exa tool by question:
+4. Pick the available Exa tool by question:
    - Vendor docs, changelogs, upstream repos: `web_search_advanced_exa` with
      `includeDomains` set to the vendor's domains.
    - Current releases, news, anything dated: `web_search_advanced_exa` with
      `startPublishedDate`, plus `endPublishedDate` when the question names a closed
      period.
    - Open-ended questions: `web_search_exa`.
-   - Multi-hop questions: one filtered search per hop. Use `agent_run` when the list of
-     entities is long or not known up front.
+   - Multi-hop questions: one filtered search per hop. For a long list of entities, or
+     one not known up front, use `agent_run` if available; otherwise search each hop.
    If `web_search_advanced_exa` is not available, use `web_search_exa` with the vendor's
    domain or the year in the query. Read pages with `web_fetch_exa`.
-   Run curl or wget on a web page only after `web_fetch_exa` failed on that page,
+   Run `curl` or `wget` on a web page only after `web_fetch_exa` failed on that page,
    truncated it, or returned a stale copy.
 5. Stop once a primary source settles the question. A page that lacks the answer settles
    nothing: before you say something does not exist or was not announced, run one search
