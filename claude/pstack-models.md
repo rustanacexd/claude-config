@@ -20,5 +20,5 @@ swarm workers: opus
 architect runners: opus, fable, sonnet
 interrogate reviewers: opus, fable, sonnet
 
-default effort: session
+default effort: high
 session hook: on

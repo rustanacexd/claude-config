@@ -20,5 +20,5 @@ swarm workers: gpt-6.1-sol
 architect runners: gpt-6-astra, gpt-6.1-sol
 interrogate reviewers: gpt-6-astra, gpt-6.1-sol
 
-default effort: session
+default effort: high
 session hook: on
