@@ -64,15 +64,10 @@
   },
   "enableWorkflows": false,
   "enabledPlugins": {
-    "eli5@claude-community": false,
     "exa@claude-plugins-official": true,
     "pstack@pstack-claude": true,
-    "skill-creator@claude-plugins-official": false,
-    "slack@claude-plugins-official": false,
     "visual-explainer@visual-explainer-marketplace": true,
-    "worktrunk@worktrunk": true,
-    "slack-by-salesforce@synced": false,
-    "cowork-plugin-management@synced": false
+    "worktrunk@worktrunk": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {
