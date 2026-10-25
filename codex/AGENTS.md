@@ -37,23 +37,23 @@ Use the current runtime's task tracker.
 
 # pstack model configuration
 
-feature, refactoring: gpt-6.1-sol @high
-bug-fix: gpt-6.1-sol @xhigh
-perf-issue: gpt-6.1-sol @high
-hillclimb: gpt-6.1-sol @high
-judgment and prose: gpt-6.1-sol @medium
-strongest judgment: gpt-6-astra @high
-how explorer: gpt-6.1-sol @medium
-how explainer: gpt-6.1-sol @medium
-why investigators: gpt-6.1-sol @medium
-why synthesizer: gpt-6.1-sol @medium
-reflect tooling: gpt-6.1-sol @medium
-reflect judgment, divergent, synthesizer: gpt-6.1-sol @high
-arena runners: gpt-6-astra @high, gpt-6.1-sol @high, gpt-6-luna @high
-arena cross-judge pool: gpt-6-astra @high, gpt-6.1-sol @high, gpt-6-luna @high
-swarm workers: gpt-6.1-sol @medium
-architect runners: gpt-6-astra @high, gpt-6.1-sol @high, gpt-6-luna @high
-interrogate reviewers: gpt-6-astra @high, gpt-6.1-sol @high, gpt-6-luna @high
+feature, refactoring: gpt-6.1-sol
+bug-fix: gpt-6.1-sol
+perf-issue: gpt-6.1-sol
+hillclimb: gpt-6.1-sol
+judgment and prose: gpt-6.1-sol
+strongest judgment: gpt-6-astra
+how explorer: gpt-6.1-sol
+how explainer: gpt-6.1-sol
+why investigators: gpt-6.1-sol
+why synthesizer: gpt-6.1-sol
+reflect tooling: gpt-6.1-sol
+reflect judgment, divergent, synthesizer: gpt-6.1-sol
+arena runners: gpt-6-astra, gpt-6.1-sol, gpt-6-luna
+arena cross-judge pool: gpt-6-astra, gpt-6.1-sol, gpt-6-luna
+swarm workers: gpt-6.1-sol
+architect runners: gpt-6-astra, gpt-6.1-sol, gpt-6-luna
+interrogate reviewers: gpt-6-astra, gpt-6.1-sol, gpt-6-luna
 
 default effort: session
 
