@@ -120,11 +120,13 @@ def codex_config():
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
     config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
-    # Codex rewrites this file in its own style, so only write when the values differ
-    # or an older install left quoted keys that text-matching tools do not recognize.
+    # Codex rewrites this file in its own style, so only write when the values differ,
+    # an older install left quoted keys that text-matching tools do not recognize, or
+    # Codex wrote a ''' string ending in a quote (''''), which Bun's TOML parser rejects.
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     if (path.is_symlink() or not path.exists() or config != tomllib.loads(text)
-            or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)):
+            or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)
+            or re.search(r"''''\s*$", text, re.M)):
         replace_file(path, toml(config))
 
 
