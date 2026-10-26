@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: oven-sh/setup-bun@v2
       - run: npm install -g @anthropic-ai/claude-code @openai/codex
       - name: Install into an empty home, twice
         run: |
@@ -46,6 +47,11 @@ jobs:
           assert "statusline.py" in settings["statusLine"]["command"], "status line installed"
           tomllib.loads((home / ".codex/config.toml").read_text())
           EOF
+          # Codex re-serializes config.toml on every write; Plannotator then parses it with Bun.
+          cp "$H/.codex/config.toml" "$RUNNER_TEMP/config.before.toml"
+          CODEX_HOME="$H/.codex" codex mcp add ci-rewrite-probe -- echo probe
+          bun -e 'Bun.TOML.parse(await Bun.file(process.argv[1]).text())' "$H/.codex/config.toml"
+          cp "$RUNNER_TEMP/config.before.toml" "$H/.codex/config.toml"
           CLAUDE_CONFIG_DIR="$H/.claude" claude plugin list | tee plugins.txt
           for p in pstack@pstack-claude worktrunk@worktrunk visual-explainer@visual-explainer-marketplace; do
             grep -q "$p" plugins.txt || { echo "plugin $p not installed"; exit 1; }
