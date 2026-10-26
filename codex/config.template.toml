@@ -43,7 +43,9 @@
 
 ["mcp_servers"."exa"]
 "url" = "https://mcp.exa.ai/mcp?tools=web_search_exa,web_fetch_exa,agent_run,web_search_advanced_exa"
-"http_headers_helper" = "zsh -lc 'printf \"{\\\"Authorization\\\":\\\"Bearer %s\\\"}\\n\" \"$EXA_API_KEY\"'"
+# exa-header is zsh's $0. It keeps the value from ending in a quote: Codex would then write it as '''...'''' ,
+# which Bun's TOML parser (Plannotator) rejects.
+"http_headers_helper" = "zsh -lc 'printf \"{\\\"Authorization\\\":\\\"Bearer %s\\\"}\\n\" \"$EXA_API_KEY\"' exa-header"
 
 ["tui"]
 "status_line" = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number", "context-remaining"]
