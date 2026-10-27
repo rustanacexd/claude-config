@@ -60,11 +60,20 @@
   },
   "enableWorkflows": false,
   "enabledPlugins": {
+    "cc-plugin-you-should-know@builtin": true,
     "exa@claude-plugins-official": true,
+    "plannotator@plannotator": true,
     "pstack@pstack-claude": true,
     "visual-explainer@visual-explainer-marketplace": true
   },
   "extraKnownMarketplaces": {
+    "plannotator": {
+      "source": {
+        "source": "github",
+        "repo": "backnotprop/plannotator"
+      },
+      "autoUpdate": true
+    },
     "pstack-claude": {
       "source": {
         "source": "github",
