@@ -13,7 +13,11 @@ if sys.version_info < (3, 11):
 import tomllib
 
 REPO = Path(__file__).resolve().parent
-CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+orca_dir = os.environ.get("ORCA_CLAUDE_INJECTED_CONFIG_DIR")
+# Orca points Claude at a profile directory built from ~/.claude, so ~/.claude is the one to install into.
+ORCA_PROFILE = bool(config_dir and orca_dir) and Path(config_dir).resolve() == Path(orca_dir).resolve()
+CLAUDE = Path.home() / ".claude" if ORCA_PROFILE or not config_dir else Path(config_dir)
 CODEX = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 # `npx skills -g` ignores CLAUDE_CONFIG_DIR and always installs under the home directory.
 SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home() / ".agents/skills"}
@@ -210,6 +214,8 @@ def run(*argv):
         print(f"skipped `{' '.join(argv)}`: {argv[0]} not on PATH")
         return None
     env = dict(os.environ)
+    if ORCA_PROFILE:
+        env.pop("CLAUDE_CONFIG_DIR")
     if os.name == "nt":
         n = int(env.get("GIT_CONFIG_COUNT") or 0)
         env.update({"GIT_CONFIG_COUNT": str(n + 1), f"GIT_CONFIG_KEY_{n}": "core.longpaths",
@@ -280,6 +286,8 @@ def install_third_party_skills():
 
 
 if __name__ == "__main__":
+    if ORCA_PROFILE:
+        print(f"ignored the CLAUDE_CONFIG_DIR Orca set; installing into {CLAUDE}")
     for source, destinations in FILES.items():
         for dest in destinations:
             copy(REPO / source, dest)
