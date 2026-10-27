@@ -24,6 +24,7 @@ FILES = {
     "claude/pstack-models.md": [CLAUDE / "pstack-models.md"],
     "claude/statusline.py": [CLAUDE / "statusline.py"],
     "claude/merge_guard.py": [CLAUDE / "merge_guard.py"],
+    "claude/orca_cookie_guard.py": [CLAUDE / "orca_cookie_guard.py"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
@@ -102,14 +103,25 @@ def claude_settings():
         "onFailure": "block",
         "statusMessage": "Checking PR review threads",
     }
+    cookie_guard = {
+        "type": "command",
+        "command": sys.executable,
+        "args": [str(CLAUDE / "orca_cookie_guard.py")],
+        "timeout": 10,
+        "onFailure": "block",
+        "statusMessage": "Checking for an Orca cookie wipe",
+    }
+    ours = {"merge_guard.py", "orca_cookie_guard.py"}
     hooks = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for entry in hooks:
         entry["hooks"] = [h for h in entry["hooks"]
-                          if not h.get("args") or Path(h["args"][-1]).name != "merge_guard.py"]
+                          if not h.get("args") or Path(h["args"][-1]).name not in ours]
     hooks[:] = [entry for entry in hooks if entry["hooks"]]
     hooks.append({
         "matcher": "Bash|PowerShell",
-        "hooks": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"})],
+        "hooks": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"}),
+                  dict(cookie_guard, **{"if": "Bash(*cookie*)"}),
+                  dict(cookie_guard, **{"if": "PowerShell(*cookie*)"})],
     })
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
