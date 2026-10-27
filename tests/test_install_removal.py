@@ -129,6 +129,37 @@ install.install_plugins("codex", {"kept@mkt": True})
 checks["a failed plugin step keeps the removal for the next run"] = (
     ("codex", "plugin", "remove", "gone@oldmkt") in calls)
 
+listings["codex"][0]["installed"].append({"pluginId": "new@mkt"})
+install.FAILED.append(("codex", "plugin", "list", "--json"))
+install_template('added_while_failing = 1\n' + after + '\n[plugins."new@mkt"]\nenabled = true\n')
+install.FAILED.clear()
+calls.clear()
+install.install_plugins("codex", {"kept@mkt": True})
+config, _ = install_template(after)
+checks["a Codex key added during a failed run is removed once the repo drops it"] = (
+    "added_while_failing" not in config)
+checks["a Codex plugin added during a failed run is removed once the repo drops it"] = (
+    ("codex", "plugin", "remove", "new@mkt") in calls)
+
+(install.REPO / "claude").mkdir()
+install.INSTALLED_SETTINGS.unlink(missing_ok=True)
+with contextlib.redirect_stdout(io.StringIO()):
+    (install.REPO / "claude/settings.json").write_text(json.dumps({"effortLevel": "high", "addedWhileFailing": 1}))
+    install.FAILED.append(("claude", "plugin", "list", "--json"))
+    install.claude_settings()
+    install.FAILED.clear()
+    (install.REPO / "claude/settings.json").write_text(json.dumps({"effortLevel": "high"}))
+    install.claude_settings()
+checks["a Claude key added during a failed run is removed once the repo drops it"] = (
+    "addedWhileFailing" not in json.loads((home / ".claude/settings.json").read_text()))
+
+install.INSTALLED_SETTINGS.write_text("{}")
+install.INSTALLED_CONFIG.write_text('model = "gpt-5"\n\n[plugins."gone@oldmkt"]\n')
+calls.clear()
+for app in listings:
+    install.install_plugins(app, {"kept@mkt": True})
+checks["a Codex plugin table without enabled counts as enabled"] = ("codex", "plugin", "remove", "gone@oldmkt") in calls
+
 wrong = [name for name, ok in checks.items() if not ok]
 if wrong:
     sys.exit("install removal: " + "; ".join(wrong))
