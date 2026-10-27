@@ -143,7 +143,9 @@ def claude_settings():
     })
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
-    replace_file(INSTALLED_SETTINGS, source)
+    # A failed plugin step keeps the old snapshot, so the next run still knows what to remove.
+    if not FAILED:
+        replace_file(INSTALLED_SETTINGS, source)
 
 
 def codex_config():
@@ -163,7 +165,8 @@ def codex_config():
             or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)
             or re.search(r"''''\s*$", text, re.M)):
         replace_file(path, toml(config))
-    replace_file(INSTALLED_CONFIG, source)
+    if not FAILED:
+        replace_file(INSTALLED_CONFIG, source)
 
 
 def toml(config):

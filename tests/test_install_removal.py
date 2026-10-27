@@ -120,6 +120,15 @@ for app in listings:
     install.install_plugins(app, {"kept@mkt": True})
 checks["no snapshot means nothing is removed"] = calls == []
 
+install.INSTALLED_CONFIG.write_text('[plugins."gone@oldmkt"]\nenabled = true\n')
+install.FAILED.append(("codex", "plugin", "list", "--json"))
+install_template(after)
+install.FAILED.clear()
+calls.clear()
+install.install_plugins("codex", {"kept@mkt": True})
+checks["a failed plugin step keeps the removal for the next run"] = (
+    ("codex", "plugin", "remove", "gone@oldmkt") in calls)
+
 wrong = [name for name, ok in checks.items() if not ok]
 if wrong:
     sys.exit("install removal: " + "; ".join(wrong))
