@@ -17,8 +17,10 @@ CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 CODEX = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 # `npx skills -g` ignores CLAUDE_CONFIG_DIR and always installs under the home directory.
 SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home() / ".agents/skills"}
-# The repo settings as last installed, so a key removed from the repo can be removed from the live file.
+# The repo settings and Codex template as last installed, so a key or plugin removed from the repo
+# can be removed from the live files.
 INSTALLED_SETTINGS = CLAUDE / ".claude-config-settings.json"
+INSTALLED_CONFIG = CODEX / ".claude-config-config.toml"
 FAILED = []
 
 FILES = {
@@ -40,7 +42,6 @@ MARKETPLACES = {
     "claude-plugins-official": "anthropics/claude-plugins-official",
     "pstack-claude": "michael-denyer/pstack-claude",
     "visual-explainer-marketplace": "nicobailon/visual-explainer",
-    "worktrunk": "max-sixty/worktrunk",
 }
 
 THIRD_PARTY_SKILLS = [
@@ -142,14 +143,20 @@ def claude_settings():
     })
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
-    replace_file(INSTALLED_SETTINGS, source)
+    # A failed plugin step keeps the old snapshot, so the next run still knows what to remove.
+    if not FAILED:
+        replace_file(INSTALLED_SETTINGS, source)
 
 
 def codex_config():
     path = CODEX / "config.toml"
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
-    config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
+    source = (REPO / "codex/config.template.toml").read_bytes()
+    repo = tomllib.loads(source.decode())
+    if INSTALLED_CONFIG.exists():
+        prune(live, tomllib.loads(INSTALLED_CONFIG.read_text(encoding="utf-8")), repo)
+    config = overlay(live, repo)
     # Codex rewrites this file in its own style, so only write when the values differ,
     # an older install left quoted keys that text-matching tools do not recognize, or
     # Codex wrote a ''' string ending in a quote (''''), which Bun's TOML parser rejects.
@@ -158,6 +165,8 @@ def codex_config():
             or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)
             or re.search(r"''''\s*$", text, re.M)):
         replace_file(path, toml(config))
+    if not FAILED:
+        replace_file(INSTALLED_CONFIG, source)
 
 
 def toml(config):
@@ -215,8 +224,18 @@ def run(*argv):
     return result.stdout
 
 
+def enabled_plugins(app, path):
+    if not path.exists():
+        return {}
+    if app == "claude":
+        return json.loads(path.read_text(encoding="utf-8"))["enabledPlugins"]
+    plugins = tomllib.loads(path.read_text(encoding="utf-8"))["plugins"]
+    return {name: value["enabled"] for name, value in plugins.items()}
+
+
 def install_plugins(app, enabled):
     scope = ["--scope", "user"] if app == "claude" else []
+    before = enabled_plugins(app, INSTALLED_SETTINGS if app == "claude" else INSTALLED_CONFIG)
     installed = run(app, "plugin", "list", "--json")
     if installed is None:
         return
@@ -232,6 +251,14 @@ def install_plugins(app, enabled):
     if app == "codex":
         rows = rows["marketplaces"]
     known = {row["name"] for row in rows}
+    dropped = {plugin for plugin, on in before.items() if on and plugin not in enabled}
+    for plugin in dropped & installed:
+        run(app, "plugin", "uninstall" if app == "claude" else "remove", plugin, *scope)
+    # Keep a marketplace that the repo or a plugin installed outside the repo still uses.
+    in_use = {plugin.split("@")[1] for plugin in (installed - dropped) | enabled.keys()} | MARKETPLACES.keys()
+    for marketplace in {plugin.split("@")[1] for plugin in dropped} - in_use:
+        if marketplace in known:
+            run(app, "plugin", "marketplace", "remove", marketplace)
     for plugin, on in enabled.items():
         marketplace = plugin.split("@")[1]
         if not on or plugin in installed or marketplace not in MARKETPLACES:
@@ -257,9 +284,8 @@ if __name__ == "__main__":
         for dest in destinations:
             copy(REPO / source, dest)
     # The plugin CLIs rewrite settings as they install, so the repo's config is written after them.
-    install_plugins("claude", json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8"))["enabledPlugins"])
-    codex_plugins = tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8"))["plugins"]
-    install_plugins("codex", {name: value["enabled"] for name, value in codex_plugins.items()})
+    install_plugins("claude", enabled_plugins("claude", REPO / "claude/settings.json"))
+    install_plugins("codex", enabled_plugins("codex", REPO / "codex/config.template.toml"))
     claude_settings()
     codex_config()
     install_third_party_skills()

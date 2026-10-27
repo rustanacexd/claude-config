@@ -90,9 +90,6 @@
 ["plugins"."pstack@pstack-claude"]
 "enabled" = true
 
-["plugins"."worktrunk@worktrunk"]
-"enabled" = true
-
 ["plugins"."gmail@openai-curated-remote"]
 "enabled" = true
 

@@ -28,6 +28,8 @@ jobs:
         run: python tests/test_orca_cookie_guard.py
       - name: Settings install cases
         run: python tests/test_install_settings.py
+      - name: Removal install cases
+        run: python tests/test_install_removal.py
       - name: Install into an empty home, twice
         run: |
           H="$RUNNER_TEMP/home"
@@ -58,9 +60,12 @@ jobs:
           bun -e 'Bun.TOML.parse(await Bun.file(process.argv[1]).text())' "$H/.codex/config.toml"
           cp "$RUNNER_TEMP/config.before.toml" "$H/.codex/config.toml"
           CLAUDE_CONFIG_DIR="$H/.claude" claude plugin list | tee plugins.txt
-          for p in pstack@pstack-claude worktrunk@worktrunk visual-explainer@visual-explainer-marketplace; do
+          for p in pstack@pstack-claude visual-explainer@visual-explainer-marketplace; do
             grep -q "$p" plugins.txt || { echo "plugin $p not installed"; exit 1; }
           done
+          if grep -i worktrunk plugins.txt "$H/.claude/settings.json" "$H/.codex/config.toml"; then
+            echo "worktrunk is still installed"; exit 1
+          fi
           mkdir -p artifact
           cp first.log second.log plugins.txt "$H/.claude/settings.json" "$H/.codex/config.toml" artifact/
       - uses: actions/upload-artifact@v4
