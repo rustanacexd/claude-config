@@ -42,7 +42,6 @@ MARKETPLACES = {
     "claude-plugins-official": "anthropics/claude-plugins-official",
     "pstack-claude": "michael-denyer/pstack-claude",
     "visual-explainer-marketplace": "nicobailon/visual-explainer",
-    "worktrunk": "max-sixty/worktrunk",
 }
 
 THIRD_PARTY_SKILLS = [

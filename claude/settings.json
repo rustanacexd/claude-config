@@ -62,17 +62,9 @@
   "enabledPlugins": {
     "exa@claude-plugins-official": true,
     "pstack@pstack-claude": true,
-    "visual-explainer@visual-explainer-marketplace": true,
-    "worktrunk@worktrunk": true
+    "visual-explainer@visual-explainer-marketplace": true
   },
   "extraKnownMarketplaces": {
-    "worktrunk": {
-      "source": {
-        "source": "github",
-        "repo": "max-sixty/worktrunk"
-      },
-      "autoUpdate": true
-    },
     "pstack-claude": {
       "source": {
         "source": "github",
