@@ -222,8 +222,18 @@ def run(*argv):
     return result.stdout
 
 
+def enabled_plugins(app, path):
+    if not path.exists():
+        return {}
+    if app == "claude":
+        return json.loads(path.read_text(encoding="utf-8"))["enabledPlugins"]
+    plugins = tomllib.loads(path.read_text(encoding="utf-8"))["plugins"]
+    return {name: value["enabled"] for name, value in plugins.items()}
+
+
 def install_plugins(app, enabled):
     scope = ["--scope", "user"] if app == "claude" else []
+    before = enabled_plugins(app, INSTALLED_SETTINGS if app == "claude" else INSTALLED_CONFIG)
     installed = run(app, "plugin", "list", "--json")
     if installed is None:
         return
@@ -239,6 +249,14 @@ def install_plugins(app, enabled):
     if app == "codex":
         rows = rows["marketplaces"]
     known = {row["name"] for row in rows}
+    dropped = {plugin for plugin, on in before.items() if on and plugin not in enabled}
+    for plugin in dropped & installed:
+        run(app, "plugin", "uninstall" if app == "claude" else "remove", plugin, *scope)
+    # Keep a marketplace that the repo or a plugin installed outside the repo still uses.
+    in_use = {plugin.split("@")[1] for plugin in (installed - dropped) | enabled.keys()} | MARKETPLACES.keys()
+    for marketplace in {plugin.split("@")[1] for plugin in dropped} - in_use:
+        if marketplace in known:
+            run(app, "plugin", "marketplace", "remove", marketplace)
     for plugin, on in enabled.items():
         marketplace = plugin.split("@")[1]
         if not on or plugin in installed or marketplace not in MARKETPLACES:
@@ -264,9 +282,8 @@ if __name__ == "__main__":
         for dest in destinations:
             copy(REPO / source, dest)
     # The plugin CLIs rewrite settings as they install, so the repo's config is written after them.
-    install_plugins("claude", json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8"))["enabledPlugins"])
-    codex_plugins = tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8"))["plugins"]
-    install_plugins("codex", {name: value["enabled"] for name, value in codex_plugins.items()})
+    install_plugins("claude", enabled_plugins("claude", REPO / "claude/settings.json"))
+    install_plugins("codex", enabled_plugins("codex", REPO / "codex/config.template.toml"))
     claude_settings()
     codex_config()
     install_third_party_skills()
