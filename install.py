@@ -17,8 +17,10 @@ CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 CODEX = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 # `npx skills -g` ignores CLAUDE_CONFIG_DIR and always installs under the home directory.
 SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home() / ".agents/skills"}
-# The repo settings as last installed, so a key removed from the repo can be removed from the live file.
+# The repo settings and Codex template as last installed, so a key or plugin removed from the repo
+# can be removed from the live files.
 INSTALLED_SETTINGS = CLAUDE / ".claude-config-settings.json"
+INSTALLED_CONFIG = CODEX / ".claude-config-config.toml"
 FAILED = []
 
 FILES = {
@@ -149,7 +151,11 @@ def codex_config():
     path = CODEX / "config.toml"
     live = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
-    config = overlay(live, tomllib.loads((REPO / "codex/config.template.toml").read_text(encoding="utf-8")))
+    source = (REPO / "codex/config.template.toml").read_bytes()
+    repo = tomllib.loads(source.decode())
+    if INSTALLED_CONFIG.exists():
+        prune(live, tomllib.loads(INSTALLED_CONFIG.read_text(encoding="utf-8")), repo)
+    config = overlay(live, repo)
     # Codex rewrites this file in its own style, so only write when the values differ,
     # an older install left quoted keys that text-matching tools do not recognize, or
     # Codex wrote a ''' string ending in a quote (''''), which Bun's TOML parser rejects.
@@ -158,6 +164,7 @@ def codex_config():
             or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)
             or re.search(r"''''\s*$", text, re.M)):
         replace_file(path, toml(config))
+    replace_file(INSTALLED_CONFIG, source)
 
 
 def toml(config):
