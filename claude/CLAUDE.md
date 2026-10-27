@@ -1,4 +1,4 @@
-# Skills and todolists
+# Skills
 
 For a message starting with `/<skill>`, load that skill with the `Skill` tool unless the
 harness already expanded it this turn. Reading its SKILL.md does not count as loading it.
@@ -47,6 +47,5 @@ my credentials, my approval of an irreversible action, or a decision no command 
 
 # Google Cloud
 
-Always prefer the installed `gcloud` CLI when interacting with Google Cloud.
-Use it first for resource queries, logs, builds, and operations. Use the browser
-only when the CLI cannot perform the action or when human sign-in is required.
+Use the installed `gcloud` CLI for Google Cloud resource queries, logs, builds, and
+operations. Use the browser only when the CLI can't do the action or a human must sign in.
