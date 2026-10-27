@@ -32,6 +32,7 @@ FILES = {
     "claude/pstack-models.md": [CLAUDE / "pstack-models.md"],
     "claude/statusline.py": [CLAUDE / "statusline.py"],
     "claude/merge_guard.py": [CLAUDE / "merge_guard.py"],
+    "claude/merge_cleanup.py": [CLAUDE / "merge_cleanup.py"],
     "claude/orca_cookie_guard.py": [CLAUDE / "orca_cookie_guard.py"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
@@ -134,18 +135,26 @@ def claude_settings():
         "onFailure": "block",
         "statusMessage": "Checking for an Orca cookie wipe",
     }
-    ours = {"merge_guard.py", "orca_cookie_guard.py"}
-    hooks = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    for entry in hooks:
-        entry["hooks"] = [h for h in entry["hooks"]
-                          if not h.get("args") or Path(h["args"][-1]).name not in ours]
-    hooks[:] = [entry for entry in hooks if entry["hooks"]]
-    hooks.append({
-        "matcher": "Bash|PowerShell",
-        "hooks": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"}),
-                  dict(cookie_guard, **{"if": "Bash(*cookie*)"}),
-                  dict(cookie_guard, **{"if": "PowerShell(*cookie*)"})],
-    })
+    cleanup = {
+        "type": "command",
+        "command": sys.executable,
+        "args": [str(CLAUDE / "merge_cleanup.py")],
+        "timeout": 10,
+    }
+    ours = {"merge_guard.py", "orca_cookie_guard.py", "merge_cleanup.py"}
+    installed = {
+        "PreToolUse": [dict(guard, **{"if": "Bash(*gh*)"}), dict(guard, **{"if": "PowerShell(*gh*)"}),
+                       dict(cookie_guard, **{"if": "Bash(*cookie*)"}),
+                       dict(cookie_guard, **{"if": "PowerShell(*cookie*)"})],
+        "PostToolUse": [dict(cleanup, **{"if": "Bash(*gh*)"}), dict(cleanup, **{"if": "PowerShell(*gh*)"})],
+    }
+    for event, ours_here in installed.items():
+        hooks = settings.setdefault("hooks", {}).setdefault(event, [])
+        for entry in hooks:
+            entry["hooks"] = [h for h in entry["hooks"]
+                              if not h.get("args") or Path(h["args"][-1]).name not in ours]
+        hooks[:] = [entry for entry in hooks if entry["hooks"]]
+        hooks.append({"matcher": "Bash|PowerShell", "hooks": ours_here})
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
     # After a failed plugin step the snapshot keeps the old keys, so the next run still removes them.
