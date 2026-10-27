@@ -10,6 +10,8 @@ The installer runs and reads the working tree, not the commit: if `git status` s
 edits you did not make, stop and ask before running it.
 The installer does not delete a skill removed from the repo. Delete its installed copies under the
 `skills/` directories of `CLAUDE_CONFIG_DIR` and `CODEX_HOME` (default `~/.claude` and `~/.codex`) yourself.
+A key removed from `claude/settings.json` is removed from the live settings on the next install;
+the installer compares against its copy of the repo settings from the last install.
 
 # Branch cleanup
 
