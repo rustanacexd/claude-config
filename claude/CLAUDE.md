@@ -43,9 +43,30 @@ Build and land PR stacks with `gh stack`, never by hand. Invoke the `gh-stack` s
 read its SKILL.md when it is not in your invocable list. Drive it end to end. Hand back only for
 my credentials, my approval of an irreversible action, or a decision no command can settle.
 
+`gh stack merge` checks only that each PR is open and not a draft. It takes no head-commit
+guard, and with conversation resolution required it merges nothing while any thread is open.
+Right before it, read every PR's head SHA and unresolved threads; right after, read the merged
+heads back and compare them with the verified SHAs. Report the window between the two.
+
 @~/.claude/pstack-models.md
 
 # Google Cloud
 
 Use the installed `gcloud` CLI for Google Cloud resource queries, logs, builds, and
 operations. Use the browser only when the CLI can't do the action or a human must sign in.
+
+# Orca repo hooks
+
+Orca reads `orca.yaml` at the repo root (`scripts.setup`, `scripts.archive`,
+`setupAgentStartupPolicy`, `worktree.sharedDirectories`) and copies untracked files listed in
+`.worktreeinclude`. Setup runs from the new worktree's copy; archive runs from the primary
+checkout's copy, so test an unmerged archive hook in a throwaway clone, never the shared
+primary checkout. `orca worktree rm` runs archive only with `--run-hooks`, and a failing archive
+blocks removal. An archive script must never kill processes by command-line substring: the
+Orca CLI's own argv contains the worktree path, so it kills itself (exit 143).
+
+# Permissions for an away operator
+
+When you send a plan for approval to someone who is not at the keyboard, list every external
+write (PR thread replies or resolution, issue edits) and irreversible step (deletions) in it
+that auto mode will refuse, and ask for those permissions in the same message.
