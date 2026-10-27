@@ -17,6 +17,8 @@ CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 CODEX = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 # `npx skills -g` ignores CLAUDE_CONFIG_DIR and always installs under the home directory.
 SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home() / ".agents/skills"}
+# The repo settings as last installed, so a key removed from the repo can be removed from the live file.
+INSTALLED_SETTINGS = CLAUDE / ".claude-config-settings.json"
 FAILED = []
 
 FILES = {
@@ -86,10 +88,25 @@ def overlay(live, repo):
     return live
 
 
+def prune(live, before, after):
+    for key, value in before.items():
+        if isinstance(value, dict) and isinstance(live.get(key), dict):
+            nested = after.get(key)
+            prune(live[key], value, nested if isinstance(nested, dict) else {})
+            if key not in after and not live[key]:
+                del live[key]
+        elif key not in after:
+            live.pop(key, None)
+
+
 def claude_settings():
     path = CLAUDE / "settings.json"
     live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    settings = overlay(live, json.loads((REPO / "claude/settings.json").read_text(encoding="utf-8")))
+    source = (REPO / "claude/settings.json").read_bytes()
+    repo = json.loads(source)
+    if INSTALLED_SETTINGS.exists():
+        prune(live, json.loads(INSTALLED_SETTINGS.read_text(encoding="utf-8")), repo)
+    settings = overlay(live, repo)
     settings["statusLine"] = {
         "type": "command",
         "command": f'"{sys.executable}" "{CLAUDE / "statusline.py"}"',
@@ -125,6 +142,7 @@ def claude_settings():
     })
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
+    replace_file(INSTALLED_SETTINGS, source)
 
 
 def codex_config():

@@ -26,6 +26,8 @@ jobs:
       - run: npm install -g @anthropic-ai/claude-code @openai/codex
       - name: Orca cookie guard cases
         run: python tests/test_orca_cookie_guard.py
+      - name: Settings install cases
+        run: python tests/test_install_settings.py
       - name: Install into an empty home, twice
         run: |
           H="$RUNNER_TEMP/home"
