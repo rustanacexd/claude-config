@@ -8,9 +8,6 @@
   "permissions": {
     "defaultMode": "auto",
     "deny": [
-      "Artifact",
-      "ArtifactComments",
-      "ArtifactData",
       "DesignSync"
     ]
   },
@@ -44,7 +41,6 @@
   },
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "vimInsertModeRemaps": {
     "jj": "<Esc>"
@@ -88,13 +84,12 @@
       "source": {
         "source": "github",
         "repo": "nicobailon/visual-explainer"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "env": {
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "320000",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-    "FORCE_AUTOUPDATE_PLUGINS": "true",
     "DISABLE_ERROR_REPORTING": "1",
     "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
     "CLAUDE_CODE_ENABLE_TASKS": "false",
