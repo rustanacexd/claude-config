@@ -26,6 +26,8 @@ jobs:
       - run: npm install -g @anthropic-ai/claude-code @openai/codex
       - name: Orca cookie guard cases
         run: python tests/test_orca_cookie_guard.py
+      - name: Merge cleanup hook cases
+        run: python tests/test_merge_cleanup.py
       - name: Settings install cases
         run: python tests/test_install_settings.py
       - name: Removal install cases
@@ -41,7 +43,7 @@ jobs:
           python install.py 2>&1 | tee second.log
           if grep '^failed' first.log second.log; then exit 1; fi
           if grep '^wrote' second.log; then echo "second run was not a no-op"; exit 1; fi
-          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/orca_cookie_guard.py .claude/skills/show-me/SKILL.md \
+          for f in .claude/CLAUDE.md .claude/statusline.py .claude/merge_guard.py .claude/orca_cookie_guard.py .claude/merge_cleanup.py .claude/skills/show-me/SKILL.md \
                    .codex/AGENTS.md .codex/skills/visual-explainer-diff-review/SKILL.md \
                    .claude/skills/gh-stack/SKILL.md .agents/skills/visual-explainer/SKILL.md; do
             test -f "$H/$f" || { echo "missing $f"; exit 1; }
@@ -53,6 +55,7 @@ jobs:
           settings = json.loads((home / ".claude/settings.json").read_text())
           assert "merge_guard.py" in json.dumps(settings["hooks"]["PreToolUse"]), "merge guard hook installed"
           assert "orca_cookie_guard.py" in json.dumps(settings["hooks"]["PreToolUse"]), "cookie guard hook installed"
+          assert "merge_cleanup.py" in json.dumps(settings["hooks"]["PostToolUse"]), "merge cleanup hook installed"
           assert "statusline.py" in settings["statusLine"]["command"], "status line installed"
           tomllib.loads((home / ".codex/config.toml").read_text())
           EOF
