@@ -14,6 +14,9 @@ CASES = {
     'grep -n "orca cookie delete" AGENTS.md': False,
     'git commit -m "block orca cookie delete"': False,
     "node tools/test-session.mjs delete s.json t": False,
+    "orca cookie \\\n  delete --name refreshToken": True,
+    "git commit -m 'Document workaround; orca cookie delete --name x'": False,
+    "grep -n 'example; orca cookie delete' README.md": False,
 }
 
 wrong = [command for command, blocked in CASES.items() if wipes_cookies(command) != blocked]

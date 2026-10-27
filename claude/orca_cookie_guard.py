@@ -14,16 +14,30 @@ import shlex
 import sys
 
 WIPES = {"delete", "clear", "remove", "rm"}
-SEGMENT = re.compile(r"[;&|\n(){}]+")
+SEPARATORS = "();<>|&{}\n"
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 
-def wipes_cookies(command):
-    for segment in SEGMENT.split(command):
-        try:
-            words = shlex.split(segment, posix=True)
-        except ValueError:
-            words = segment.split()
-        while words and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[0]):
+def commands(text):
+    lexer = shlex.shlex(text.replace("\\\n", " "), posix=True, punctuation_chars=SEPARATORS)
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    words = []
+    try:
+        for token in lexer:
+            if all(char in SEPARATORS for char in token):
+                yield words
+                words = []
+            else:
+                words.append(token)
+    except ValueError:
+        pass
+    yield words
+
+
+def wipes_cookies(text):
+    for words in commands(text):
+        while words and ASSIGNMENT.fullmatch(words[0]):
             words = words[1:]
         if len(words) >= 3 and words[1].lower() in ("cookie", "cookies") and words[2].lower() in WIPES:
             return True
