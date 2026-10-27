@@ -105,8 +105,8 @@ def claude_settings():
     live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     source = (REPO / "claude/settings.json").read_bytes()
     repo = json.loads(source)
-    if INSTALLED_SETTINGS.exists():
-        prune(live, json.loads(INSTALLED_SETTINGS.read_text(encoding="utf-8")), repo)
+    before = json.loads(INSTALLED_SETTINGS.read_text(encoding="utf-8")) if INSTALLED_SETTINGS.exists() else {}
+    prune(live, before, repo)
     settings = overlay(live, repo)
     settings["statusLine"] = {
         "type": "command",
@@ -143,9 +143,10 @@ def claude_settings():
     })
     if path.is_symlink() or not path.exists() or settings != json.loads(path.read_text(encoding="utf-8")):
         replace_file(path, json.dumps(settings, indent=2).encode() + b"\n")
-    # A failed plugin step keeps the old snapshot, so the next run still knows what to remove.
-    if not FAILED:
-        replace_file(INSTALLED_SETTINGS, source)
+    # After a failed plugin step the snapshot keeps the old keys, so the next run still removes them.
+    # The source is parsed again because `settings` holds `repo`'s objects and the hook code edits them.
+    replace_file(INSTALLED_SETTINGS, json.dumps(overlay(before, json.loads(source)), indent=2).encode() + b"\n"
+                 if FAILED else source)
 
 
 def codex_config():
@@ -154,8 +155,8 @@ def codex_config():
     live.get("mcp_servers", {}).get("exa", {}).pop("bearer_token_env_var", None)
     source = (REPO / "codex/config.template.toml").read_bytes()
     repo = tomllib.loads(source.decode())
-    if INSTALLED_CONFIG.exists():
-        prune(live, tomllib.loads(INSTALLED_CONFIG.read_text(encoding="utf-8")), repo)
+    before = tomllib.loads(INSTALLED_CONFIG.read_text(encoding="utf-8")) if INSTALLED_CONFIG.exists() else {}
+    prune(live, before, repo)
     config = overlay(live, repo)
     # Codex rewrites this file in its own style, so only write when the values differ,
     # an older install left quoted keys that text-matching tools do not recognize, or
@@ -165,8 +166,7 @@ def codex_config():
             or re.search(r'^\[*"[A-Za-z0-9_-]+"', text, re.M)
             or re.search(r"''''\s*$", text, re.M)):
         replace_file(path, toml(config))
-    if not FAILED:
-        replace_file(INSTALLED_CONFIG, source)
+    replace_file(INSTALLED_CONFIG, toml(overlay(before, repo)) if FAILED else source)
 
 
 def toml(config):
@@ -228,9 +228,10 @@ def enabled_plugins(app, path):
     if not path.exists():
         return {}
     if app == "claude":
-        return json.loads(path.read_text(encoding="utf-8"))["enabledPlugins"]
-    plugins = tomllib.loads(path.read_text(encoding="utf-8"))["plugins"]
-    return {name: value["enabled"] for name, value in plugins.items()}
+        return json.loads(path.read_text(encoding="utf-8")).get("enabledPlugins", {})
+    plugins = tomllib.loads(path.read_text(encoding="utf-8")).get("plugins", {})
+    # Codex treats a plugin table without `enabled` as enabled.
+    return {name: value.get("enabled", True) for name, value in plugins.items()}
 
 
 def install_plugins(app, enabled):
