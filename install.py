@@ -34,6 +34,7 @@ FILES = {
     "claude/merge_guard.py": [CLAUDE / "merge_guard.py"],
     "claude/merge_cleanup.py": [CLAUDE / "merge_cleanup.py"],
     "claude/orca_cookie_guard.py": [CLAUDE / "orca_cookie_guard.py"],
+    "claude/rules/pstack-lessons.md": [CLAUDE / "rules" / "pstack-lessons.md"],
     "codex/AGENTS.md": [CODEX / "AGENTS.md"],
     "codex/pstack-models.md": [CODEX / "pstack-models.md"],
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
