@@ -47,7 +47,6 @@ MARKETPLACES = {
     "claude-plugins-official": "anthropics/claude-plugins-official",
     "plannotator": "backnotprop/plannotator",
     "pstack-claude": "michael-denyer/pstack-claude",
-    "visual-explainer-marketplace": "nicobailon/visual-explainer",
 }
 
 THIRD_PARTY_SKILLS = [
@@ -56,7 +55,6 @@ THIRD_PARTY_SKILLS = [
     ("cli/cli", ["gh"], ["claude-code", "codex"]),
     ("github/gh-stack", ["gh-stack"], ["claude-code", "codex"]),
     ("backnotprop/bro", ["status", "big-pics-little-words"], ["claude-code", "codex"]),
-    ("nicobailon/visual-explainer", ["visual-explainer"], ["codex"]),
 ]
 
 

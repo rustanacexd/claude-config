@@ -63,8 +63,7 @@
     "cc-plugin-you-should-know@builtin": true,
     "exa@claude-plugins-official": true,
     "plannotator@plannotator": true,
-    "pstack@pstack-claude": true,
-    "visual-explainer@visual-explainer-marketplace": true
+    "pstack@pstack-claude": true
   },
   "pluginConfigs": {
     "cc-plugin-agents-md@builtin": {
@@ -85,13 +84,6 @@
       "source": {
         "source": "github",
         "repo": "michael-denyer/pstack-claude"
-      },
-      "autoUpdate": true
-    },
-    "visual-explainer-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "nicobailon/visual-explainer"
       },
       "autoUpdate": true
     }
