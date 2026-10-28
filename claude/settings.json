@@ -6,7 +6,7 @@
     "sessionUrl": false
   },
   "permissions": {
-    "defaultMode": "auto",
+    "defaultMode": "bypassPermissions",
     "deny": [
       "DesignSync"
     ]
