@@ -46,6 +46,12 @@ def format_status(data):
     used = context["total_input_tokens"]
     size = context["context_window_size"]
     ceiling = os.environ.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
+    if not ceiling:
+        try:
+            settings = json.loads((Path.home() / ".claude" / "settings.json").read_text())
+            ceiling = settings.get("autoCompactWindow")
+        except (OSError, ValueError):
+            pass
     pct = context["used_percentage"] or 0
     if ceiling and int(ceiling) < size:
         size = int(ceiling)
