@@ -39,7 +39,7 @@ FILES = {
     **{f"skills/{d.name}": [CLAUDE / "skills" / d.name, CODEX / "skills" / d.name]
        for d in (REPO / "skills").iterdir() if d.is_dir()},
     **{f"codex/skills/{d.name}": [CODEX / "skills" / d.name]
-       for d in (REPO / "codex/skills").iterdir() if d.is_dir()},
+       for d in (REPO / "codex/skills").glob("*") if d.is_dir()},
 }
 
 MARKETPLACES = {
