@@ -46,6 +46,7 @@ FILES = {
 MARKETPLACES = {
     "claude-community": "anthropics/claude-plugins-community",
     "claude-plugins-official": "anthropics/claude-plugins-official",
+    "effective-html": "plannotator/effective-html",
     "plannotator": "backnotprop/plannotator",
     "pstack-claude": "michael-denyer/pstack-claude",
 }

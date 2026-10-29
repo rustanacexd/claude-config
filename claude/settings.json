@@ -62,6 +62,7 @@
   "enabledPlugins": {
     "cc-plugin-you-should-know@builtin": true,
     "exa@claude-plugins-official": true,
+    "plannotator-effective-html@effective-html": true,
     "plannotator@plannotator": true,
     "pstack@pstack-claude": true
   },
@@ -73,6 +74,13 @@
     }
   },
   "extraKnownMarketplaces": {
+    "effective-html": {
+      "source": {
+        "source": "github",
+        "repo": "plannotator/effective-html"
+      },
+      "autoUpdate": true
+    },
     "plannotator": {
       "source": {
         "source": "github",
