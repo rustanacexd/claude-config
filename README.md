@@ -16,6 +16,7 @@ The installer:
 
 - Copies the instructions, model sheets, status line, merge guard, Orca cookie guard, and skills into `~/.claude` and `~/.codex`.
 - Lays `claude/settings.json` over `~/.claude/settings.json` and `codex/config.template.toml` over `~/.codex/config.toml`. Keys set here win. Keys that exist only on the machine, such as a local proxy or credentials, stay.
+- Points the Bash tool at Homebrew bash (`env.CLAUDE_CODE_SHELL` in `claude/settings.json`), so inline commands use bash syntax instead of zsh's. Where `/opt/homebrew/bin/bash` doesn't exist (Windows, Linux, Intel Macs), Claude Code ignores the setting and picks its shell as before.
 - Installs missing enabled plugins with the `claude` and `codex` CLIs.
 - Installs missing third-party skills with `npx skills`.
 
