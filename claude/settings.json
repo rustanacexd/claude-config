@@ -33,7 +33,7 @@
   },
   "enableArtifact": false,
   "outputStyle": "Concise",
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "tui": "fullscreen",
   "voice": {
     "enabled": false,
@@ -55,7 +55,7 @@
       "effortLevel": "high"
     },
     "claude-opus-5-5": {
-      "effortLevel": "medium"
+      "effortLevel": "high"
     }
   },
   "enableWorkflows": false,
