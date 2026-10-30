@@ -54,21 +54,6 @@ checks = {
     "installer hooks stay": "merge_guard.py" in json.dumps(live["hooks"]),
     "second install is a no-op": install_repo(after) == live,
 }
-
-bash = home / "bin/bash"
-bash.parent.mkdir()
-bash.write_text("#!/bin/sh\n")
-bash.chmod(0o755)
-install.BASH_SHELLS = (str(home / "bin/absent"), str(bash))
-with_bash = install_repo(after)
-install.BASH_SHELLS = (str(home / "bin/absent"),)
-live_path.write_text(json.dumps({"env": {"CLAUDE_CODE_SHELL": "/bin/zsh"}}))
-without_bash = install_repo(after)
-checks.update({
-    "Bash tool runs the first Homebrew bash found": with_bash["env"].get("CLAUDE_CODE_SHELL") == str(bash),
-    "other env vars stay beside it": with_bash["env"]["KEEP"] == "1" and with_bash["env"]["USER_ADDED"] == "1",
-    "with no Homebrew bash, the user's shell stays": without_bash["env"].get("CLAUDE_CODE_SHELL") == "/bin/zsh",
-})
 wrong = [name for name, ok in checks.items() if not ok]
 if wrong:
     sys.exit("install settings: " + "; ".join(wrong))

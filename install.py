@@ -26,9 +26,6 @@ SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home(
 INSTALLED_SETTINGS = CLAUDE / ".claude-config-settings.json"
 INSTALLED_CONFIG = CODEX / ".claude-config-config.toml"
 FAILED = []
-# Homebrew's bash: Apple silicon, then Intel. The Bash tool otherwise runs the login shell, zsh on macOS, where `echo ===`
-# and an unmatched glob fail. macOS /bin/bash is 3.2, so it is not a candidate.
-BASH_SHELLS = ("/opt/homebrew/bin/bash", "/usr/local/bin/bash")
 
 FILES = {
     "claude/CLAUDE.md": [CLAUDE / "CLAUDE.md"],
@@ -117,9 +114,6 @@ def claude_settings():
     before = json.loads(INSTALLED_SETTINGS.read_text(encoding="utf-8")) if INSTALLED_SETTINGS.exists() else {}
     prune(live, before, repo)
     settings = overlay(live, repo)
-    shell = next((p for p in BASH_SHELLS if os.access(p, os.X_OK)), None)
-    if shell:
-        settings.setdefault("env", {})["CLAUDE_CODE_SHELL"] = shell
     settings["statusLine"] = {
         "type": "command",
         "command": f'"{sys.executable}" "{CLAUDE / "statusline.py"}"',
