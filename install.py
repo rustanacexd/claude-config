@@ -26,6 +26,12 @@ SKILL_DIRS = {"claude-code": Path.home() / ".claude/skills", "codex": Path.home(
 INSTALLED_SETTINGS = CLAUDE / ".claude-config-settings.json"
 INSTALLED_CONFIG = CODEX / ".claude-config-config.toml"
 FAILED = []
+# gcloud's application-default credentials (ADC). Claude sessions run gcloud on them through
+# auth/credential_file_override: a Workspace session-length policy expires the gcloud sign-in, and an agent
+# shell can't answer the reauthentication prompt.
+GCLOUD_ADC = Path(os.environ.get("CLOUDSDK_CONFIG") or (
+    Path(os.environ.get("APPDATA", "")) / "gcloud" if os.name == "nt" else Path.home() / ".config/gcloud"
+)) / "application_default_credentials.json"
 
 FILES = {
     "claude/CLAUDE.md": [CLAUDE / "CLAUDE.md"],
@@ -111,6 +117,10 @@ def claude_settings():
     live = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     source = (REPO / "claude/settings.json").read_bytes()
     repo = json.loads(source)
+    if GCLOUD_ADC.is_file():
+        repo.setdefault("env", {})["CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE"] = str(GCLOUD_ADC)
+    # The snapshot records what this install added, so a key it stops adding is removed next time.
+    source = json.dumps(repo, indent=2).encode() + b"\n"
     before = json.loads(INSTALLED_SETTINGS.read_text(encoding="utf-8")) if INSTALLED_SETTINGS.exists() else {}
     prune(live, before, repo)
     settings = overlay(live, repo)
