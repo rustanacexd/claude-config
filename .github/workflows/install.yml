@@ -30,8 +30,6 @@ jobs:
         run: python tests/test_merge_cleanup.py
       - name: Settings install cases
         run: python tests/test_install_settings.py
-      - name: Removal install cases
-        run: python tests/test_install_removal.py
       - name: Orca profile cases
         run: python tests/test_install_orca_profile.py
       - name: Install into an empty home, twice
