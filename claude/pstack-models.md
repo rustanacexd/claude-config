@@ -7,7 +7,7 @@ bug-fix: opus
 perf-issue: opus
 hillclimb: opus
 judgment and prose: opus
-strongest judgment: fable
+strongest judgment: opus @max
 how explorer: opus
 how explainer: opus
 why investigators: opus
