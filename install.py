@@ -32,6 +32,10 @@ FAILED = []
 GCLOUD_ADC = Path(os.environ.get("CLOUDSDK_CONFIG") or (
     Path(os.environ.get("APPDATA", "")) / "gcloud" if os.name == "nt" else Path.home() / ".config/gcloud"
 )) / "application_default_credentials.json"
+ORCA_PROFILES = (Path(os.environ.get("APPDATA", "")) if os.name == "nt" else
+                 Path.home() / "Library/Application Support" if sys.platform == "darwin" else
+                 Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")) / "orca/claude-profiles"
+RETIRED_MCP_SERVERS = ["exa-advanced"]
 
 FILES = {
     "claude/CLAUDE.md": [CLAUDE / "CLAUDE.md"],
@@ -228,14 +232,16 @@ def toml(config):
     return data.encode()
 
 
-def run(*argv):
+def run(*argv, config_dir=None):
     executable = shutil.which(argv[0])
     if not executable:
         print(f"skipped `{' '.join(argv)}`: {argv[0]} not on PATH")
         return None
     env = dict(os.environ)
-    if ORCA_PROFILE:
-        env.pop("CLAUDE_CONFIG_DIR")
+    if ORCA_PROFILE or config_dir:
+        env.pop("CLAUDE_CONFIG_DIR", None)
+    if config_dir:
+        env["CLAUDE_CONFIG_DIR"] = str(config_dir)
     if os.name == "nt":
         n = int(env.get("GIT_CONFIG_COUNT") or 0)
         env.update({"GIT_CONFIG_COUNT": str(n + 1), f"GIT_CONFIG_KEY_{n}": "core.longpaths",
@@ -299,6 +305,20 @@ def install_plugins(app, enabled):
         run(app, "plugin", "install" if app == "claude" else "add", plugin, *scope)
 
 
+def remove_retired_mcp_servers():
+    personal = Path.home() / ".claude.json" if ORCA_PROFILE or not config_dir else CLAUDE / ".claude.json"
+    # Orca merges the personal servers into each profile at launch and never deletes one there,
+    # so the personal file goes first or the next launch copies the server back.
+    configs = [(personal, None)] + [(home / ".claude.json", home) for home in sorted(ORCA_PROFILES.glob("*/home"))]
+    for path, home in configs:
+        if not path.is_file():
+            continue
+        servers = json.loads(path.read_text(encoding="utf-8")).get("mcpServers") or {}
+        for name in RETIRED_MCP_SERVERS:
+            if name in servers and run("claude", "mcp", "remove", name, "-s", "user", config_dir=home) is not None:
+                print(f"removed MCP server {name} from {path}")
+
+
 def install_third_party_skills():
     for source, skills, agents in THIRD_PARTY_SKILLS:
         if all((SKILL_DIRS[a] / s / "SKILL.md").is_file() for a in agents for s in skills):
@@ -312,6 +332,7 @@ if __name__ == "__main__":
     for source, destinations in FILES.items():
         for dest in destinations:
             copy(REPO / source, dest)
+    remove_retired_mcp_servers()
     # The plugin CLIs rewrite settings as they install, so the repo's config is written after them.
     install_plugins("claude", enabled_plugins("claude", REPO / "claude/settings.json"))
     install_plugins("codex", enabled_plugins("codex", REPO / "codex/config.template.toml"))

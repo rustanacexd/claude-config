@@ -18,6 +18,7 @@ The installer:
 - Lays `claude/settings.json` over `~/.claude/settings.json` and `codex/config.template.toml` over `~/.codex/config.toml`. Keys set here win. Keys that exist only on the machine, such as a local proxy or credentials, stay.
 - Points the Bash tool at Homebrew bash (`env.CLAUDE_CODE_SHELL` in `claude/settings.json`), so inline commands use bash syntax instead of zsh's. Where `/opt/homebrew/bin/bash` doesn't exist (Windows, Linux, Intel Macs), Claude Code ignores the setting and picks its shell as before.
 - Runs gcloud in Claude sessions on its application-default credentials (`env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE`) when `gcloud auth application-default login` has written them. A Workspace session-length policy expires the normal gcloud sign-in, and an agent can't answer the reauthentication prompt. Without the file, the setting is removed.
+- Removes retired MCP servers (`exa-advanced`) from `~/.claude.json` first, then from every Orca profile, since Orca's launch-time merge copies servers into profiles but never deletes them.
 - Installs missing enabled plugins with the `claude` and `codex` CLIs.
 - Installs missing third-party skills with `npx skills`.
 
